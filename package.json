@@ -88,7 +88,7 @@
     "vite-plugin-svg-icons": "^2.0.1",
     "vite-plugin-vue-component-preview": "^0.3.4",
     "vite-plugin-vue-inspector": "^3.4.2",
-    "vite-plugin-vue-layouts": "^0.7.0",
+    "vite-plugin-vue-layouts": "^0.8.0",
     "vite-plugin-vue-markdown": "^0.22.6"
   },
   "pnpm": {
