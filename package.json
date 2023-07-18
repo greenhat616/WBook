@@ -89,7 +89,7 @@
     "vite-plugin-vue-component-preview": "^0.3.4",
     "vite-plugin-vue-inspector": "^3.4.2",
     "vite-plugin-vue-layouts": "^0.7.0",
-    "vite-plugin-vue-markdown": "^0.22.6"
+    "vite-plugin-vue-markdown": "^0.23.0"
   },
   "pnpm": {
     "peerDependencyRules": {
