@@ -46,7 +46,7 @@ specifiers:
   prettier: ^2.8.8
   qs: ^6.11.2
   sass: ^1.63.6
-  shiki: ^0.12.1
+  shiki: ^0.14.0
   stylelint: ^14.16.1
   stylelint-config-html: ^1.1.0
   stylelint-config-prettier: ^9.0.5
@@ -127,7 +127,7 @@ devDependencies:
   postcss-import: 15.1.0_postcss@8.4.26
   prettier: 2.8.8
   sass: 1.63.6
-  shiki: 0.12.1
+  shiki: 0.14.3
   stylelint: 14.16.1
   stylelint-config-html: 1.1.0_kbto3rg3njmczth2rrsgfnlsqa
   stylelint-config-prettier: 9.0.5_stylelint@14.16.1
@@ -2834,6 +2834,10 @@ packages:
   /ansi-regex/6.0.1:
     resolution: {integrity: sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==}
     engines: {node: '>=12'}
+    dev: true
+
+  /ansi-sequence-parser/1.1.0:
+    resolution: {integrity: sha512-lEm8mt52to2fT8GhciPCGeCXACSz2UwIN4X2e2LJSnZ5uAbn2/dsYdOmUXq0AtWS5cpAupysIneExOgH0Vd2TQ==}
     dev: true
 
   /ansi-styles/2.2.1:
@@ -5789,7 +5793,7 @@ packages:
     dependencies:
       universalify: 2.0.0
     optionalDependencies:
-      graceful-fs: 4.2.10
+      graceful-fs: 4.2.11
     dev: true
 
   /jsonparse/1.3.1:
@@ -6441,7 +6445,7 @@ packages:
     dependencies:
       env-paths: 2.2.1
       glob: 7.2.3
-      graceful-fs: 4.2.10
+      graceful-fs: 4.2.11
       make-fetch-happen: 10.2.1
       nopt: 6.0.0
       npmlog: 6.0.2
@@ -7498,9 +7502,10 @@ packages:
       vscode-textmate: 6.0.0
     dev: true
 
-  /shiki/0.12.1:
-    resolution: {integrity: sha512-aieaV1m349rZINEBkjxh2QbBvFFQOlgqYTNtCal82hHj4dDZ76oMlQIX+C7ryerBTDiga3e5NfH6smjdJ02BbQ==}
+  /shiki/0.14.3:
+    resolution: {integrity: sha512-U3S/a+b0KS+UkTyMjoNojvTgrBHjgp7L6ovhFVZsXmBGnVdQ4K4U9oK0z63w538S91ATngv1vXigHCSWOwnr+g==}
     dependencies:
+      ansi-sequence-parser: 1.1.0
       jsonc-parser: 3.2.0
       vscode-oniguruma: 1.7.0
       vscode-textmate: 8.0.0

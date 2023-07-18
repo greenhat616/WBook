@@ -68,7 +68,7 @@
     "postcss-import": "^15.1.0",
     "prettier": "^2.8.8",
     "sass": "^1.63.6",
-    "shiki": "^0.12.1",
+    "shiki": "^0.14.0",
     "stylelint": "^14.16.1",
     "stylelint-config-html": "^1.1.0",
     "stylelint-config-prettier": "^9.0.5",
