@@ -36,7 +36,7 @@
     "@commitlint/types": "^17.8.1",
     "@iconify/json": "^2.2.134",
     "@iconify/vue": "^4.1.1",
-    "@intlify/unplugin-vue-i18n": "^0.12.3",
+    "@intlify/unplugin-vue-i18n": "^0.13.0",
     "@tauri-apps/cli": "^1.5.6",
     "@types/markdown-it-link-attributes": "^3.0.3",
     "@types/node": "^20.8.9",
