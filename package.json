@@ -56,7 +56,7 @@
     "@wdio/spec-reporter": "8.36.1",
     "@wdio/types": "8.36.1",
     "autoprefixer": "10.4.19",
-    "clsx": "2.1.0",
+    "clsx": "2.1.1",
     "colord": "2.9.3",
     "cross-env": "7.0.3",
     "dayjs": "1.11.10",
