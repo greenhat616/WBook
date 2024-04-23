@@ -15,8 +15,8 @@ importers:
         specifier: 1.0.2
         version: 1.0.2(@types/react@18.2.79)(react@18.2.0)
       '@tauri-apps/api':
-        specifier: 1.5.3
-        version: 1.5.3
+        specifier: 1.5.4
+        version: 1.5.4
       class-variance-authority:
         specifier: 0.7.0
         version: 0.7.0
@@ -241,8 +241,8 @@ importers:
         specifier: 1.5.0
         version: 1.5.0(@types/node@20.12.7)(sass@1.75.0)
       zod:
-        specifier: 3.23.0
-        version: 3.23.0
+        specifier: 3.23.3
+        version: 3.23.3
       zustand:
         specifier: 4.5.2
         version: 4.5.2(@types/react@18.2.79)(react@18.2.0)
@@ -970,8 +970,8 @@ packages:
     resolution: {integrity: sha512-+PmQX0PiAYPMeVYe237LJAYvOMYW1j2rH5YROyS3b4CTVJum34HfRvKvAzozHAQG0TnHNdUfY9nCeUyRAs//cw==}
     engines: {node: '>=14.16'}
 
-  '@tauri-apps/api@1.5.3':
-    resolution: {integrity: sha512-zxnDjHHKjOsrIzZm6nO5Xapb/BxqUq1tc7cGkFXsFkGTsSWgCPH1D8mm0XS9weJY2OaR73I3k3S+b7eSzJDfqA==}
+  '@tauri-apps/api@1.5.4':
+    resolution: {integrity: sha512-LKYae9URbdEdbHrOXBeXb/lZgVyWTX0E98rSFBuQlmkLr8OeG+akuE41PfLjBVyk1Q+fq7wxo4ieenLSMUAUhA==}
     engines: {node: '>= 14.6.0', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
 
   '@tauri-apps/cli-darwin-arm64@1.5.11':
@@ -4922,8 +4922,8 @@ packages:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
     engines: {node: '>= 14'}
 
-  zod@3.23.0:
-    resolution: {integrity: sha512-OFLT+LTocvabn6q76BTwVB0hExEBS0IduTr3cqZyMqEDbOnYmcU+y0tUAYbND4uwclpBGi4I4UUBGzylWpjLGA==}
+  zod@3.23.3:
+    resolution: {integrity: sha512-tPvq1B/2Yu/dh2uAIH2/BhUlUeLIUvAjr6dpL/75I0pCYefHgjhXk1o1Kob3kTU8C7yU1j396jFHlsVWFi9ogg==}
 
   zustand@4.5.2:
     resolution: {integrity: sha512-2cN1tPkDVkwCy5ickKrI7vijSjPksFRfqS6237NzT0vqSsztTNnQdHw9mmN7uBdk3gceVXU0a+21jFzFzAc9+g==}
@@ -5704,7 +5704,7 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@tauri-apps/api@1.5.3': {}
+  '@tauri-apps/api@1.5.4': {}
 
   '@tauri-apps/cli-darwin-arm64@1.5.11':
     optional: true
@@ -10288,7 +10288,7 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.5.2
 
-  zod@3.23.0: {}
+  zod@3.23.3: {}
 
   zustand@4.5.2(@types/react@18.2.79)(react@18.2.0):
     dependencies:
