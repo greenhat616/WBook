@@ -13,7 +13,7 @@ importers:
         version: 1.19.3(react-router-dom@6.23.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.2.10(@types/node@20.12.7)(sass@1.75.0))
       '@radix-ui/react-slot':
         specifier: 1.0.2
-        version: 1.0.2(@types/react@18.3.0)(react@18.3.1)
+        version: 1.0.2(@types/react@18.3.1)(react@18.3.1)
       '@tauri-apps/api':
         specifier: 1.5.4
         version: 1.5.4
@@ -61,8 +61,8 @@ importers:
         specifier: 20.12.7
         version: 20.12.7
       '@types/react':
-        specifier: 18.3.0
-        version: 18.3.0
+        specifier: 18.3.1
+        version: 18.3.1
       '@types/react-dom':
         specifier: 18.3.0
         version: 18.3.0
@@ -245,7 +245,7 @@ importers:
         version: 3.23.4
       zustand:
         specifier: 4.5.2
-        version: 4.5.2(@types/react@18.3.0)(react@18.3.1)
+        version: 4.5.2(@types/react@18.3.1)(react@18.3.1)
 
 packages:
 
@@ -1108,8 +1108,8 @@ packages:
   '@types/react-helmet@6.1.11':
     resolution: {integrity: sha512-0QcdGLddTERotCXo3VFlUSWO3ztraw8nZ6e3zJSgG7apwV5xt+pJUS8ewPBqT4NYB1optGLprNQzFleIY84u/g==}
 
-  '@types/react@18.3.0':
-    resolution: {integrity: sha512-DiUcKjzE6soLyln8NNZmyhcQjVv+WsUIFSqetMN0p8927OztKT4VTfFTqsbAi5oAGIcgOmOajlfBqyptDDjZRw==}
+  '@types/react@18.3.1':
+    resolution: {integrity: sha512-V0kuGBX3+prX+DQ/7r2qsv1NsdfnCLnTgnRJ1pYnxykBhGMz+qj+box5lq7XsO5mtZsBqpjwwTu/7wszPfMBcw==}
 
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
@@ -5545,20 +5545,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@radix-ui/react-compose-refs@1.0.1(@types/react@18.3.0)(react@18.3.1)':
+  '@radix-ui/react-compose-refs@1.0.1(@types/react@18.3.1)(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.24.4
       react: 18.3.1
     optionalDependencies:
-      '@types/react': 18.3.0
+      '@types/react': 18.3.1
 
-  '@radix-ui/react-slot@1.0.2(@types/react@18.3.0)(react@18.3.1)':
+  '@radix-ui/react-slot@1.0.2(@types/react@18.3.1)(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.23.2
-      '@radix-ui/react-compose-refs': 1.0.1(@types/react@18.3.0)(react@18.3.1)
+      '@radix-ui/react-compose-refs': 1.0.1(@types/react@18.3.1)(react@18.3.1)
       react: 18.3.1
     optionalDependencies:
-      '@types/react': 18.3.0
+      '@types/react': 18.3.1
 
   '@remix-run/router@1.16.0': {}
 
@@ -5813,13 +5813,13 @@ snapshots:
 
   '@types/react-dom@18.3.0':
     dependencies:
-      '@types/react': 18.3.0
+      '@types/react': 18.3.1
 
   '@types/react-helmet@6.1.11':
     dependencies:
-      '@types/react': 18.3.0
+      '@types/react': 18.3.1
 
-  '@types/react@18.3.0':
+  '@types/react@18.3.1':
     dependencies:
       '@types/prop-types': 15.7.9
       csstype: 3.1.2
@@ -10293,9 +10293,9 @@ snapshots:
 
   zod@3.23.4: {}
 
-  zustand@4.5.2(@types/react@18.3.0)(react@18.3.1):
+  zustand@4.5.2(@types/react@18.3.1)(react@18.3.1):
     dependencies:
       use-sync-external-store: 1.2.0(react@18.3.1)
     optionalDependencies:
-      '@types/react': 18.3.0
+      '@types/react': 18.3.1
       react: 18.3.1
