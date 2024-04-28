@@ -59,7 +59,7 @@
     "clsx": "2.1.1",
     "colord": "2.9.3",
     "cross-env": "7.0.3",
-    "dayjs": "1.11.10",
+    "dayjs": "1.11.11",
     "eslint": "8.57.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-config-standard": "17.1.0",
