@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@generouted/react-router':
         specifier: 1.19.5
-        version: 1.19.5(react-router-dom@6.23.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+        version: 1.19.5(react-router-dom@6.23.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       '@radix-ui/react-slot':
         specifier: 1.0.2
         version: 1.0.2(@types/react@18.3.3)(react@18.3.1)
@@ -77,7 +77,7 @@ importers:
         version: 7.11.0(eslint@8.57.0)(typescript@5.4.5)
       '@vitejs/plugin-react':
         specifier: 4.3.0
-        version: 4.3.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+        version: 4.3.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       '@wdio/cli':
         specifier: 8.38.1
         version: 8.38.1(typescript@5.4.5)
@@ -181,8 +181,8 @@ importers:
         specifier: 14.1.2
         version: 14.1.2(i18next@23.11.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       sass:
-        specifier: 1.77.3
-        version: 1.77.3
+        specifier: 1.77.4
+        version: 1.77.4
       shikiji:
         specifier: 0.10.2
         version: 0.10.2
@@ -227,19 +227,19 @@ importers:
         version: 0.19.0(@svgr/core@8.1.0(typescript@5.4.5))
       vite:
         specifier: 5.2.12
-        version: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+        version: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
       vite-plugin-i18next-loader:
         specifier: 2.0.12
-        version: 2.0.12(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+        version: 2.0.12(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       vite-plugin-markdown:
         specifier: 2.2.0
-        version: 2.2.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+        version: 2.2.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       vite-plugin-svgr:
         specifier: 4.2.0
-        version: 4.2.0(rollup@4.14.1)(typescript@5.4.5)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+        version: 4.2.0(rollup@4.14.1)(typescript@5.4.5)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       vitest:
         specifier: 1.6.0
-        version: 1.6.0(@types/node@20.12.13)(sass@1.77.3)
+        version: 1.6.0(@types/node@20.12.13)(sass@1.77.4)
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -4179,8 +4179,8 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
-  sass@1.77.3:
-    resolution: {integrity: sha512-WJHo+jmFp0dwRuymPmIovuxHaBntcCyja5hCB0yYY9wWrViEp4kF5Cdai98P72v6FzroPuABqu+ddLMbQWmwzA==}
+  sass@1.77.4:
+    resolution: {integrity: sha512-vcF3Ckow6g939GMA4PeU7b2K/9FALXk2KF9J87txdHzXbUF9XRQRwSxcAs/fGaTnJeBFd7UoV22j3lzMLdM0Pw==}
     engines: {node: '>=14.0.0'}
     hasBin: true
 
@@ -5616,13 +5616,13 @@ snapshots:
 
   '@eslint/js@8.57.0': {}
 
-  '@generouted/react-router@1.19.5(react-router-dom@6.23.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))':
+  '@generouted/react-router@1.19.5(react-router-dom@6.23.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))':
     dependencies:
       fast-glob: 3.3.2
-      generouted: 1.19.5(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))
+      generouted: 1.19.5(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))
       react: 18.3.1
       react-router-dom: 6.23.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
@@ -6156,14 +6156,14 @@ snapshots:
 
   '@ungap/structured-clone@1.2.0': {}
 
-  '@vitejs/plugin-react@4.3.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3))':
+  '@vitejs/plugin-react@4.3.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4))':
     dependencies:
       '@babel/core': 7.24.5
       '@babel/plugin-transform-react-jsx-self': 7.24.5(@babel/core@7.24.5)
       '@babel/plugin-transform-react-jsx-source': 7.24.1(@babel/core@7.24.5)
       '@types/babel__core': 7.20.5
       react-refresh: 0.14.2
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
     transitivePeerDependencies:
       - supports-color
 
@@ -7834,9 +7834,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  generouted@1.19.5(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3)):
+  generouted@1.19.5(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4)):
     dependencies:
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
 
   gensync@1.0.0-beta.2: {}
 
@@ -9501,7 +9501,7 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sass@1.77.3:
+  sass@1.77.4:
     dependencies:
       chokidar: 3.6.0
       immutable: 4.3.4
@@ -10226,13 +10226,13 @@ snapshots:
       spdx-correct: 3.2.0
       spdx-expression-parse: 3.0.1
 
-  vite-node@1.6.0(@types/node@20.12.13)(sass@1.77.3):
+  vite-node@1.6.0(@types/node@20.12.13)(sass@1.77.4):
     dependencies:
       cac: 6.7.14
       debug: 4.3.4(supports-color@8.1.1)
       pathe: 1.1.2
       picocolors: 1.0.1
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -10243,7 +10243,7 @@ snapshots:
       - supports-color
       - terser
 
-  vite-plugin-i18next-loader@2.0.12(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3)):
+  vite-plugin-i18next-loader@2.0.12(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4)):
     dependencies:
       dot-prop: 8.0.2
       glob-all: 3.3.1
@@ -10251,28 +10251,28 @@ snapshots:
       marked: 12.0.1
       marked-terminal: 7.0.0(marked@12.0.1)
       ts-deepmerge: 7.0.0
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
 
-  vite-plugin-markdown@2.2.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3)):
+  vite-plugin-markdown@2.2.0(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4)):
     dependencies:
       domhandler: 4.3.1
       front-matter: 4.0.2
       htmlparser2: 6.1.0
       markdown-it: 12.3.2
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
 
-  vite-plugin-svgr@4.2.0(rollup@4.14.1)(typescript@5.4.5)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.3)):
+  vite-plugin-svgr@4.2.0(rollup@4.14.1)(typescript@5.4.5)(vite@5.2.12(@types/node@20.12.13)(sass@1.77.4)):
     dependencies:
       '@rollup/pluginutils': 5.0.5(rollup@4.14.1)
       '@svgr/core': 8.1.0(typescript@5.4.5)
       '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.4.5))
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
     transitivePeerDependencies:
       - rollup
       - supports-color
       - typescript
 
-  vite@5.2.12(@types/node@20.12.13)(sass@1.77.3):
+  vite@5.2.12(@types/node@20.12.13)(sass@1.77.4):
     dependencies:
       esbuild: 0.20.2
       postcss: 8.4.38
@@ -10280,9 +10280,9 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.12.13
       fsevents: 2.3.3
-      sass: 1.77.3
+      sass: 1.77.4
 
-  vitest@1.6.0(@types/node@20.12.13)(sass@1.77.3):
+  vitest@1.6.0(@types/node@20.12.13)(sass@1.77.4):
     dependencies:
       '@vitest/expect': 1.6.0
       '@vitest/runner': 1.6.0
@@ -10301,8 +10301,8 @@ snapshots:
       strip-literal: 2.1.0
       tinybench: 2.5.1
       tinypool: 0.8.3
-      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.3)
-      vite-node: 1.6.0(@types/node@20.12.13)(sass@1.77.3)
+      vite: 5.2.12(@types/node@20.12.13)(sass@1.77.4)
+      vite-node: 1.6.0(@types/node@20.12.13)(sass@1.77.4)
       why-is-node-running: 2.2.2
     optionalDependencies:
       '@types/node': 20.12.13
