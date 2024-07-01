@@ -80,7 +80,7 @@
     "postcss-import": "16.1.0",
     "postcss-scss": "4.0.9",
     "prettier": "3.3.2",
-    "qs": "6.12.1",
+    "qs": "6.12.2",
     "react-helmet": "6.1.0",
     "react-i18next": "14.1.2",
     "sass": "1.77.6",
