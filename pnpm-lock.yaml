@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@generouted/react-router':
-        specifier: 1.19.5
-        version: 1.19.5(react-router-dom@6.24.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))
+        specifier: 1.19.6
+        version: 1.19.6(react-router-dom@6.24.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))
       '@radix-ui/react-slot':
         specifier: 1.1.0
         version: 1.1.0(@types/react@18.3.3)(react@18.3.1)
@@ -643,8 +643,8 @@ packages:
     resolution: {integrity: sha512-Ys+3g2TaW7gADOJzPt83SJtCDhMjndcDMFVQ/Tj9iA1BfJzFKD9mAUXT3OenpuPHbI6P/myECxRJrofUsDx/5g==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
-  '@generouted/react-router@1.19.5':
-    resolution: {integrity: sha512-9m42I+F12VcpAWSYAAZco6qS1WLzvwLJ3L4EKy8swXsnebPbPDA2BFUHlWMohyx7pwC8CuxfJjewfUk3qTpYxQ==}
+  '@generouted/react-router@1.19.6':
+    resolution: {integrity: sha512-czOBAwmYYr1E9GZstiek8Kd16NSLT+/yZs4HU/NW/Xd27Yk3SpI1q8hll4kD9mzvM4yuJZxWsOyQsZsxY2MNsA==}
     peerDependencies:
       react: '>=18'
       react-router-dom: '>=6'
@@ -2458,8 +2458,8 @@ packages:
     engines: {node: ^16.13 || >=18 || >=20}
     hasBin: true
 
-  generouted@1.19.5:
-    resolution: {integrity: sha512-hts4B0UhYzPKGmGsGhkbCclcZWAeTe3EKW6oLY4tfXMj/A/wk/QTzeYgJqHL9dJd5d0E8vUoqpV6TucH50I9Rw==}
+  generouted@1.19.6:
+    resolution: {integrity: sha512-IkeOH3vnPlG9dLrF3NGC0G6aG8185MTjvMiR5Vzlx9Ztz3VoHJrO2LCen/g/kCBBB3gzD6qqxcdWdKws/bYndA==}
     peerDependencies:
       vite: '>=3'
 
@@ -5329,10 +5329,10 @@ snapshots:
 
   '@eslint/js@8.57.0': {}
 
-  '@generouted/react-router@1.19.5(react-router-dom@6.24.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))':
+  '@generouted/react-router@1.19.6(react-router-dom@6.24.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))':
     dependencies:
       fast-glob: 3.3.2
-      generouted: 1.19.5(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))
+      generouted: 1.19.6(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6))
       react: 18.3.1
       react-router-dom: 6.24.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       vite: 5.3.3(@types/node@20.14.10)(sass@1.77.6)
@@ -7519,7 +7519,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  generouted@1.19.5(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6)):
+  generouted@1.19.6(vite@5.3.3(@types/node@20.14.10)(sass@1.77.6)):
     dependencies:
       vite: 5.3.3(@types/node@20.14.10)(sass@1.77.6)
 
