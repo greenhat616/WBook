@@ -172,8 +172,8 @@ importers:
         specifier: 3.3.2
         version: 3.3.2
       qs:
-        specifier: 6.12.2
-        version: 6.12.2
+        specifier: 6.12.3
+        version: 6.12.3
       react-helmet:
         specifier: 6.1.0
         version: 6.1.0(react@18.3.1)
@@ -3806,8 +3806,8 @@ packages:
       typescript:
         optional: true
 
-  qs@6.12.2:
-    resolution: {integrity: sha512-x+NLUpx9SYrcwXtX7ob1gnkSems4i/mGZX5SlYxwIau6RrUSODO89TR/XDGGpn5RPWSYIB+aSfuSlV5+CmbTBg==}
+  qs@6.12.3:
+    resolution: {integrity: sha512-AWJm14H1vVaO/iNZ4/hO+HyaTehuy9nRqVdkTqlJt0HWvBiBIEXFmb4C0DGeYo3Xes9rrEW+TxHsaigCbN5ICQ==}
     engines: {node: '>=0.6'}
 
   query-selector-shadow-dom@1.0.1:
@@ -8896,7 +8896,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  qs@6.12.2:
+  qs@6.12.3:
     dependencies:
       side-channel: 1.0.6
 
