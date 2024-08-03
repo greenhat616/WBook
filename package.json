@@ -55,7 +55,7 @@
     "@wdio/mocha-framework": "8.39.0",
     "@wdio/spec-reporter": "8.39.0",
     "@wdio/types": "8.39.0",
-    "autoprefixer": "10.4.19",
+    "autoprefixer": "10.4.20",
     "clsx": "2.1.1",
     "colord": "2.9.3",
     "cross-env": "7.0.3",
