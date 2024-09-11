@@ -40,7 +40,7 @@
     "@commitlint/cli": "19.4.1",
     "@commitlint/config-conventional": "19.4.1",
     "@commitlint/types": "19.0.3",
-    "@iconify/json": "2.2.246",
+    "@iconify/json": "2.2.247",
     "@tauri-apps/cli": "1.6.1",
     "@types/node": "20.16.5",
     "@types/react": "18.3.5",
