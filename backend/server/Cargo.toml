@@ -14,7 +14,7 @@ repository.workspace = true
 shared = { path = "../shared" }
 
 axum = { version = "0.7", features = ["ws"] }
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.6", features = ["cors"] }
 indexmap = "2"
 
 # workspace dependencies
