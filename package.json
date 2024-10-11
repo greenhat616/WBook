@@ -85,7 +85,7 @@
     "react-i18next": "15.0.2",
     "sass": "1.79.5",
     "shikiji": "0.10.2",
-    "stylelint": "16.9.0",
+    "stylelint": "16.10.0",
     "stylelint-config-html": "1.1.0",
     "stylelint-config-recess-order": "5.1.1",
     "stylelint-config-standard": "36.0.1",
