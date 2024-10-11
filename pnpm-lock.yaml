@@ -52,8 +52,8 @@ importers:
         specifier: 19.5.0
         version: 19.5.0
       '@iconify/json':
-        specifier: 2.2.258
-        version: 2.2.258
+        specifier: 2.2.259
+        version: 2.2.259
       '@tauri-apps/cli':
         specifier: 1.6.2
         version: 1.6.2
@@ -142,8 +142,8 @@ importers:
         specifier: 7.37.1
         version: 7.37.1(eslint@8.57.1)
       framer-motion:
-        specifier: 11.11.7
-        version: 11.11.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 11.11.8
+        version: 11.11.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       husky:
         specifier: 9.1.6
         version: 9.1.6
@@ -731,8 +731,8 @@ packages:
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
     deprecated: Use @eslint/object-schema instead
 
-  '@iconify/json@2.2.258':
-    resolution: {integrity: sha512-BW622A/EZ5651qOYkPkXn906U1bLsk/Cv/rYtmkArbZz/h+0c4WdcdrAHiC+weMqjQIUxB1JE20bpERT79BFIg==}
+  '@iconify/json@2.2.259':
+    resolution: {integrity: sha512-QA5chdx3Jw/jpPv6NrABJIbG6++572KocO/hyebEpSx0KYPc1f5dWkGG1tFu6v9NB7Xls8bXZHXak011Gvoiiw==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -2546,8 +2546,8 @@ packages:
   fraction.js@4.3.7:
     resolution: {integrity: sha512-ZsDfxO51wGAXREY55a7la9LScWpwv9RxIrYABrlvOFBlH/ShPnrtsXeuUIfXKKOVicNxQ+o8JTbJvjS4M89yew==}
 
-  framer-motion@11.11.7:
-    resolution: {integrity: sha512-89CgILOXPeG3L7ymOTGrLmf8IiKubYLUN/QkYgQuLvehAHfqgwJbLfCnhuyRI4WTds1TXkUp67A7IJrgRY/j1w==}
+  framer-motion@11.11.8:
+    resolution: {integrity: sha512-mnGQNEoz99GtFXBBPw+Ag5K4FcfP5XrXxrxHz+iE4Lmg7W3sf2gKmGuvfkZCW/yIfcdv5vJd6KiSPETH1Pw68Q==}
     peerDependencies:
       '@emotion/is-prop-valid': '*'
       react: ^18.0.0
@@ -5503,7 +5503,7 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
-  '@iconify/json@2.2.258':
+  '@iconify/json@2.2.259':
     dependencies:
       '@iconify/types': 2.0.0
       pathe: 1.1.2
@@ -7572,7 +7572,7 @@ snapshots:
 
   fraction.js@4.3.7: {}
 
-  framer-motion@11.11.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  framer-motion@11.11.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       tslib: 2.6.2
     optionalDependencies:
