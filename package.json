@@ -82,7 +82,7 @@
     "prettier": "3.3.3",
     "qs": "6.13.0",
     "react-helmet": "6.1.0",
-    "react-i18next": "15.0.2",
+    "react-i18next": "15.0.3",
     "sass": "1.79.5",
     "shikiji": "0.10.2",
     "stylelint": "16.10.0",
