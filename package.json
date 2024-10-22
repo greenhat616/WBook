@@ -69,7 +69,7 @@
     "eslint-plugin-n": "17.11.1",
     "eslint-plugin-prettier": "5.2.1",
     "eslint-plugin-promise": "6.6.0",
-    "eslint-plugin-react": "7.37.1",
+    "eslint-plugin-react": "7.37.2",
     "framer-motion": "11.11.9",
     "husky": "9.1.6",
     "i18next": "23.16.2",
