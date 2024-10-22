@@ -42,7 +42,7 @@
     "@commitlint/types": "19.5.0",
     "@iconify/json": "2.2.262",
     "@tauri-apps/cli": "1.6.3",
-    "@types/node": "20.16.13",
+    "@types/node": "20.16.14",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.1",
     "@types/react-helmet": "6.1.11",
