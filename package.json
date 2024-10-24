@@ -24,7 +24,7 @@
     "test:backend": "cargo test --manifest-path=./backend/Cargo.toml --all-features"
   },
   "dependencies": {
-    "@generouted/react-router": "1.19.7",
+    "@generouted/react-router": "1.19.8",
     "@radix-ui/react-slot": "1.1.0",
     "@tauri-apps/api": "1.6.0",
     "class-variance-authority": "0.7.0",
@@ -72,7 +72,7 @@
     "eslint-plugin-react": "7.37.2",
     "framer-motion": "11.11.9",
     "husky": "9.1.6",
-    "i18next": "23.16.2",
+    "i18next": "23.16.3",
     "lint-staged": "15.2.10",
     "ofetch": "1.4.1",
     "postcss": "8.4.47",
