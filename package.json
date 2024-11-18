@@ -71,7 +71,7 @@
     "eslint-plugin-promise": "6.6.0",
     "eslint-plugin-react": "7.37.2",
     "framer-motion": "11.11.17",
-    "husky": "9.1.6",
+    "husky": "9.1.7",
     "i18next": "23.16.5",
     "lint-staged": "15.2.10",
     "ofetch": "1.4.1",
