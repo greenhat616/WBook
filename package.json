@@ -36,7 +36,7 @@
     "tailwindcss-animate": "1.0.7"
   },
   "devDependencies": {
-    "@antfu/ni": "0.23.0",
+    "@antfu/ni": "0.23.1",
     "@commitlint/cli": "19.5.0",
     "@commitlint/config-conventional": "19.5.0",
     "@commitlint/types": "19.5.0",
