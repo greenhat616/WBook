@@ -37,8 +37,8 @@
   },
   "devDependencies": {
     "@antfu/ni": "0.23.1",
-    "@commitlint/cli": "19.5.0",
-    "@commitlint/config-conventional": "19.5.0",
+    "@commitlint/cli": "19.6.0",
+    "@commitlint/config-conventional": "19.6.0",
     "@commitlint/types": "19.5.0",
     "@iconify/json": "2.2.273",
     "@tauri-apps/cli": "1.6.3",
