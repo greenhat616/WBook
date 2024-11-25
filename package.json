@@ -26,7 +26,7 @@
   "dependencies": {
     "@generouted/react-router": "1.19.9",
     "@radix-ui/react-slot": "1.1.0",
-    "@tauri-apps/api": "1.6.0",
+    "@tauri-apps/api": "2.0.0",
     "class-variance-authority": "0.7.0",
     "lucide-react": "0.460.0",
     "react": "18.3.1",
@@ -41,7 +41,7 @@
     "@commitlint/config-conventional": "19.6.0",
     "@commitlint/types": "19.5.0",
     "@iconify/json": "2.2.275",
-    "@tauri-apps/cli": "1.6.3",
+    "@tauri-apps/cli": "2.1.0",
     "@types/node": "20.17.7",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
@@ -105,5 +105,6 @@
     "vitest": "2.1.5",
     "zod": "3.23.8",
     "zustand": "4.5.5"
-  }
+  },
+  "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"
 }
