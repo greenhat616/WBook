@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["shared", "server", "tauri"]
+members = ["wbook-core", "server", "tauri"]
 
 [workspace.package]
 version = "0.1.0"

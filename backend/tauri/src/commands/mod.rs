@@ -1,4 +1,4 @@
-use shared::types::Port;
+use wbook_core::types::Port;
 
 ///
 /// This command is used to get the port number from the backend.

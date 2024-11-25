@@ -19,7 +19,7 @@ tauri-build = { version = "2.0.3", features = [] }
 
 [dependencies]
 
-shared = { path = "../shared" }
+wbook-core = { path = "../wbook-core" }
 server = { path = "../server" }
 
 tauri = { version = "2.1.1", features = [] }

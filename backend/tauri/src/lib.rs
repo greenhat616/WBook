@@ -1,6 +1,6 @@
 use tauri_plugin_sentry::{minidump, sentry};
 
-use shared::types::Port;
+use wbook_core::types::Port;
 
 mod commands;
 

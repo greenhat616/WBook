@@ -1,5 +1,5 @@
 [package]
-name = "shared"
+name = "wbook-core"
 edition.workspace = true
 version = "0.1.0"
 authors.workspace = true
