@@ -29,9 +29,9 @@
     "@tauri-apps/api": "2.0.0",
     "class-variance-authority": "0.7.0",
     "lucide-react": "0.460.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-router-dom": "6.28.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-router-dom": "7.1.0",
     "swr": "2.2.5",
     "tailwindcss-animate": "1.0.7"
   },
@@ -43,8 +43,8 @@
     "@iconify/json": "2.2.275",
     "@tauri-apps/cli": "2.1.0",
     "@types/node": "20.17.7",
-    "@types/react": "18.3.12",
-    "@types/react-dom": "18.3.1",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
     "@types/react-helmet": "6.1.11",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
@@ -72,7 +72,7 @@
     "eslint-plugin-react": "7.37.2",
     "framer-motion": "11.11.17",
     "husky": "9.1.7",
-    "i18next": "23.16.8",
+    "i18next": "24.2.0",
     "lint-staged": "15.2.10",
     "ofetch": "1.4.1",
     "postcss": "8.4.49",
@@ -99,12 +99,12 @@
     "unplugin-auto-import": "0.18.5",
     "unplugin-icons": "0.20.1",
     "vite": "5.4.11",
-    "vite-plugin-i18next-loader": "2.0.14",
+    "vite-plugin-i18next-loader": "3.0.0",
     "vite-plugin-markdown": "2.2.0",
     "vite-plugin-svgr": "4.3.0",
     "vitest": "2.1.5",
     "zod": "3.23.8",
-    "zustand": "4.5.5"
+    "zustand": "5.0.2"
   },
   "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"
 }
