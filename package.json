@@ -26,8 +26,8 @@
   "dependencies": {
     "@generouted/react-router": "1.19.9",
     "@radix-ui/react-slot": "1.1.0",
-    "@tauri-apps/api": "2.0.0",
-    "class-variance-authority": "0.7.0",
+    "@tauri-apps/api": "2.1.1",
+    "class-variance-authority": "0.7.1",
     "lucide-react": "0.460.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -36,13 +36,13 @@
     "tailwindcss-animate": "1.0.7"
   },
   "devDependencies": {
-    "@antfu/ni": "0.23.1",
+    "@antfu/ni": "0.23.2",
     "@commitlint/cli": "19.6.0",
     "@commitlint/config-conventional": "19.6.0",
     "@commitlint/types": "19.5.0",
-    "@iconify/json": "2.2.275",
+    "@iconify/json": "2.2.287",
     "@tauri-apps/cli": "2.1.0",
-    "@types/node": "20.17.7",
+    "@types/node": "20.17.10",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@types/react-helmet": "6.1.11",
@@ -70,7 +70,7 @@
     "eslint-plugin-prettier": "5.2.1",
     "eslint-plugin-promise": "6.6.0",
     "eslint-plugin-react": "7.37.2",
-    "framer-motion": "11.11.17",
+    "framer-motion": "11.15.0",
     "husky": "9.1.7",
     "i18next": "23.16.8",
     "lint-staged": "15.2.10",
@@ -83,7 +83,7 @@
     "qs": "6.13.1",
     "react-helmet": "6.1.0",
     "react-i18next": "15.1.1",
-    "sass": "1.81.0",
+    "sass": "1.83.0",
     "shikiji": "0.10.2",
     "stylelint": "16.10.0",
     "stylelint-config-html": "1.1.0",
@@ -93,7 +93,7 @@
     "stylelint-order": "6.0.4",
     "stylelint-scss": "6.10.0",
     "tailwind-merge": "2.5.5",
-    "tailwindcss": "3.4.15",
+    "tailwindcss": "3.4.17",
     "ts-node": "10.9.2",
     "typescript": "5.7.2",
     "unplugin-auto-import": "0.18.5",
@@ -103,8 +103,8 @@
     "vite-plugin-markdown": "2.2.0",
     "vite-plugin-svgr": "4.3.0",
     "vitest": "2.1.5",
-    "zod": "3.23.8",
+    "zod": "3.24.1",
     "zustand": "4.5.5"
   },
-  "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"
+  "packageManager": "pnpm@9.15.1+sha512.1acb565e6193efbebda772702950469150cf12bcc764262e7587e71d19dc98a423dff9536e57ea44c49bdf790ff694e83c27be5faa23d67e0c033b583be4bfcf"
 }
