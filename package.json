@@ -58,7 +58,7 @@
     "autoprefixer": "10.4.20",
     "clsx": "2.1.1",
     "colord": "2.9.3",
-    "cross-env": "7.0.3",
+    "cross-env": "10.1.0",
     "dayjs": "1.11.13",
     "eslint": "8.57.1",
     "eslint-config-prettier": "9.1.0",
