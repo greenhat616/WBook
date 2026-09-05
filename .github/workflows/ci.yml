@@ -12,7 +12,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
       - name: Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Tauri dependencies
@@ -24,7 +24,7 @@ jobs:
           libwebkit2gtk-4.0-dev
           webkit2gtk-driver
           xvfb
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: './backend/'
           prefix-key: 'rust-stable'
@@ -32,14 +32,14 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0
         with:
-          node-version: 20
+          node-version: 20.20.2
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2.4.1
         name: Install pnpm
         with:
-          version: 8
+          version: 8.15.9
           run_install: false
 
       - name: Get pnpm store directory
@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v4.3.0
         name: Setup pnpm cache
         with:
           path: ${{ env.STORE_PATH }}
@@ -73,7 +73,7 @@ jobs:
     # the steps our job runs **in order**
     steps:
       # checkout the code on the workflow runner
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
       # install system dependencies that Tauri needs to compile on Linux.
       # note the extra dependencies for `tauri-driver` to run which are: `webkit2gtk-driver` and `xvfb`
@@ -90,7 +90,7 @@ jobs:
       # install the latest Rust stable
       - name: Rust stable
         run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: './backend/'
           prefix-key: 'rust-stable'
@@ -98,14 +98,14 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0
         with:
-          node-version: 20
+          node-version: 20.20.2
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2.4.1
         name: Install pnpm
         with:
-          version: 8
+          version: 8.15.9
           run_install: false
 
       - name: Get pnpm store directory
@@ -113,7 +113,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v4.3.0
         name: Setup pnpm cache
         with:
           path: ${{ env.STORE_PATH }}
@@ -127,7 +127,7 @@ jobs:
       # install the latest version of `tauri-driver`.
       # note: the tauri-driver version is independent of any other Tauri versions
       - name: Install tauri-driver
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: install
           args: tauri-driver
