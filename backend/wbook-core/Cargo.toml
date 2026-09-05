@@ -13,10 +13,10 @@ repository.workspace = true
 [dependencies]
 slab = "0.4"
 encoding_rs = "0.8"
-epub-builder = "0.7"
+epub-builder = "0.8"
 send-to-kindle = "1"
 tera = "1"
-rocksdb = "0.22"
+rocksdb = "0.25"
 
 # workspace dependencies
 serde = { workspace = true }
