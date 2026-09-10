@@ -13,8 +13,8 @@ repository.workspace = true
 [dependencies]
 wbook-core = { path = "../wbook-core" }
 
-axum = { version = "0.7", features = ["ws"] }
-tower-http = { version = "0.6", features = ["cors"] }
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.7", features = ["cors"] }
 indexmap = "2"
 
 # workspace dependencies
