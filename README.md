@@ -1,6 +1,7 @@
 # WBook
 
-A tiny and beautiful txt to epub converter, with toc and metadata combined, written in Rust and Typescript.
+A tiny and beautiful txt to epub converter, with toc and metadata combined,
+written in Rust and Typescript.
 
 ## Features
 

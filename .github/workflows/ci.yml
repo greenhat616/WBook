@@ -26,9 +26,9 @@ jobs:
           xvfb
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './backend/'
-          prefix-key: 'rust-stable'
-          shared-key: 'ci'
+          workspaces: "./backend/"
+          prefix-key: "rust-stable"
+          shared-key: "ci"
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js
@@ -92,9 +92,9 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './backend/'
-          prefix-key: 'rust-stable'
-          shared-key: 'ci'
+          workspaces: "./backend/"
+          prefix-key: "rust-stable"
+          shared-key: "ci"
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js

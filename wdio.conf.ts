@@ -1,60 +1,58 @@
-import type { Options } from '@wdio/types'
-import { spawn, spawnSync } from 'child_process'
-import os from 'os'
-import path from 'path'
+import type { Options } from "@wdio/types";
+import { spawn, spawnSync } from "child_process";
+import os from "os";
+import path from "path";
 
-let tauriDriver
+let tauriDriver;
 
 export const config: Options.Testrunner = {
-  specs: ['./tests/e2e/**/*.e2e.ts'],
+  specs: ["./tests/e2e/**/*.e2e.ts"],
   // Patterns to exclude.
   exclude: [
     // 'path/to/excluded/files'
   ],
   maxInstances: 1,
-  hostname: 'localhost',
+  hostname: "localhost",
   port: 4444,
   capabilities: [
     {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
-      browserName: 'wry',
+      browserName: "wry",
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
       maxInstances: 1,
-      'tauri:options': {
+      "tauri:options": {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-expect-error
-        application:
-          './backend/target/release/wbook' +
-          (os.platform() === 'win32' ? '.exe' : '')
-      }
-    }
+        application: "./backend/target/release/wbook" +
+          (os.platform() === "win32" ? ".exe" : ""),
+      },
+    },
   ],
-  framework: 'mocha',
-  reporters: ['spec'],
+  framework: "mocha",
+  reporters: ["spec"],
   mochaOpts: {
-    ui: 'bdd',
-    timeout: 60000
+    ui: "bdd",
+    timeout: 60000,
   },
   onPrepare: () =>
-    spawnSync('pnpm', ['tauri', 'build'], {
-      stdio: [null, process.stdout, process.stderr]
+    spawnSync("pnpm", ["tauri", "build"], {
+      stdio: [null, process.stdout, process.stderr],
     }),
 
   // ensure we are running `tauri-driver` before the session starts so that we can proxy the webdriver requests
-  beforeSession: async () =>
-    (tauriDriver = spawn(
-      path.resolve(
-        os.homedir(),
-        '.cargo',
-        'bin',
-        'tauri-driver' + (os.platform() === 'win32' ? '.exe' : '')
-      ),
-      [],
-      { stdio: [null, process.stdout, process.stderr] }
-    )),
+  beforeSession: async () => (tauriDriver = spawn(
+    path.resolve(
+      os.homedir(),
+      ".cargo",
+      "bin",
+      "tauri-driver" + (os.platform() === "win32" ? ".exe" : ""),
+    ),
+    [],
+    { stdio: [null, process.stdout, process.stderr] },
+  )),
 
   // clean up the `tauri-driver` process we spawned at the start of the session
-  afterSession: () => tauriDriver.kill()
-}
+  afterSession: () => tauriDriver.kill(),
+};

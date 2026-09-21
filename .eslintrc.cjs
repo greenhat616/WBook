@@ -2,33 +2,33 @@ module.exports = {
   root: true,
   env: {
     browser: true,
-    node: true
+    node: true,
   },
   extends: [
-    'plugin:react/recommended',
-    'plugin:@typescript-eslint/recommended',
-    'prettier',
-    'plugin:prettier/recommended'
+    "plugin:react/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier",
+    "plugin:prettier/recommended",
   ],
-  parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint'],
+  parser: "@typescript-eslint/parser",
+  plugins: ["@typescript-eslint"],
   rules: {
-    'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'off',
-    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
-    'react/react-in-jsx-scope': 'off'
+    "no-console": process.env.NODE_ENV === "production" ? "error" : "off",
+    "no-debugger": process.env.NODE_ENV === "production" ? "error" : "off",
+    "react/react-in-jsx-scope": "off",
   },
   settings: {
     react: {
-      version: 'detect'
+      version: "detect",
     },
-    'import/resolver': {
+    "import/resolver": {
       alias: {
         map: [
-          ['@', './src'],
-          ['~', './']
+          ["@", "./src"],
+          ["~", "./"],
         ],
-        extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.cjs']
-      }
-    }
-  }
-}
+        extensions: [".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs"],
+      },
+    },
+  },
+};

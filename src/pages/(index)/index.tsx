@@ -1,14 +1,14 @@
-import reactLogo from '@/assets/react.svg'
-import { invoke } from '@tauri-apps/api'
-import { useState } from 'react'
-import './_index.css'
+import reactLogo from "@/assets/react.svg";
+import { invoke } from "@tauri-apps/api";
+import { useState } from "react";
+import "./_index.css";
 export default function IndexPage() {
-  const [greetMsg, setGreetMsg] = useState('')
-  const [name, setName] = useState('')
+  const [greetMsg, setGreetMsg] = useState("");
+  const [name, setName] = useState("");
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke('greet', { name }))
+    setGreetMsg(await invoke("greet", { name }));
   }
 
   return (
@@ -32,8 +32,8 @@ export default function IndexPage() {
       <form
         className="row"
         onSubmit={(e) => {
-          e.preventDefault()
-          greet()
+          e.preventDefault();
+          greet();
         }}
       >
         <input
@@ -46,5 +46,5 @@ export default function IndexPage() {
 
       <p>{greetMsg}</p>
     </div>
-  )
+  );
 }

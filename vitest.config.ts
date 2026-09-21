@@ -1,16 +1,16 @@
-import { defaultExclude, defineConfig, mergeConfig } from 'vitest/config'
-import viteConfig from './vite.config'
+import { defaultExclude, defineConfig, mergeConfig } from "vitest/config";
+import viteConfig from "./vite.config";
 export default mergeConfig(
   viteConfig,
   defineConfig({
     optimizeDeps: {
-      entries: []
+      entries: [],
     },
     test: {
       testTimeout: 30_000,
-      name: 'unit',
+      name: "unit",
       // setupFiles: ['./test/setup.ts'],
-      exclude: [...defaultExclude, '**/target/**', '**/dist/**']
-    }
-  })
-)
+      exclude: [...defaultExclude, "**/target/**", "**/dist/**"],
+    },
+  }),
+);
