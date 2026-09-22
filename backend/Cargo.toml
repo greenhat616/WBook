@@ -13,14 +13,21 @@ license = "LGPL-3.0-or-later"
 
 [workspace.dependencies]
 anyhow = "1"
-chrono = "0.4"
+thiserror = "2"
+
 config = "0.15"
+
+camino = { version = "1", features = ["serde1"] }
+jiff = { version = "0.2", features = ["serde"] }
 regex = "1.10"
+
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 simd-json = { version = "0.18" }
-thiserror = "2"
+specta = { version = "2.0.0-rc.25", features = ["camino", "derive", "jiff"] }
+
 tokio = { version = "1", features = ["full"] }
+
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
