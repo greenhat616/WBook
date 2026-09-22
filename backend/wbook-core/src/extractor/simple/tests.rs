@@ -145,24 +145,38 @@ fn test_decode_body_lossless() {
 }
 
 #[test]
-fn test_codepage_to_encoding() {
-    use super::encoding::codepage_to_encoding;
-    assert_eq!(codepage_to_encoding(936), Some(encoding_rs::GBK));
-    assert_eq!(codepage_to_encoding(950), Some(encoding_rs::BIG5));
-    assert_eq!(codepage_to_encoding(932), Some(encoding_rs::SHIFT_JIS));
-    assert_eq!(codepage_to_encoding(949), Some(encoding_rs::EUC_KR));
-    assert_eq!(codepage_to_encoding(65001), Some(encoding_rs::UTF_8));
+fn test_parse_posix_codeset() {
+    use super::encoding::parse_posix_codeset;
+    assert_eq!(parse_posix_codeset("zh_CN.GBK"), Some("GBK"));
+    assert_eq!(parse_posix_codeset("ja_JP.eucJP"), Some("eucJP"));
+    assert_eq!(parse_posix_codeset("en_US.UTF-8@euro"), Some("UTF-8"));
+    assert_eq!(parse_posix_codeset("zh_CN.GBK@pinyin"), Some("GBK"));
+    assert_eq!(parse_posix_codeset("C"), None);
+    assert_eq!(parse_posix_codeset("POSIX"), None);
+    assert_eq!(parse_posix_codeset("zh_CN"), None);
+    assert_eq!(parse_posix_codeset("zh_CN."), None);
+}
+
+#[test]
+fn test_codeset_to_encoding() {
+    use super::encoding::codeset_to_encoding;
+    assert_eq!(codeset_to_encoding("GBK"), Some(encoding_rs::GBK));
     assert_eq!(
-        codepage_to_encoding(1252).map(|enc| enc.name()),
-        Some("windows-1252")
+        codeset_to_encoding("gb18030"),
+        Some(encoding_rs::GB18030)
     );
-    assert_eq!(codepage_to_encoding(u32::MAX), None);
+    // A glibc alias that is not a WHATWG label.
+    assert_eq!(codeset_to_encoding("EUC-CN"), Some(encoding_rs::GBK));
+    assert_eq!(codeset_to_encoding("Big5"), Some(encoding_rs::BIG5));
+    assert_eq!(codeset_to_encoding("utf-8"), Some(encoding_rs::UTF_8));
+    assert_eq!(
+        codeset_to_encoding("ISO-8859-1"),
+        Some(encoding_rs::WINDOWS_1252)
+    );
+    assert_eq!(codeset_to_encoding("bogus-codeset"), None);
 }
 
 #[test]
 fn test_system_encoding() {
-    let encoding = super::encoding::system_encoding();
-    assert!(!encoding.name().is_empty());
-    #[cfg(not(windows))]
-    assert_eq!(encoding, encoding_rs::UTF_8);
+    assert!(!super::encoding::system_encoding().name().is_empty());
 }

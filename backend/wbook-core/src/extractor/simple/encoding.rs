@@ -12,8 +12,7 @@ fn encoding_from_bom(bom: Bom) -> Option<&'static encoding_rs::Encoding> {
         Bom::Utf8 => Some(encoding_rs::UTF_8),
         Bom::Utf16Le => Some(encoding_rs::UTF_16LE),
         Bom::Utf16Be => Some(encoding_rs::UTF_16BE),
-        // The WHATWG standard routes the GBK and gb18030 labels to the same decoder.
-        Bom::Gb18030 => Some(encoding_rs::GBK),
+        Bom::Gb18030 => Some(encoding_rs::GB18030),
         _ => None,
     }
 }
@@ -54,36 +53,63 @@ pub(super) fn decode_body<'a>(
 /// The encoding of the system's ANSI code page.
 ///
 /// On Windows this resolves `GetACP` to a WHATWG encoding, defaulting to GBK
-/// when the code page has no WHATWG counterpart. Elsewhere UTF-8 is assumed,
-/// matching the default locale of modern Unix-likes.
+/// when the code page has no WHATWG counterpart. On Unix-likes the codeset is
+/// read from the locale environment (`LC_ALL`, `LC_CTYPE`, `LANG`), so legacy
+/// locales such as `zh_CN.GBK` are honored; UTF-8 is assumed when the locale
+/// carries no mappable codeset.
 pub(super) fn system_encoding() -> &'static encoding_rs::Encoding {
+    static CACHE: std::sync::OnceLock<&'static encoding_rs::Encoding> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(detect_system_encoding)
+}
+
+fn detect_system_encoding() -> &'static encoding_rs::Encoding {
     #[cfg(windows)]
     {
-        static CACHE: std::sync::OnceLock<&'static encoding_rs::Encoding> =
-            std::sync::OnceLock::new();
-        CACHE.get_or_init(|| {
-            // SAFETY: GetACP has no preconditions.
-            let acp = unsafe { windows_sys::Win32::Globalization::GetACP() };
-            codepage_to_encoding(acp).unwrap_or(encoding_rs::GBK)
-        })
+        // SAFETY: GetACP has no preconditions.
+        let acp = unsafe { windows_sys::Win32::Globalization::GetACP() };
+        u16::try_from(acp)
+            .ok()
+            .and_then(codepage::to_encoding_no_replacement)
+            .unwrap_or(encoding_rs::GBK)
     }
     #[cfg(not(windows))]
     {
-        encoding_rs::UTF_8
+        locale_codeset()
+            .as_deref()
+            .and_then(codeset_to_encoding)
+            .unwrap_or(encoding_rs::UTF_8)
     }
 }
 
-/// Map a Windows code page identifier to a WHATWG encoding.
-#[cfg_attr(not(windows), allow(dead_code))]
-pub(super) fn codepage_to_encoding(codepage: u32) -> Option<&'static encoding_rs::Encoding> {
-    match codepage {
-        936 => return Some(encoding_rs::GBK),
-        950 => return Some(encoding_rs::BIG5),
-        932 => return Some(encoding_rs::SHIFT_JIS),
-        949 => return Some(encoding_rs::EUC_KR),
-        65001 => return Some(encoding_rs::UTF_8),
-        _ => {}
+/// The codeset portion of the locale environment, e.g. `GBK` for
+/// `zh_CN.GBK`.
+#[cfg(not(windows))]
+fn locale_codeset() -> Option<String> {
+    ["LC_ALL", "LC_CTYPE", "LANG"]
+        .iter()
+        .filter_map(|var| std::env::var(var).ok())
+        .find_map(|value| parse_posix_codeset(&value).map(str::to_owned))
+}
+
+/// Extract the codeset from a POSIX locale string like `zh_CN.GBK@pinyin`.
+#[cfg(any(not(windows), test))]
+pub(super) fn parse_posix_codeset(locale: &str) -> Option<&str> {
+    let codeset = locale.split_once('.')?.1.split('@').next()?.trim();
+    if codeset.is_empty() {
+        None
+    } else {
+        Some(codeset)
     }
-    let label = format!("windows-{codepage}");
-    encoding_rs::Encoding::for_label(label.as_bytes())
+}
+
+/// Map a Unix codeset (as reported by `nl_langinfo(CODESET)` or the locale
+/// environment) to a WHATWG encoding.
+#[cfg(any(not(windows), test))]
+pub(super) fn codeset_to_encoding(codeset: &str) -> Option<&'static encoding_rs::Encoding> {
+    // Aliases used by glibc that are not WHATWG labels.
+    if codeset.eq_ignore_ascii_case("euc-cn") {
+        return Some(encoding_rs::GBK);
+    }
+    encoding_rs::Encoding::for_label(codeset.as_bytes())
 }
