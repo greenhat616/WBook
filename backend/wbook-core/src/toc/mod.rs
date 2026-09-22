@@ -4,37 +4,50 @@
 use slab::Slab;
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-use self::error::TocError;
+pub use self::builder::{BuilderOptions, TocBuilder, TocEvent};
+pub use self::entry::{TocEntry, TocSnapshot};
+pub use self::error::TocError;
+pub use self::id::NodeId;
 
-mod encoding;
+use crate::types::TextRange;
+
+mod builder;
+mod entry;
 mod error;
+mod id;
 
 #[cfg(test)]
 mod tests;
 
 // Meta info for a node
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct TreeNodeMeta {
-    pub words: u128,
-    pub range: (u128, u128), // a triple of (start, end)
+    pub words: u64,
+    /// The content range of the node itself. `None` for pure container nodes
+    /// (like calibre TOC entries whose src points at their first child).
+    pub range: Option<TextRange>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct TocNode {
-    pub id: usize, // id is the index of the node in the slab
+    pub id: NodeId, // id is the index of the node in the slab
     pub title: String,
     pub patch: Option<String>, // git-diff like patch content, to be applied while document is split.
     pub meta: TreeNodeMeta,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, default)]
     // No need to serialize parent, it's a weak reference, should rebuild on data load.
-    pub parent: Option<usize>,
-    pub children: Vec<usize>,
+    pub parent: Option<NodeId>,
+    pub children: Vec<NodeId>,
 }
 
-#[derive(Debug)]
+// Serialization goes both ways through the `TocSnapshot` wire format.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(try_from = "TocSnapshot", into = "TocSnapshot")]
+#[specta(type = TocSnapshot)]
 pub struct TocRoot {
-    children: Vec<usize>,
+    children: Vec<NodeId>,
     container: Slab<TocNode>,
 }
 
@@ -43,27 +56,30 @@ pub trait Toc {
     fn add(
         &mut self,
         title: &str,
-        range: (u128, u128),
-        parent: Option<usize>,
+        range: TextRange,
+        parent: Option<NodeId>,
     ) -> Result<&TocNode, TocError>;
     fn add_with_meta(
         &mut self,
         title: &str,
         meta: Option<TreeNodeMeta>,
-        parent: Option<usize>,
+        parent: Option<NodeId>,
     ) -> Result<&TocNode, TocError>;
-    fn remove(&mut self, id: usize);
-    fn move_up(&mut self, id: usize);
-    fn move_down(&mut self, id: usize);
-    fn move_left(&mut self, id: usize);
-    fn move_right(&mut self, id: usize);
-    fn move_belong_to(&mut self, id: usize, parent: usize);
-    fn move_before(&mut self, id: usize, target_node: usize);
-    fn move_after(&mut self, id: usize, target_node: usize);
-    fn get(&self, id: usize) -> Option<&TocNode>;
-    fn get_mut(&mut self, id: usize) -> Option<&mut TocNode>;
+    fn remove(&mut self, id: NodeId);
+    fn move_up(&mut self, id: NodeId);
+    fn move_down(&mut self, id: NodeId);
+    fn move_left(&mut self, id: NodeId);
+    fn move_right(&mut self, id: NodeId);
+    fn move_belong_to(&mut self, id: NodeId, parent: NodeId);
+    fn move_before(&mut self, id: NodeId, target_node: NodeId);
+    fn move_after(&mut self, id: NodeId, target_node: NodeId);
+    fn get(&self, id: NodeId) -> Option<&TocNode>;
+    fn get_mut(&mut self, id: NodeId) -> Option<&mut TocNode>;
     fn get_root(&self) -> &TocRoot;
-    fn contains(&self, id: usize) -> bool;
+    fn contains(&self, id: NodeId) -> bool;
+    /// 1-based depth of the node, computed by walking the parent chain
+    /// (aligned with calibre's level1/2/3 convention, never stored).
+    fn level(&self, id: NodeId) -> Option<usize>;
 }
 
 impl Toc for TocRoot {
@@ -77,54 +93,57 @@ impl Toc for TocRoot {
     fn add(
         &mut self,
         title: &str,
-        range: (u128, u128),
-        parent: Option<usize>,
+        range: TextRange,
+        parent: Option<NodeId>,
     ) -> Result<&TocNode, TocError> {
-        self.add_with_meta(title, Some(TreeNodeMeta { words: 0, range }), parent)
+        self.add_with_meta(
+            title,
+            Some(TreeNodeMeta {
+                words: 0,
+                range: Some(range),
+            }),
+            parent,
+        )
     }
 
     fn add_with_meta(
         &mut self,
         title: &str,
         meta: Option<TreeNodeMeta>,
-        parent: Option<usize>,
+        parent: Option<NodeId>,
     ) -> Result<&TocNode, TocError> {
-        if parent.is_some_and(|x| !self.contains(x)) {
-            return Err(TocError::NodeParentNotFound(parent.unwrap()));
-        }
-        let id = {
-            let entry = self.container.vacant_entry();
-            let key = entry.key();
-            self.container.insert(TocNode {
-                id: key,
-                title: title.to_string(),
-                patch: None,
-                meta: match meta {
-                    Some(meta) => meta,
-                    None => TreeNodeMeta {
-                        words: 0,
-                        range: (0, 0),
-                    },
-                },
-                parent,
-                children: Vec::new(),
-            });
-            key
-        };
         if let Some(parent_id) = parent {
-            let parent = self.container.get_mut(parent_id).unwrap();
+            if !self.contains(parent_id) {
+                return Err(TocError::NodeParentNotFound(parent_id));
+            }
+        }
+        let entry = self.container.vacant_entry();
+        let id = NodeId(entry.key());
+        entry.insert(TocNode {
+            id,
+            title: title.to_string(),
+            patch: None,
+            meta: meta.unwrap_or(TreeNodeMeta {
+                words: 0,
+                range: None,
+            }),
+            parent,
+            children: Vec::new(),
+        });
+        if let Some(parent_id) = parent {
+            let parent = self.container.get_mut(parent_id.0).unwrap();
             parent.children.push(id);
         } else {
             self.children.push(id);
         }
-        Ok(self.container.get(id).unwrap())
+        Ok(self.container.get(id.0).unwrap())
     }
 
-    fn remove(&mut self, id: usize) {
+    fn remove(&mut self, id: NodeId) {
         if !self.contains(id) {
             return;
         }
-        let node = self.container.remove(id);
+        let node = self.container.remove(id.0);
         // Remove node children
         for child_id in node.children.iter() {
             self.remove(*child_id);
@@ -137,7 +156,7 @@ impl Toc for TocRoot {
         }
     }
 
-    fn move_up(&mut self, id: usize) {
+    fn move_up(&mut self, id: NodeId) {
         if !self.contains(id) {
             return;
         }
@@ -156,7 +175,7 @@ impl Toc for TocRoot {
         }
     }
 
-    fn move_down(&mut self, id: usize) {
+    fn move_down(&mut self, id: NodeId) {
         if !self.contains(id) {
             return;
         }
@@ -176,7 +195,7 @@ impl Toc for TocRoot {
     }
 
     // Move node to the parent level of its parent
-    fn move_right(&mut self, id: usize) {
+    fn move_right(&mut self, id: NodeId) {
         if !self.contains(id) {
             return;
         }
@@ -185,19 +204,20 @@ impl Toc for TocRoot {
             return; // Root node, no parent, do nothing
         }
         let parent_id = node.parent.unwrap();
-        let parent = self.container.get_mut(parent_id).unwrap();
+        let parent = self.container.get_mut(parent_id.0).unwrap();
         parent.children.retain(|&x| x != id);
         let grand_parent_id = parent.parent;
-        let new_parent_id = {
-            if grand_parent_id.is_none() {
-                // node's parent is a child of root node
-                let root_children: &mut Vec<usize> = self.children.as_mut();
+        let new_parent_id = match grand_parent_id {
+            // node's parent is a child of root node
+            None => {
+                let root_children: &mut Vec<NodeId> = self.children.as_mut();
                 root_children.push(id);
                 None
-            } else {
-                let grand_parent = self.get_mut(grand_parent_id.unwrap()).unwrap();
+            }
+            Some(grand_parent_id) => {
+                let grand_parent = self.get_mut(grand_parent_id).unwrap();
                 grand_parent.children.push(id);
-                grand_parent_id
+                Some(grand_parent_id)
             }
         };
         let node = self.get_mut(id).unwrap();
@@ -205,12 +225,12 @@ impl Toc for TocRoot {
     }
 
     // Move node to the first child of its previous sibling
-    fn move_left(&mut self, id: usize) {
+    fn move_left(&mut self, id: NodeId) {
         if !self.contains(id) {
             return;
         }
         let node = self.get(id).unwrap().clone();
-        let parent_children: &mut Vec<usize> = match node.parent {
+        let parent_children: &mut Vec<NodeId> = match node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
@@ -227,19 +247,19 @@ impl Toc for TocRoot {
     }
 
     // Move node before another node
-    fn move_before(&mut self, id: usize, target_node: usize) {
+    fn move_before(&mut self, id: NodeId, target_node: NodeId) {
         if !self.contains(id) || !self.contains(target_node) {
             return;
         }
         let node = self.get(id).unwrap().clone();
-        let parent_children: &mut Vec<usize> = match node.parent {
+        let parent_children: &mut Vec<NodeId> = match node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
         parent_children.retain(|&x| x != id);
 
         let target_node = self.get(target_node).unwrap().clone();
-        let target_parent_children: &mut Vec<usize> = match target_node.parent {
+        let target_parent_children: &mut Vec<NodeId> = match target_node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
@@ -253,19 +273,19 @@ impl Toc for TocRoot {
     }
 
     // Move node after another node
-    fn move_after(&mut self, id: usize, target_node: usize) {
+    fn move_after(&mut self, id: NodeId, target_node: NodeId) {
         if !self.contains(id) || !self.contains(target_node) {
             return;
         }
         let node = self.get(id).unwrap().clone();
-        let parent_children: &mut Vec<usize> = match node.parent {
+        let parent_children: &mut Vec<NodeId> = match node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
         parent_children.retain(|&x| x != id);
 
         let target_node = self.get(target_node).unwrap().clone();
-        let target_parent_children: &mut Vec<usize> = match target_node.parent {
+        let target_parent_children: &mut Vec<NodeId> = match target_node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
@@ -281,12 +301,12 @@ impl Toc for TocRoot {
     ///
     /// Move node to the children of another node
     ///
-    fn move_belong_to(&mut self, id: usize, parent: usize) {
+    fn move_belong_to(&mut self, id: NodeId, parent: NodeId) {
         if !self.contains(id) || !self.contains(parent) {
             return;
         }
         let node = self.get(id).unwrap().clone();
-        let parent_children: &mut Vec<usize> = match node.parent {
+        let parent_children: &mut Vec<NodeId> = match node.parent {
             Some(parent_id) => self.get_mut(parent_id).unwrap().children.as_mut(),
             None => self.children.as_mut(),
         };
@@ -298,19 +318,29 @@ impl Toc for TocRoot {
         node.parent = Some(parent);
     }
 
-    fn get(&self, id: usize) -> Option<&TocNode> {
-        self.container.get(id)
+    fn get(&self, id: NodeId) -> Option<&TocNode> {
+        self.container.get(id.0)
     }
 
-    fn get_mut(&mut self, id: usize) -> Option<&mut TocNode> {
-        self.container.get_mut(id)
+    fn get_mut(&mut self, id: NodeId) -> Option<&mut TocNode> {
+        self.container.get_mut(id.0)
     }
 
     fn get_root(&self) -> &TocRoot {
         self
     }
 
-    fn contains(&self, id: usize) -> bool {
-        self.container.contains(id)
+    fn contains(&self, id: NodeId) -> bool {
+        self.container.contains(id.0)
+    }
+
+    fn level(&self, id: NodeId) -> Option<usize> {
+        let mut node = self.get(id)?;
+        let mut level = 1;
+        while let Some(parent_id) = node.parent {
+            level += 1;
+            node = self.get(parent_id)?;
+        }
+        Some(level)
     }
 }

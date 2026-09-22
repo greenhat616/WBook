@@ -3,7 +3,7 @@ use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-mod session_manager;
+pub mod session_manager;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub struct Params {

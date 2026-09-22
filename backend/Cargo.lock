@@ -6513,7 +6513,6 @@ dependencies = [
  "send-to-kindle",
  "serde",
  "serde_json",
- "simd-json",
  "slab",
  "specta",
  "str-utils",
