@@ -7,6 +7,8 @@ use tokio_util::sync::CancellationToken;
 
 mod simple;
 
+pub use simple::SimpleExtractor;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExtractorError {
     #[error("The task is shutting down")]
@@ -17,19 +19,19 @@ pub enum ExtractorError {
     Other(#[from] anyhow::Error),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub struct Encoding {
     pub name: String,
     pub bom: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub struct ParsedContent {
     pub encoding: Encoding,
     pub content: Content,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub enum Content {
     Text(String),
 }
