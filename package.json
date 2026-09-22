@@ -77,7 +77,7 @@
     "ofetch": "1.4.1",
     "postcss": "8.4.49",
     "postcss-html": "1.7.0",
-    "postcss-import": "16.1.0",
+    "postcss-import": "17.0.0",
     "postcss-scss": "4.0.9",
     "prettier": "3.3.3",
     "qs": "6.13.1",
