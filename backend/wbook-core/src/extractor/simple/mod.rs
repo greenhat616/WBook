@@ -49,6 +49,7 @@ impl Extractor for SimpleExtractor {
                 bom: bom_len > 0,
             },
             content: Content::Text(text.into_owned()),
+            source_path: Some(path.to_path_buf()),
         })
     }
 }

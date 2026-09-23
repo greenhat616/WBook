@@ -14,6 +14,9 @@ use crate::extractor::ParsedContent;
 use crate::toc::TocRoot;
 use crate::types::{ByteRange, TextRange};
 
+pub mod metadata;
+pub use metadata::{Metadata, SimpleMetadataParser};
+
 /// A position in the content: character range in the decoded text plus byte
 /// range in the raw file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
@@ -92,6 +95,23 @@ pub trait TocParser: Send + Sync {
 
     fn kind(&self) -> ParserKind {
         ParserKind::Toc
+    }
+}
+
+pub trait MetadataParser: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    /// Whether this parser can handle the given content, and with what confidence.
+    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+
+    fn parse(
+        &self,
+        ct: &CancellationToken,
+        content: &ParsedContent,
+    ) -> Result<Metadata, ParserError>;
+
+    fn kind(&self) -> ParserKind {
+        ParserKind::Metadata
     }
 }
 
@@ -204,6 +224,7 @@ mod tests {
                 bom: false,
             },
             content: Content::Text("第一章 ……".to_string()),
+            source_path: None,
         }
     }
 
