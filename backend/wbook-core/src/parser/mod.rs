@@ -12,7 +12,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::extractor::ParsedContent;
 use crate::toc::TocRoot;
-use crate::types::{ByteRange, TextRange};
+use crate::types::{ByteRange, TextOp, TextRange};
+
+pub mod filter;
+pub use filter::AdFilterParser;
 
 pub mod metadata;
 pub use metadata::{Metadata, SimpleMetadataParser};
@@ -95,6 +98,23 @@ pub trait TocParser: Send + Sync {
 
     fn kind(&self) -> ParserKind {
         ParserKind::Toc
+    }
+}
+
+pub trait FilterParser: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    /// Whether this parser can handle the given content, and with what confidence.
+    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+
+    fn parse(
+        &self,
+        ct: &CancellationToken,
+        content: &ParsedContent,
+    ) -> Result<Vec<TextOp>, ParserError>;
+
+    fn kind(&self) -> ParserKind {
+        ParserKind::Filter
     }
 }
 

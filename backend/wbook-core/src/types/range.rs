@@ -51,7 +51,7 @@ macro_rules! range_type {
 
 range_type!(
     TextRange,
-    "A range of character offsets into the decoded (UTF-8) text."
+    "A range of byte offsets into the decoded (UTF-8) text."
 );
 range_type!(
     ByteRange,
