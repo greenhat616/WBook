@@ -25,20 +25,29 @@ GUI 调用应该挂载 `Wbook` 实例上，可以考虑通过 trait 来方便外
 
 解析器用于接受提取器生成的中间表示，并根据特定的规则对其进行处理，生成最终的文档结构或其他所需的输出。
 
-所有解析器遵循统一的 trait 形态（目标设计，代码后续跟进）：
+Parsers use separate category traits with the following shared shape:
 
 * `name()`：解析器名称。
 * `accept(content) -> MatchConfidence`：是否接受该内容，及其置信度（仿 calibre 输入插件选择，`0` 表示不接受）。
 * `kind() -> ParserKind`：解析器类别（Filter / Toc / Metadata）。
-* `parse(ct, content) -> Result<Self::Output, ParserError>`：关联类型 `Output` 随类别而定。
+* Each category's `parse(ct, content)` returns `Result<Output, ParserError>`:
+  `TocRoot` for TOC, `Vec<TextOp>` for filters, and `Metadata` for metadata.
+  Cancellation is reported as `ParserError::Cancelled`.
 
 目前应该包含的有：
 
 * Filter —— 用于过滤处理不需要的内容，如广告文本。`Output = Vec<TextOp>`（如对广告区间的 Delete 算子）。
-* Toc —— 用于生成文档的目录结构，方便用户快速导航文档内容。`Output` 为扁平的 `TocEvent`（level, title, range）事件流（对齐 calibre `--level1-toc`/`--level2-toc`/`--level3-toc` xpath 检测的输出，level 为 1-based），统一由 `TocBuilder` 组装成树。这让 `CombineStrategy::Merge` 自然成立：多 parser 各自产出事件流（如一级用"卷"正则、二级用"章"正则），按位置归并后过一次 `TocBuilder` 合并成一棵树。
+* TOC parsers return a `TocRoot`. Internally they produce `TocEvent` values
+  (level, title, source range) and assemble them with `TocBuilder`. Shared
+  heading rules are independent of level. The level parser assigns rules to
+  explicit levels; the VBook parser applies its own volume grouping policy.
+  See [TOC parsing](TOC_PARSING.md) for configuration, presets and examples.
 * Metadata —— 用于提取文档的元信息，如标题、作者、创建日期等。`Output` 为键值元信息。
 
-管线映射：Extractor → `CombinedParser`（`BestMatch` 策略按置信度降序尝试、失败回退；`Merge` 预留未实现）→ Tweak。
+The caller selects one `TocParser`, either directly or through
+`TocParserConfig::build()`: Extractor -> selected parser -> Tweak.
+The existing `CombinedParser` remains optional; its merge strategy is reserved
+and is not required by the presets.
 
 #### 类型约定（TOC 与 Parser）
 
@@ -46,7 +55,13 @@ GUI 调用应该挂载 `Wbook` 实例上，可以考虑通过 trait 来方便外
 * `TextRange`（`types/range.rs`）：统一偏移区间，`u64`，表示解码后文本的字节偏移（见「文本处理大前提」）。`TreeNodeMeta` 为 `{ words: u64, range: Option<TextRange> }`，`range` 为 `None` 表示纯容器节点（对齐 calibre 中 src 指向首个子节点的目录项）。
 * `TextOp`：文本操作算子（`Replace { range, replacement }` / `Delete { range }` / `Insert { range, insertion }`），是 Filter、ContentAdjust 以及 `TocNode.patch` 的统一表达。`TocNode.patch` 即作用于该节点内容区间的 `TextOp` 集合，在文档拆分时物化。
 * 序列化 wire 格式为 `TocSnapshot = Vec<TocEntry>`（`toc/entry.rs`，对齐 calibre "TOC entry" 术语）。`TocRoot` 通过 `#[serde(try_from = "TocSnapshot", into = "TocSnapshot")]` 双向走 derive，反序列化时重建 `parent` 弱引用并校验 id 唯一性与 range 合法性（失败返回 `TocError::InvalidSnapshot`）。`parent` 字段不进入 wire 格式。
-* 层级对齐 calibre 约定：`TocParser` 产出扁平的 (level, title, position) 事件流，由 `TocBuilder` 组装成树——level 跳级时自动补匿名容器节点，`build()` 默认用 `TextRange::merge` 自底向上回填容器节点的 range。层级不冗余存储，`TocRoot::level(id)` 通过 parent 链上溯计算。`play_order`（NCX 用）不存储，未来导出时按 DFS 序计算。
+* TOC levels are 1-based. The level parser borrows calibre's per-level rule
+  selection, but WBook's builder inserts anonymous ancestors for level gaps.
+  `TocParser` returns the assembled tree, not a public event stream.
+  `build()` backfills container ranges from children. Heading ranges locate
+  source headings; length-split entries locate full chunks. Neither implies
+  that a detected heading's range covers its entire body. Levels remain
+  derived from parent links and export order from tree traversal.
 
 ### Tweak
 

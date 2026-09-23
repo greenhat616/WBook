@@ -1,10 +1,9 @@
 //! Parsers consume the intermediate representation (`ParsedContent`) produced by
 //! an Extractor and turn it into document structures.
 //!
-//! TOC parsing follows calibre's conventions: the `--level1-toc` / `--level2-toc`
-//! / `--level3-toc` xpath detection produces a flat (level, title, position)
-//! event stream, which is assembled into a tree by [`crate::toc::TocBuilder`]
-//! (levels are 1-based, level jumps auto-create container nodes).
+//! TOC parsers share heading rules and assemble events with [`crate::toc::TocBuilder`].
+//! The level parser borrows calibre's per-level rule selection; VBook-style
+//! grouping and length splitting remain separate implementations of [`TocParser`].
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -12,7 +11,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::extractor::ParsedContent;
 use crate::toc::TocRoot;
-use crate::types::{ByteRange, TextRange};
+use crate::types::{ByteRange, TextOp, TextRange};
+
+pub mod filter;
+pub mod metadata;
+pub mod toc;
+
+pub use filter::AdFilterParser;
+pub use metadata::{Metadata, SimpleMetadataParser};
 
 /// A position in the content: character range in the decoded text plus byte
 /// range in the raw file.
@@ -51,11 +57,22 @@ pub enum ParserKind {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParserError {
+    #[error("parsing cancelled")]
+    Cancelled,
+
     #[error("no parser accepted the content: {0}")]
     NoMatch(String),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+pub(crate) fn check_cancelled(ct: &CancellationToken) -> Result<(), ParserError> {
+    if ct.is_cancelled() {
+        Err(ParserError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 /// Match confidence, modelled after calibre's input plugin selection.
@@ -81,6 +98,40 @@ pub trait TocParser: Send + Sync {
 
     fn kind(&self) -> ParserKind {
         ParserKind::Toc
+    }
+}
+
+pub trait FilterParser: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    /// Whether this parser can handle the given content, and with what confidence.
+    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+
+    fn parse(
+        &self,
+        ct: &CancellationToken,
+        content: &ParsedContent,
+    ) -> Result<Vec<TextOp>, ParserError>;
+
+    fn kind(&self) -> ParserKind {
+        ParserKind::Filter
+    }
+}
+
+pub trait MetadataParser: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    /// Whether this parser can handle the given content, and with what confidence.
+    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+
+    fn parse(
+        &self,
+        ct: &CancellationToken,
+        content: &ParsedContent,
+    ) -> Result<Metadata, ParserError>;
+
+    fn kind(&self) -> ParserKind {
+        ParserKind::Metadata
     }
 }
 
@@ -120,6 +171,7 @@ impl CombinedParser {
         ct: &CancellationToken,
         content: &ParsedContent,
     ) -> Result<TocRoot, ParserError> {
+        check_cancelled(ct)?;
         match self.strategy {
             CombineStrategy::BestMatch => self.parse_best_match(ct, content),
             CombineStrategy::Merge => Err(ParserError::Other(anyhow::anyhow!(
@@ -143,11 +195,16 @@ impl CombinedParser {
 
         let mut errors = Vec::new();
         for parser in candidates {
-            match parser.parse(ct, content) {
+            check_cancelled(ct)?;
+            let result = parser.parse(ct, content);
+            check_cancelled(ct)?;
+            match result {
                 Ok(toc) => return Ok(toc),
+                Err(ParserError::Cancelled) => return Err(ParserError::Cancelled),
                 Err(err) => errors.push(format!("{}: {err}", parser.name())),
             }
         }
+        check_cancelled(ct)?;
         Err(ParserError::NoMatch(errors.join("; ")))
     }
 }
@@ -187,6 +244,7 @@ mod tests {
                 bom: false,
             },
             content: Content::Text("第一章 ……".to_string()),
+            source_path: None,
         }
     }
 
@@ -301,5 +359,56 @@ mod tests {
         let combined = CombinedParser::new(CombineStrategy::Merge);
         let result = combined.parse(&CancellationToken::new(), &content());
         assert!(matches!(result, Err(ParserError::Other(_))));
+    }
+
+    struct CancellingParser {
+        set_token: bool,
+    }
+
+    impl TocParser for CancellingParser {
+        fn name(&self) -> &'static str {
+            "cancel"
+        }
+
+        fn accept(&self, _: &ParsedContent) -> MatchConfidence {
+            MatchConfidence(100)
+        }
+
+        fn parse(&self, ct: &CancellationToken, _: &ParsedContent) -> Result<TocRoot, ParserError> {
+            if self.set_token {
+                ct.cancel();
+                Ok(TocRoot::new())
+            } else {
+                Err(ParserError::Cancelled)
+            }
+        }
+    }
+
+    #[test]
+    fn cancellation_never_falls_back_or_becomes_success() {
+        for set_token in [false, true] {
+            let mut combined = CombinedParser::new(CombineStrategy::BestMatch);
+            combined.add(CancellingParser { set_token });
+            combined.add(StubParser {
+                name: "fallback",
+                confidence: MatchConfidence(10),
+                fail: false,
+            });
+            assert!(matches!(
+                combined.parse(&CancellationToken::new(), &content()),
+                Err(ParserError::Cancelled)
+            ));
+        }
+    }
+
+    #[test]
+    fn cancelled_combined_parser_without_candidates_is_not_no_match() {
+        let ct = CancellationToken::new();
+        ct.cancel();
+        let combined = CombinedParser::new(CombineStrategy::BestMatch);
+        assert!(matches!(
+            combined.parse(&ct, &content()),
+            Err(ParserError::Cancelled)
+        ));
     }
 }
