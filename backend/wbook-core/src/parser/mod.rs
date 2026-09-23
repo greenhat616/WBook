@@ -51,11 +51,22 @@ pub enum ParserKind {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParserError {
+    #[error("parsing cancelled")]
+    Cancelled,
+
     #[error("no parser accepted the content: {0}")]
     NoMatch(String),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+pub(crate) fn check_cancelled(ct: &CancellationToken) -> Result<(), ParserError> {
+    if ct.is_cancelled() {
+        Err(ParserError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 /// Match confidence, modelled after calibre's input plugin selection.
@@ -120,6 +131,7 @@ impl CombinedParser {
         ct: &CancellationToken,
         content: &ParsedContent,
     ) -> Result<TocRoot, ParserError> {
+        check_cancelled(ct)?;
         match self.strategy {
             CombineStrategy::BestMatch => self.parse_best_match(ct, content),
             CombineStrategy::Merge => Err(ParserError::Other(anyhow::anyhow!(
@@ -143,11 +155,16 @@ impl CombinedParser {
 
         let mut errors = Vec::new();
         for parser in candidates {
-            match parser.parse(ct, content) {
+            check_cancelled(ct)?;
+            let result = parser.parse(ct, content);
+            check_cancelled(ct)?;
+            match result {
                 Ok(toc) => return Ok(toc),
+                Err(ParserError::Cancelled) => return Err(ParserError::Cancelled),
                 Err(err) => errors.push(format!("{}: {err}", parser.name())),
             }
         }
+        check_cancelled(ct)?;
         Err(ParserError::NoMatch(errors.join("; ")))
     }
 }
@@ -301,5 +318,56 @@ mod tests {
         let combined = CombinedParser::new(CombineStrategy::Merge);
         let result = combined.parse(&CancellationToken::new(), &content());
         assert!(matches!(result, Err(ParserError::Other(_))));
+    }
+
+    struct CancellingParser {
+        set_token: bool,
+    }
+
+    impl TocParser for CancellingParser {
+        fn name(&self) -> &'static str {
+            "cancel"
+        }
+
+        fn accept(&self, _: &ParsedContent) -> MatchConfidence {
+            MatchConfidence(100)
+        }
+
+        fn parse(&self, ct: &CancellationToken, _: &ParsedContent) -> Result<TocRoot, ParserError> {
+            if self.set_token {
+                ct.cancel();
+                Ok(TocRoot::new())
+            } else {
+                Err(ParserError::Cancelled)
+            }
+        }
+    }
+
+    #[test]
+    fn cancellation_never_falls_back_or_becomes_success() {
+        for set_token in [false, true] {
+            let mut combined = CombinedParser::new(CombineStrategy::BestMatch);
+            combined.add(CancellingParser { set_token });
+            combined.add(StubParser {
+                name: "fallback",
+                confidence: MatchConfidence(10),
+                fail: false,
+            });
+            assert!(matches!(
+                combined.parse(&CancellationToken::new(), &content()),
+                Err(ParserError::Cancelled)
+            ));
+        }
+    }
+
+    #[test]
+    fn cancelled_combined_parser_without_candidates_is_not_no_match() {
+        let ct = CancellationToken::new();
+        ct.cancel();
+        let combined = CombinedParser::new(CombineStrategy::BestMatch);
+        assert!(matches!(
+            combined.parse(&ct, &content()),
+            Err(ParserError::Cancelled)
+        ));
     }
 }
