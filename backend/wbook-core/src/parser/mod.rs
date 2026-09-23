@@ -1,10 +1,9 @@
 //! Parsers consume the intermediate representation (`ParsedContent`) produced by
 //! an Extractor and turn it into document structures.
 //!
-//! TOC parsing follows calibre's conventions: the `--level1-toc` / `--level2-toc`
-//! / `--level3-toc` xpath detection produces a flat (level, title, position)
-//! event stream, which is assembled into a tree by [`crate::toc::TocBuilder`]
-//! (levels are 1-based, level jumps auto-create container nodes).
+//! TOC parsers share heading rules and assemble events with [`crate::toc::TocBuilder`].
+//! The level parser borrows calibre's per-level rule selection; VBook-style
+//! grouping and length splitting remain separate implementations of [`TocParser`].
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -15,9 +14,10 @@ use crate::toc::TocRoot;
 use crate::types::{ByteRange, TextOp, TextRange};
 
 pub mod filter;
-pub use filter::AdFilterParser;
-
 pub mod metadata;
+pub mod toc;
+
+pub use filter::AdFilterParser;
 pub use metadata::{Metadata, SimpleMetadataParser};
 
 /// A position in the content: character range in the decoded text plus byte
