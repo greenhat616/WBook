@@ -26,7 +26,7 @@
   "dependencies": {
     "@generouted/react-router": "1.20.2",
     "@radix-ui/react-slot": "1.3.3",
-    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/api": "2.12.0",
     "class-variance-authority": "0.7.1",
     "lucide-react": "1.47.0",
     "react": "19.3.0",
@@ -40,9 +40,9 @@
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
     "@commitlint/types": "21.2.3",
-    "@iconify/json": "2.2.531",
-    "@tauri-apps/cli": "2.11.5",
-    "@types/node": "26.6.2",
+    "@iconify/json": "2.2.534",
+    "@tauri-apps/cli": "2.12.0",
+    "@types/node": "26.6.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/react-helmet": "6.1.11",
@@ -70,7 +70,7 @@
     "eslint-plugin-prettier": "5.5.6",
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-react": "7.37.5",
-    "framer-motion": "13.4.0",
+    "framer-motion": "13.4.4",
     "husky": "9.1.7",
     "i18next": "26.4.2",
     "lint-staged": "17.5.1",
@@ -83,7 +83,7 @@
     "qs": "6.16.0",
     "react-helmet": "6.1.0",
     "react-i18next": "17.0.15",
-    "sass": "1.104.1",
+    "sass": "1.105.0",
     "shikiji": "0.10.2",
     "stylelint": "17.15.0",
     "stylelint-config-html": "2.0.0",
@@ -106,5 +106,5 @@
     "zod": "4.6.5",
     "zustand": "5.0.15"
   },
-  "packageManager": "pnpm@12.5.1"
+  "packageManager": "pnpm@12.6.0"
 }
