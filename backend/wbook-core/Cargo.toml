@@ -48,4 +48,4 @@ tracing-subscriber = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 codepage = "0.1"
-windows-sys = { version = "0.59", features = ["Win32_Globalization"] }
+windows-sys = { version = "0.61", features = ["Win32_Globalization"] }
