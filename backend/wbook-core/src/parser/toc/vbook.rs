@@ -122,14 +122,16 @@ impl VBookTocParser {
             let start = line.range.start;
             let line = line.text();
             if let Some((split, volume, chapter)) = self.inline_heading(line, ct)? {
+                let mut chapter_start = start;
                 if volume != current_volume {
                     events.push(heading(1, volume, start, start + split as u64));
                     current_volume = volume.to_string();
+                    chapter_start += split as u64;
                 }
                 events.push(heading(
                     2,
                     chapter,
-                    start + split as u64,
+                    chapter_start,
                     start + line.len() as u64,
                 ));
             } else if let Some(title) = self
@@ -281,6 +283,7 @@ fn validate_group_size(size: Option<usize>) -> Result<(), TocConfigError> {
 
 fn heading(level: usize, title: &str, start: u64, end: u64) -> TocEvent {
     TocEvent {
+        range_kind: crate::toc::TocRangeKind::Heading,
         level,
         title: title.to_string(),
         range: Some(TextRange::new(start, end).expect("heading range is ordered")),
@@ -312,6 +315,7 @@ fn group_chapters(
         check_cancelled(ct)?;
         if index % size == 0 {
             events.push(TocEvent {
+                range_kind: crate::toc::TocRangeKind::Container,
                 level: 1,
                 title: format!("第 {} 卷", index / size + 1),
                 range: None,

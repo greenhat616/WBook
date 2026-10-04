@@ -22,9 +22,20 @@ mod id;
 mod tests;
 
 // Meta info for a node
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum TocRangeKind {
+    Heading,
+    Body,
+    Container,
+    #[default]
+    Unknown,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct TreeNodeMeta {
     pub words: u64,
+    #[serde(default)]
+    pub range_kind: TocRangeKind,
     /// The content range of the node itself. `None` for pure container nodes
     /// (like calibre TOC entries whose src points at their first child).
     pub range: Option<TextRange>,
@@ -51,6 +62,10 @@ pub struct TocRoot {
 }
 
 impl TocRoot {
+    pub(crate) fn root_ids(&self) -> &[NodeId] {
+        &self.children
+    }
+
     pub(crate) fn nodes(&self) -> impl Iterator<Item = &TocNode> {
         self.container.iter().map(|(_, node)| node)
     }
@@ -105,6 +120,7 @@ impl Toc for TocRoot {
             title,
             Some(TreeNodeMeta {
                 words: 0,
+                range_kind: TocRangeKind::Unknown,
                 range: Some(range),
             }),
             parent,
@@ -129,6 +145,7 @@ impl Toc for TocRoot {
             title: title.to_string(),
             meta: meta.unwrap_or(TreeNodeMeta {
                 words: 0,
+                range_kind: TocRangeKind::Container,
                 range: None,
             }),
             parent,

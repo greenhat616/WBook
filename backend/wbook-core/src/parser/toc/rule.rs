@@ -134,6 +134,7 @@ pub fn scan_lines(
         for rule in rules {
             if let Some(title) = rule.match_title(line) {
                 events.push(TocEvent {
+                    range_kind: crate::toc::TocRangeKind::Heading,
                     level: rule.level,
                     title: title.to_string(),
                     range: Some(

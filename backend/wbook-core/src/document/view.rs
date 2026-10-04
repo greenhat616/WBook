@@ -131,6 +131,22 @@ impl<'a> TextView<'a> {
         }
     }
 
+    pub fn range_lines<'c>(
+        self,
+        ct: &'c CancellationToken,
+        version: DocumentVersion,
+        range: TextRange,
+    ) -> Result<Lines<'a, 'c>, DocumentError> {
+        check_cancelled(ct)?;
+        Ok(Lines {
+            chunks: self.chunks(version, range)?,
+            remaining: "",
+            offset: range.start,
+            ct,
+            finished: false,
+        })
+    }
+
     pub fn char_indices<'c>(self, ct: &'c CancellationToken) -> CharIndices<'a, 'c> {
         CharIndices {
             chunks: self.all_chunks(),

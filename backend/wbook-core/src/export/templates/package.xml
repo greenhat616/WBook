@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier id="book-id">{{ book.identifier }}</dc:identifier>
+<dc:title>{{ book.title }}</dc:title>
+<dc:language>{{ book.language }}</dc:language>
+{% if book.author %}<dc:creator>{{ book.author }}</dc:creator>{% endif %}
+<meta property="dcterms:modified">{{ book.modified }}</meta>
+<meta property="rendition:layout">reflowable</meta>
+</metadata>
+<manifest>
+<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
+<item id="css" href="styles/book.css" media-type="text/css" />
+{% for file in files %}<item id="content-{{ loop.index }}" href="{{ file }}" media-type="application/xhtml+xml" />
+{% endfor %}</manifest>
+<spine>{% for file in files %}<itemref idref="content-{{ loop.index }}" />{% endfor %}</spine>
+</package>

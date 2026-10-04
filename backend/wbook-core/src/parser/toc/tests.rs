@@ -493,7 +493,7 @@ fn vbook_inline_volumes_remove_repeated_prefixes_and_keep_offsets() {
     let range = entries[1].children[1].meta.range.unwrap();
     assert_eq!(
         text[range.start as usize..range.end as usize].trim(),
-        "第2章 蛮启"
+        "第一卷 人生若只如初见 第2章 蛮启"
     );
 }
 
@@ -715,6 +715,7 @@ fn cancellation_during_tree_build_discards_partial_results() {
             ct.cancel();
         }
         crate::toc::TocEvent {
+            range_kind: crate::toc::TocRangeKind::Container,
             level: 1,
             title: index.to_string(),
             range: None,

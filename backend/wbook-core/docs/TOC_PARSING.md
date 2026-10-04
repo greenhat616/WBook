@@ -212,6 +212,14 @@ and obtain a view with `document.view()`. See the [transform pipeline
 spec](specs/2026-10-04-text-transform-pipeline/design.md) for edit and version
 contracts.
 
+## Export range semantics
+
+`TocEvent` and `TreeNodeMeta` carry `range_kind`: `Heading` identifies source text replaced by the edited heading, `Body` identifies a full text chunk, and `Container` never consumes source text even when its aggregate range is backfilled. Snapshots without this field read as `Unknown`; they remain viewable but require explicit confirmation or reparsing before export. `Toc::add` leaves the semantics Unknown; new code should use `add_with_meta` with an explicit kind when constructing exportable source nodes.
+
+VBook inline volume and chapter headings can occupy adjacent spans in one line. On repeated volume prefixes, the chapter span includes the prefix so export consumes it once without duplicating it in the preceding body. Length-split Body spans keep their first line intact. `TextView::range_lines` reads a validated range without flattening a chapter, preserving source offsets and fragmented CRLF pairs.
+
+The [render/package specification](specs/2026-10-04-render-package-pipeline/design.md) defines source coverage, TOC reordering, navigation and EPUB publication.
+
 ## Cancellation and errors
 
 `ParserError::Cancelled` is distinct from a parse failure or `NoMatch`.

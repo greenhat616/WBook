@@ -12,6 +12,7 @@ fn range(start: u64, end: u64) -> TextRange {
 fn meta() -> TreeNodeMeta {
     TreeNodeMeta {
         words: 0,
+        range_kind: super::TocRangeKind::Unknown,
         range: Some(range(0, 0)),
     }
 }
@@ -289,7 +290,7 @@ fn test_dump() {
     let buf = toc.dump().unwrap();
     assert_eq!(
         buf,
-        "[{\"id\":0,\"title\":\"test\",\"meta\":{\"words\":0,\"range\":{\"start\":0,\"end\":0}},\"children\":[]}]"
+        "[{\"id\":0,\"title\":\"test\",\"meta\":{\"words\":0,\"range_kind\":\"Unknown\",\"range\":{\"start\":0,\"end\":0}},\"children\":[]}]"
     );
 }
 
@@ -344,6 +345,7 @@ fn test_try_from_snapshot_rejects_duplicate_ids() {
         title: "x".to_string(),
         meta: TreeNodeMeta {
             words: 0,
+            range_kind: super::TocRangeKind::Unknown,
             range: None,
         },
         children: vec![],
@@ -362,6 +364,7 @@ fn test_try_from_snapshot_rejects_inverted_range() {
         title: "x".to_string(),
         meta: TreeNodeMeta {
             words: 0,
+            range_kind: super::TocRangeKind::Unknown,
             range: Some(TextRange { start: 10, end: 5 }),
         },
         children: vec![],
@@ -377,6 +380,7 @@ fn test_builder_simple_stream() {
     let mut builder = TocBuilder::new();
     let a = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 1,
             title: "a".to_string(),
             range: Some(range(0, 10)),
@@ -384,6 +388,7 @@ fn test_builder_simple_stream() {
         .unwrap();
     let b = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 2,
             title: "b".to_string(),
             range: Some(range(0, 5)),
@@ -401,6 +406,7 @@ fn test_builder_level_jump_creates_containers() {
     let mut builder = TocBuilder::new();
     let leaf = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 3,
             title: "c1".to_string(),
             range: Some(range(0, 10)),
@@ -425,6 +431,7 @@ fn test_builder_level_fallback_pops_stack() {
     let mut builder = TocBuilder::new();
     let a = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Container,
             level: 1,
             title: "a".to_string(),
             range: None,
@@ -432,6 +439,7 @@ fn test_builder_level_fallback_pops_stack() {
         .unwrap();
     let b = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Container,
             level: 2,
             title: "b".to_string(),
             range: None,
@@ -439,6 +447,7 @@ fn test_builder_level_fallback_pops_stack() {
         .unwrap();
     let c = builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Container,
             level: 1,
             title: "c".to_string(),
             range: None,
@@ -456,6 +465,7 @@ fn test_builder_backfills_container_range() {
     let mut builder = TocBuilder::new();
     builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Container,
             level: 1,
             title: "part".to_string(),
             range: None,
@@ -463,6 +473,7 @@ fn test_builder_backfills_container_range() {
         .unwrap();
     builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 2,
             title: "c1".to_string(),
             range: Some(range(0, 10)),
@@ -470,6 +481,7 @@ fn test_builder_backfills_container_range() {
         .unwrap();
     builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 2,
             title: "c2".to_string(),
             range: Some(range(10, 25)),
@@ -487,6 +499,7 @@ fn test_builder_backfill_can_be_disabled() {
     });
     builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Container,
             level: 1,
             title: "part".to_string(),
             range: None,
@@ -494,6 +507,7 @@ fn test_builder_backfill_can_be_disabled() {
         .unwrap();
     builder
         .push(TocEvent {
+            range_kind: super::TocRangeKind::Heading,
             level: 2,
             title: "c1".to_string(),
             range: Some(range(0, 10)),
