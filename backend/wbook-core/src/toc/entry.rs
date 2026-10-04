@@ -6,13 +6,39 @@ use specta::Type;
 use super::{NodeId, Toc, TocError, TocNode, TocRoot, TreeNodeMeta};
 
 /// Wire-format TOC entry (aligned with calibre's "TOC entry" terminology).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
 pub struct TocEntry {
     pub id: NodeId,
     pub title: String,
-    pub patch: Option<String>, // git-diff like patch content, to be applied while document is split.
     pub meta: TreeNodeMeta,
     pub children: Vec<TocEntry>,
+}
+
+impl<'de> Deserialize<'de> for TocEntry {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct WireEntry {
+            id: NodeId,
+            title: String,
+            meta: TreeNodeMeta,
+            children: Vec<TocEntry>,
+            #[serde(default)]
+            patch: serde_json::Value,
+        }
+        let entry = WireEntry::deserialize(deserializer)?;
+        // Ignoring an old patch would silently discard the user's text edits.
+        if !entry.patch.is_null() {
+            return Err(serde::de::Error::custom(
+                "legacy text patches are not supported",
+            ));
+        }
+        Ok(Self {
+            id: entry.id,
+            title: entry.title,
+            meta: entry.meta,
+            children: entry.children,
+        })
+    }
 }
 
 /// The serialized form of a `TocRoot`; deserializing it rebuilds the parent weak references.
@@ -70,7 +96,6 @@ fn insert_entry(
     let id = toc
         .add_with_meta(&entry.title, Some(entry.meta), parent)?
         .id;
-    toc.get_mut(id).unwrap().patch = entry.patch;
     for child in entry.children {
         insert_entry(toc, child, Some(id), seen)?;
     }
@@ -82,7 +107,6 @@ impl TocEntry {
         let mut node = TocEntry {
             id: toc_node.id,
             title: toc_node.title.clone(),
-            patch: toc_node.patch.clone(),
             meta: toc_node.meta.clone(),
             children: Vec::new(),
         };

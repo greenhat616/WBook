@@ -2,6 +2,7 @@ use regex::Regex;
 use tokio_util::sync::CancellationToken;
 
 use super::config::{HeadingRuleConfig, NumeralStyle, SimpleRuleConfig, TocConfigError};
+use crate::document::TextView;
 use crate::parser::{check_cancelled, ParserError};
 use crate::toc::{TocBuilder, TocEvent, TocRoot};
 use crate::types::TextRange;
@@ -117,27 +118,19 @@ fn match_simple<'a>(config: &SimpleRuleConfig, line: &'a str) -> Option<&'a str>
     Some(heading.trim_end())
 }
 
-pub(super) fn text_lines(text: &str) -> impl Iterator<Item = (u64, &str)> {
-    let mut offset = 0;
-    text.split_inclusive('\n').map(move |raw| {
-        let start = offset;
-        offset += raw.len() as u64;
-        let line = raw.strip_suffix('\n').unwrap_or(raw);
-        (start, line.strip_suffix('\r').unwrap_or(line))
-    })
-}
-
 // Events retain heading locations, not chapter body spans. Consumers can use
 // successive starts and the original text length to determine content spans.
 pub fn scan_lines(
-    text: &str,
+    text: TextView<'_>,
     rules: &[LineRule],
     ct: &CancellationToken,
 ) -> Result<Vec<TocEvent>, ParserError> {
     check_cancelled(ct)?;
     let mut events = Vec::new();
-    for (start, line) in text_lines(text) {
-        check_cancelled(ct)?;
+    for line in text.lines(ct) {
+        let line = line?;
+        let start = line.range.start;
+        let line = line.text();
         for rule in rules {
             if let Some(title) = rule.match_title(line) {
                 events.push(TocEvent {

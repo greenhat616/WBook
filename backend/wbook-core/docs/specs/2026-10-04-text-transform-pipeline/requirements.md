@@ -1,7 +1,7 @@
 # 文本变换流水线：用户需求与故事
 
 - 日期：2026-10-04
-- 状态：Draft，待实现
+- 状态：核心功能已实施；验收证据与工作区既有阻塞见 [performance.md](performance.md)
 - 设计：[design.md](design.md)
 - 实施与验证：[tasks.md](tasks.md)
 

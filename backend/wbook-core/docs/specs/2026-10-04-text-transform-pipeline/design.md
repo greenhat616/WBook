@@ -1,7 +1,7 @@
 # 文本变换流水线：设计
 
 - 日期：2026-10-04
-- 状态：Draft，描述目标设计，不代表现有实现
+- 状态：核心功能已实施；工作区验收存在既有阻塞，见 [performance.md](performance.md)
 - 用户需求：[requirements.md](requirements.md)
 - 实施与验证：[tasks.md](tasks.md)
 
@@ -9,7 +9,7 @@
 
 采用“当前文档 + 版本化编辑批次”的执行模型，用简单 piece table 保存当前正文。每个变换阶段读取当前文本，提交编辑后立即更新逻辑视图；需要连续字符串时才按请求范围物化。
 
-保留不可变的解码原文、UTF-8 字节偏移和延迟拼接全文。调整 [DESIGN_NOTE.md](../../DESIGN_NOTE.md) 中“所有操作引用原文，直到拆分或导出才生效”的约定。实施本 spec 时同步更新该文档；本次 spec 编写不修改当前实现或原有设计说明。
+保留不可变的解码原文、UTF-8 字节偏移和延迟拼接全文。调整 [DESIGN_NOTE.md](../../DESIGN_NOTE.md) 中“所有操作引用原文，直到拆分或导出才生效”的约定。该约定已随实现同步更新；下文保留设计决策、范围与验证要求。
 
 现有行为与迁移点：
 
@@ -22,7 +22,7 @@
 | `toc/mod.rs`、`toc/entry.rs`        | `patch: Option<String>`；目录范围用途并不统一                                         | 正文编辑移到文档层，目录继续管理结构与定位              |
 | `session/worker.rs`                 | 工作流尚未实现                                                                        | 提供可独立测试的顺序处理入口，不扩展整个 Session 状态机 |
 
-这是一项核心 API 迁移。当前没有完整的编辑、预览、拆分和导出消费链，因此不承诺已有应用行为兼容，也不把这些尚不存在的功能写成已经完成的能力。
+这是一项核心 API 迁移。实施前没有完整的编辑、预览、拆分和导出消费链；本次提供核心编辑、范围预览和 writer 输出能力，完整 GUI 与 EPUB 拆分仍在范围外。上表的“现状”指迁移前基线。
 
 ## 2. 执行模型
 
@@ -206,7 +206,7 @@ I/O 错误或取消可能留下部分 writer 输出。此接口不承诺外部�
 
 - `TextOp` 生产和消费迁移到 `TextEdit` / `EditBatch`。
 - 删除已被新模型取代且无使用点的 `TransformOperation`、`ContentRange`；`ByteRange` 仅在确认无其他用途时作为该旧坐标模型的遗留清理。
-- `TocNode` 和 `TocEntry` 移除可执行正文字符串 `patch`，正文修改归文档所有。
+- `TocNode` 和 `TocEntry` 移除可执行正文字符串 `patch`，正文修改归文档所有。`TocNode` 不再直接反序列化，读取目录结构统一经过检查旧 patch 的 `TocEntry` / `TocSnapshot` 路径。
 - 旧快照中缺失或为 `null` 的 `patch` 可读取；任何字符串值（包括 `""`）均明确返回不支持旧补丁格式的错误，其他非 `null` JSON 值也拒绝。
 - 反序列化兼容入口应明确识别旧 `patch`，不得仅删除字段后依赖 Serde 忽略未知字段。新序列化不再写出该字段。
 - 裸 `TocSnapshot` 保留为结构传输格式；没有文档版本的旧快照不能直接充当当前有效的解析或导出计划。
@@ -236,3 +236,13 @@ I/O 错误或取消可能留下部分 writer 输出。此接口不承诺外部�
 | [calibre conversion pipeline](https://manual.calibre-ebook.com/conversion.html#introduction)                        | 处理阶段依次消费当前中间结果                         | 将整本 TXT 提前物化为 XHTML 文档树       |
 
 资料在 2026-10-04 的前置分析中核对。本 spec 将这些机制按 WBook 的已确认需求组合；不声称任一参考系统采用这里完全相同的模型。
+
+## 13. 实现落点
+
+- `src/document/mod.rs`：`TextDocument`、`DocumentVersion`、`EditBatch`、批次应用与错误。文档身份使用随机 UUID 的 16 字节表示，避免进程重启后的计数器身份复用。
+- `src/document/view.rs`：借用 `TextView`、逻辑行、字符遍历、版本绑定的范围读取和输出。
+- `src/document/change.rs`：已校验定位点、插入关联和单批位置映射。
+- `src/document/pipeline.rs`：`ProcessingDocument`、带版本的 `ParsedResults`、显式结果安装及 `OutputPlan`。
+- `examples/transform_bench.rs` 与本目录的 `benchmark.py`：独立进程测量与字符串基线。
+
+`run` 和 `parse` 只返回解析候选结果，调用方显式 `install` 后才替换已有目录。`metadata_overrides` 保存调用方设置的元数据；自动解析不覆盖它。现有应用入口尚未有完整 Session 工作流，本次没有虚构或扩建这些入口。

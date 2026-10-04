@@ -2,7 +2,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::config::TocConfigError;
 use super::rule::build_toc;
-use crate::extractor::{Content, ParsedContent};
+use crate::document::TextView;
 use crate::parser::{check_cancelled, MatchConfidence, ParserError, TocParser};
 use crate::toc::{TocEvent, TocRoot};
 use crate::types::TextRange;
@@ -27,27 +27,23 @@ impl TocParser for SplitEvenlyParser {
         "split-evenly"
     }
 
-    fn accept(&self, _content: &ParsedContent) -> MatchConfidence {
+    fn accept(&self, _content: TextView<'_>) -> MatchConfidence {
         MatchConfidence(1)
     }
 
-    fn parse(
-        &self,
-        ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<TocRoot, ParserError> {
+    fn parse(&self, ct: &CancellationToken, content: TextView<'_>) -> Result<TocRoot, ParserError> {
         check_cancelled(ct)?;
-        let Content::Text(text) = &content.content;
+        let text = content;
         let mut char_count = 0;
-        for _ in text.chars() {
-            check_cancelled(ct)?;
+        for character in text.char_indices(ct) {
+            character?;
             char_count += 1;
         }
         let parts = self.parts.min(char_count);
         if parts == 0 {
             return build_toc([], ct);
         }
-        let mut chars = text.char_indices();
+        let mut chars = text.char_indices(ct).peekable();
         let mut start = 0;
         let mut events = Vec::new();
         for index in 0..parts {
@@ -56,16 +52,19 @@ impl TocParser for SplitEvenlyParser {
             let count = char_count / parts + usize::from(index < char_count % parts);
             for _ in 0..count {
                 check_cancelled(ct)?;
-                chars.next();
+                if let Some(character) = chars.next() {
+                    character?;
+                }
             }
-            let end = chars
-                .clone()
-                .next()
-                .map_or(text.len(), |(offset, _)| offset);
+            let end = match chars.peek() {
+                Some(Ok((offset, _))) => *offset,
+                Some(Err(_)) => return Err(chars.next().unwrap().unwrap_err().into()),
+                None => text.len(),
+            };
             events.push(TocEvent {
                 level: 1,
                 title: format!("第 {} 部分", index + 1),
-                range: Some(TextRange::new(start as u64, end as u64).expect("ranges are ordered")),
+                range: Some(TextRange::new(start, end).expect("ranges are ordered")),
             });
             start = end;
         }
