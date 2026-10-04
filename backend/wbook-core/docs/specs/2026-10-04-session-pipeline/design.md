@@ -1,7 +1,7 @@
 # Session 管线：设计总览
 
 - 日期：2026-10-04
-- 状态：草案；类型名为设计约定，实施时可按既有风格微调
+- 状态：已实施；证据与限制见 [verification.md](verification.md)
 - 需求：[requirements.md](requirements.md)
 - 分层设计：[Workspace 层](design-workspace.md)、[Session 运行时层](design-session.md)
 - 实施与验证：[tasks.md](tasks.md)

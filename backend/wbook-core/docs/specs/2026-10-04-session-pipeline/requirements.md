@@ -1,7 +1,7 @@
 # Session 管线：需求与验收条件
 
 - 日期：2026-10-04
-- 状态：草案；本目录描述待实施行为，不代表已有能力
+- 状态：已实施；证据与限制见 [verification.md](verification.md)
 - 设计：[总览](design.md)、[Workspace 层](design-workspace.md)、[Session 运行时层](design-session.md)
 - 实施与验证：[tasks.md](tasks.md)
 
@@ -9,7 +9,7 @@
 
 本阶段把已有提取、文本处理、解析与 EPUB 导出接入可创建、观察、取消和关闭的 Session。Workspace 表示一份可编辑电子书工作区及其全部领域状态；Session 是 Workspace 在进程内的一次打开；一次解析或导出是 Session 上的一个操作。操作完成不等于 Session 关闭。
 
-当前 `Session` 只有状态与元数据，`SessionHandle`、`Command` 和 `SessionError` 为空，`SessionManager` 只有容器，`Wbook` 尚未持有 Manager。已有 `ProcessingDocument` 和 export 模块可以独立调用，但没有 Session 运行时。2026-10-04 分析时执行 `cargo test -p wbook-core --lib --locked --offline`，140 个核心测试通过；它们不构成 Session 生命周期的验收证据。
+实施前，`Session` 只有状态与元数据，`SessionHandle`、`Command` 和 `SessionError` 为空，`SessionManager` 只有容器，`Wbook` 尚未持有 Manager。已有 `ProcessingDocument` 和 export 模块可以独立调用，但没有 Session 运行时。2026-10-04 分析时执行 `cargo test -p wbook-core --lib --locked --offline`，140 个核心测试通过；它们不构成 Session 生命周期的验收证据。
 
 ## 本阶段范围
 

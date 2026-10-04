@@ -97,8 +97,21 @@ See the [render/package spec](specs/2026-10-04-render-package-pipeline/design.md
 
 ### Lifecycle
 
-Session 管线的待实施契约见 [Session spec](specs/2026-10-04-session-pipeline/requirements.md)：工作区与单次操作分离，包含取消、预览、导出及可等待关闭；持久化保存与重启恢复列为后续 TODO。该 spec 当前为草案，不代表已有运行时能力。
+Session 管线的契约见 [Session spec](specs/2026-10-04-session-pipeline/requirements.md)：同步 Workspace 持有领域状态与规则，Session 运行时只负责准入、取消、执行、快照与关闭；持久化保存与重启恢复仍是 TODO。
 
-目前设计上支持多 Session 并行，每个 Session 独立管理其生命周期，包括创建、使用和销毁。这有助于在同一应用中同时处理多个文档或任务，提升系统的并发处理能力和资源利用效率。
+2026-10-04 实施事实：`Wbook::new(Params)` 从当前 tokio runtime 取得 Handle，持有 `SessionManager`；通过 `session_manager()` 调用 `create / open / get / list / close / shutdown`。`create` 只验证配置，不读取输入；`open(Workspace)` 是注册的基本入口。同步 Workspace 集中持有正文、已安装结果、overrides、过滤进度与 Revision；持久字段只在提交点修改，预览与清理告警属于临时状态。WorkspaceState 未派生 Serialize，尚无保存格式。
 
-每个 Session 的生命周期管理可以通过状态机来实现，确保在不同状态下的操作合法性。例如，只有在 Session 创建后才能进行文档解析，解析完成后才能进行 Tweak 操作，最终才能销毁 Session。
+`SessionHandle` 的 initialize、parse、install、apply_edits、set_metadata_overrides、read_text、read_results、render_preview、export_epub 同步准入，成功返回可 await 的独立 `Receipt<T>`。同一 Session 一次只接受一个操作，冲突返回 Busy；多个 Session 可并行。阻塞工作线程独占移入的 Workspace，完成后归还，包括业务失败；正常返回的操作结果携带实际 Revision、保留类别的错误和清理告警。panic 使工作区成为 Lost，完成凭据并拒绝后续数据操作，查询与关闭仍可用；其副作用未知，Revision 只能报告最后已知值。快照通过 `snapshot / subscribe` 访问，只含状态、阶段、版本与最近一次操作摘要，不含全文、目录或时间线。
+
+生命周期为 Open → Closing → Closed，解析或导出完成不关闭 Session。`cancel(OperationId)` 只取消匹配的活动操作，最终是否取消由底层错误决定；已提交的前缀与已发布 EPUB 不回滚。正文编辑使旧结果 Stale 并关闭预览，parse 不安装结果，install 验证版本和范围。相同 ExportOptions 复用预览，导出独立渲染且不覆盖既有目标。
+
+`close().await` 禁止新操作、请求取消、等待真实工作线程返回后清理 Workspace；并发关闭共享同一个 `Arc<CloseReport>`，丢弃等待不终止关闭。清理告警不会覆写成功结果。关闭后 Manager 移除注册项，旧 Handle 可查询终态。`Wbook::shutdown().await` 先禁止创建并请求全部关闭，再等待并汇总；Drop 只尽力请求停止，不能替代有序 shutdown。关闭只清理所拥有的临时资源，不删除输入或已发布产物。
+
+公开 API 全链示例与取消测量只通过 Wbook / Handle 操作，使用生成的临时文件并在结束时清理：
+
+```powershell
+cargo run --manifest-path backend/Cargo.toml -p wbook-core --example session_pipeline
+cargo run --manifest-path backend/Cargo.toml -p wbook-core --release --example session_latency
+```
+
+测量、自动化场景和已知限制见 [Session 验证记录](specs/2026-10-04-session-pipeline/verification.md)。文件读取、解码及不可中断库调用会推迟取消响应，不承诺固定上限。打开文档数量决定总正文内存，Session 不额外累积全文或操作历史。GUI、HTTP/WebSocket、Tauri 退出事件与持久化保存、自动保存、重启恢复仍未接入；`Params.data_dir` 本期不使用。

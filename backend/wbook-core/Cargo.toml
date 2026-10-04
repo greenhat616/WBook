@@ -15,7 +15,6 @@ chardetng = "1"
 encoding_rs = "0.8"
 unicode-bom = "2"
 
-dashmap = "6"
 slab = "0.4"
 str-utils = "0.3"
 

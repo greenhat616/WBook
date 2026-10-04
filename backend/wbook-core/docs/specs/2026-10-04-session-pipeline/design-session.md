@@ -1,7 +1,7 @@
 # Session 管线：Session 运行时层
 
 - 日期：2026-10-04
-- 状态：草案
+- 状态：已实施
 - 总览：[design.md](design.md)；领域层：[design-workspace.md](design-workspace.md)
 
 ## 1. 定位
