@@ -30,7 +30,7 @@ async fn handle_socket(mut socket: WebSocket) {
                     Message::Text(t) => {
                         // Echo
                         if socket
-                            .send(Message::Text(format!("Echo from backend: {}", t)))
+                            .send(Message::Text(format!("Echo from backend: {}", t).into()))
                             .await
                             .is_err()
                         {
