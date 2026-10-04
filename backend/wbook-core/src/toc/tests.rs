@@ -289,7 +289,7 @@ fn test_dump() {
     let buf = toc.dump().unwrap();
     assert_eq!(
         buf,
-        "[{\"id\":0,\"title\":\"test\",\"patch\":null,\"meta\":{\"words\":0,\"range\":{\"start\":0,\"end\":0}},\"children\":[]}]"
+        "[{\"id\":0,\"title\":\"test\",\"meta\":{\"words\":0,\"range\":{\"start\":0,\"end\":0}},\"children\":[]}]"
     );
 }
 
@@ -312,17 +312,29 @@ fn test_snapshot_roundtrip() {
 }
 
 #[test]
-fn test_snapshot_roundtrip_preserves_patch() {
-    let mut toc = TocRoot::new();
-    let node_id = toc.add("node1", range(0, 5), None).unwrap().id;
-    toc.get_mut(node_id).unwrap().patch = Some("@@ patch".to_string());
-
-    let snapshot = TocSnapshot::from(&toc);
-    let restored = TocRoot::try_from(snapshot).unwrap();
-    assert_eq!(
-        restored.get(node_id).unwrap().patch,
-        Some("@@ patch".to_string())
-    );
+fn legacy_patches_are_rejected_instead_of_silently_discarded() {
+    let base = serde_json::json!({
+        "id": 0, "title": "chapter", "meta": { "words": 0, "range": null }, "children": []
+    });
+    for patch in [
+        serde_json::Value::Null,
+        serde_json::json!(""),
+        serde_json::json!("@@ patch"),
+        serde_json::json!(false),
+        serde_json::json!(0),
+        serde_json::json!([]),
+        serde_json::json!({}),
+    ] {
+        let mut value = base.clone();
+        value["patch"] = patch.clone();
+        let result = serde_json::from_value::<TocEntry>(value);
+        assert_eq!(result.is_ok(), patch.is_null());
+        if let Err(error) = result {
+            assert!(error.to_string().contains("legacy text patches"));
+        }
+    }
+    let entry: TocEntry = serde_json::from_value(base).unwrap();
+    assert!(serde_json::to_value(entry).unwrap().get("patch").is_none());
 }
 
 #[test]
@@ -330,7 +342,6 @@ fn test_try_from_snapshot_rejects_duplicate_ids() {
     let entry = |id| TocEntry {
         id,
         title: "x".to_string(),
-        patch: None,
         meta: TreeNodeMeta {
             words: 0,
             range: None,
@@ -349,7 +360,6 @@ fn test_try_from_snapshot_rejects_inverted_range() {
     let snapshot = vec![TocEntry {
         id: NodeId(0),
         title: "x".to_string(),
-        patch: None,
         meta: TreeNodeMeta {
             words: 0,
             range: Some(TextRange { start: 10, end: 5 }),

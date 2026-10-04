@@ -4,8 +4,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::config::{HeadingRuleConfig, TocConfigError};
 use super::leveled::rule_confidence;
-use super::rule::{build_toc, scan_lines, text_lines, LineRule};
-use crate::extractor::{Content, ParsedContent};
+use super::rule::{build_toc, scan_lines, LineRule};
+use crate::document::TextView;
 use crate::parser::{check_cancelled, MatchConfidence, ParserError, TocParser};
 use crate::toc::{TocEvent, TocRoot};
 use crate::types::TextRange;
@@ -112,13 +112,15 @@ impl VBookTocParser {
 
     fn scan_inline(
         &self,
-        text: &str,
+        text: TextView<'_>,
         ct: &CancellationToken,
     ) -> Result<Vec<TocEvent>, ParserError> {
         let mut events = Vec::new();
         let mut current_volume = String::new();
-        for (start, line) in text_lines(text) {
-            check_cancelled(ct)?;
+        for line in text.lines(ct) {
+            let line = line?;
+            let start = line.range.start;
+            let line = line.text();
             if let Some((split, volume, chapter)) = self.inline_heading(line, ct)? {
                 if volume != current_volume {
                     events.push(heading(1, volume, start, start + split as u64));
@@ -144,7 +146,7 @@ impl VBookTocParser {
 
     fn scan_chapters(
         &self,
-        text: &str,
+        text: TextView<'_>,
         ct: &CancellationToken,
     ) -> Result<Vec<TocEvent>, ParserError> {
         match &self.config.chapters {
@@ -152,8 +154,10 @@ impl VBookTocParser {
             ChapterMode::EndMarker { marker } => {
                 let mut events = Vec::new();
                 let mut at_start = true;
-                for (start, line) in text_lines(text) {
-                    check_cancelled(ct)?;
+                for line in text.lines(ct) {
+                    let line = line?;
+                    let start = line.range.start;
+                    let line = line.text();
                     if line.trim() == marker.trim()
                         || self
                             .volume_rules
@@ -180,14 +184,15 @@ impl TocParser for VBookTocParser {
         "vbook"
     }
 
-    fn accept(&self, content: &ParsedContent) -> MatchConfidence {
-        let Content::Text(text) = &content.content;
+    fn accept(&self, content: TextView<'_>) -> MatchConfidence {
+        let text = content;
+        let ct = CancellationToken::new();
         if let ChapterMode::EndMarker { marker } = &self.config.chapters {
             return MatchConfidence(
                 if text
-                    .lines()
+                    .lines(&ct)
                     .take(2000)
-                    .any(|line| line.trim() == marker.trim())
+                    .any(|line| line.is_ok_and(|line| line.text().trim() == marker.trim()))
                 {
                     2
                 } else {
@@ -197,9 +202,11 @@ impl TocParser for VBookTocParser {
         }
         if matches!(self.config.volumes, VolumeMode::FromChapterTitles { .. }) {
             let ct = CancellationToken::new();
-            if text.lines().take(2000).any(|line| {
-                self.inline_heading(line, &ct)
-                    .is_ok_and(|heading| heading.is_some())
+            if text.lines(&ct).take(2000).any(|line| {
+                line.is_ok_and(|line| {
+                    self.inline_heading(line.text(), &ct)
+                        .is_ok_and(|heading| heading.is_some())
+                })
             }) {
                 return MatchConfidence(2);
             }
@@ -207,13 +214,9 @@ impl TocParser for VBookTocParser {
         rule_confidence(text, &self.chapter_rules).max(rule_confidence(text, &self.volume_rules))
     }
 
-    fn parse(
-        &self,
-        ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<TocRoot, ParserError> {
+    fn parse(&self, ct: &CancellationToken, content: TextView<'_>) -> Result<TocRoot, ParserError> {
         check_cancelled(ct)?;
-        let Content::Text(text) = &content.content;
+        let text = content;
         if matches!(self.config.volumes, VolumeMode::FromChapterTitles { .. }) {
             let mut events = self.scan_inline(text, ct)?;
             nest_chapters(&mut events, ct)?;

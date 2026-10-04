@@ -1,6 +1,7 @@
 # TOC parsing in wbook-core
 
-Callers choose one TOC parser and pass it a decoded, immutable `ParsedContent`.
+Callers choose one TOC parser and pass it a fixed current `TextView` from a
+`TextDocument`. The view observes every previously committed edit batch.
 `TocParserConfig::build()` validates serializable configuration and returns
 `Result<Box<dyn TocParser>, TocConfigError>`. The resulting parser returns
 `Result<TocRoot, ParserError>` from `parse`. No combined-parser orchestration is
@@ -184,8 +185,8 @@ one, with larger chunks first. At most one chunk per character is produced.
 It does not align to paragraphs or infer headings. Zero parts returns a
 configuration error, rather than panicking.
 
-All source positions are half-open UTF-8 byte ranges in the original decoded
-text. CRLF counts toward offsets; the line terminator is excluded from a
+All positions are half-open UTF-8 byte ranges in the logical text of the
+version used for parsing, not offsets into the original decoded buffer. CRLF counts toward offsets; the line terminator is excluded from a
 detected heading range.
 
 A heading parser stores the heading's source span, not the entire chapter
@@ -194,8 +195,22 @@ subspans. A length-split entry instead refers to its complete chunk because
 its title is generated. Synthetic grouping volumes start with no source range;
 `TocBuilder` backfills the union of child ranges. None of these ranges is a
 promise that a volume contains all of its body text: future export code must
-derive content boundaries from entry starts and document length, accounting
+derive content boundaries from entry starts and that version's document length, accounting
 for container entries.
+
+`ProcessingDocument` associates parsed results with their document version.
+After a nonempty edit batch commits, the old TOC stays available but becomes
+stale. Reparse the current view and explicitly install the new result before
+creating an output plan; positional mapping alone does not validate a TOC.
+Filters and parsers use logical lines across storage pieces, including split
+CRLF pairs. A fragmented line may be materialized temporarily for regex
+matching; parsers do not flatten the entire document by default.
+
+The `TextView` parser argument replaces the earlier `&ParsedContent` API.
+`scan_lines` also accepts a view. Move extraction output into `TextDocument`
+and obtain a view with `document.view()`. See the [transform pipeline
+spec](specs/2026-10-04-text-transform-pipeline/design.md) for edit and version
+contracts.
 
 ## Cancellation and errors
 

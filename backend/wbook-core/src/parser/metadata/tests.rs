@@ -1,3 +1,4 @@
+use crate::document::TextDocument;
 use camino::Utf8PathBuf;
 use tokio_util::sync::CancellationToken;
 
@@ -5,7 +6,7 @@ use super::SimpleMetadataParser;
 use crate::extractor::{Content, Encoding, ParsedContent};
 use crate::parser::MetadataParser;
 
-fn content(text: &str, source_path: Option<&str>) -> ParsedContent {
+fn content(text: &str, source_path: Option<&str>) -> TextDocument {
     ParsedContent {
         encoding: Encoding {
             name: "utf-8".to_string(),
@@ -14,11 +15,12 @@ fn content(text: &str, source_path: Option<&str>) -> ParsedContent {
         content: Content::Text(text.to_string()),
         source_path: source_path.map(Utf8PathBuf::from),
     }
+    .into()
 }
 
-fn parse(content: &ParsedContent) -> super::Metadata {
+fn parse(content: &TextDocument) -> super::Metadata {
     SimpleMetadataParser::new()
-        .parse(&CancellationToken::new(), content)
+        .parse(&CancellationToken::new(), content.view())
         .unwrap()
 }
 
@@ -44,7 +46,10 @@ fn book_brackets_win_over_label_line() {
 
 #[test]
 fn falls_back_to_file_stem() {
-    let metadata = parse(&content("正文内容，没有任何标题线索。\n", Some("/books/我的小说.txt")));
+    let metadata = parse(&content(
+        "正文内容，没有任何标题线索。\n",
+        Some("/books/我的小说.txt"),
+    ));
     assert_eq!(metadata.title.as_deref(), Some("我的小说"));
     assert_eq!(metadata.author, None);
 }
@@ -62,7 +67,7 @@ fn cancellation_including_empty_input_returns_cancelled() {
     ct.cancel();
     for text in ["", "《标题》\n作者：甲"] {
         assert!(matches!(
-            SimpleMetadataParser::new().parse(&ct, &content(text, None)),
+            SimpleMetadataParser::new().parse(&ct, content(text, None).view()),
             Err(crate::parser::ParserError::Cancelled)
         ));
     }

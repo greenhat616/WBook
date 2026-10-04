@@ -1,18 +1,19 @@
+use crate::document::TextDocument;
 use tokio_util::sync::CancellationToken;
 
 use super::{
     chapter_only, chapter_only_config, chapter_rules, digit_chapter_rule, easy_pub_config,
-    scan_lines, vbook_config, volume_and_chapter, volume_and_chapter_config, volume_rules,
-    ChapterMode, HeadingRuleConfig, LevelRulesConfig, LineRule, NumeralStyle, PatternRuleConfig,
-    RuleSetTocParser, SimpleRuleConfig, SplitEvenlyParser, TocConfigError, TocParserConfig,
-    TocRulesConfig, VBookTocParser, VolumeMode,
+    scan_lines as scan_view_lines, vbook_config, volume_and_chapter, volume_and_chapter_config,
+    volume_rules, ChapterMode, HeadingRuleConfig, LevelRulesConfig, LineRule, NumeralStyle,
+    PatternRuleConfig, RuleSetTocParser, SimpleRuleConfig, SplitEvenlyParser, TocConfigError,
+    TocParserConfig, TocRulesConfig, VBookTocParser, VolumeMode,
 };
 use crate::extractor::{Content, Encoding, ParsedContent};
 use crate::parser::{MatchConfidence, ParserError, TocParser};
 use crate::toc::{TocRoot, TocSnapshot};
 use crate::types::TextRange;
 
-fn content(text: &str) -> ParsedContent {
+fn content(text: &str) -> TextDocument {
     ParsedContent {
         encoding: Encoding {
             name: "utf-8".to_string(),
@@ -21,12 +22,21 @@ fn content(text: &str) -> ParsedContent {
         content: Content::Text(text.to_string()),
         source_path: None,
     }
+    .into()
 }
 
 fn parse(parser: &dyn TocParser, text: &str) -> TocRoot {
     parser
-        .parse(&CancellationToken::new(), &content(text))
+        .parse(&CancellationToken::new(), content(text).view())
         .unwrap()
+}
+
+fn scan_lines(
+    text: &str,
+    rules: &[LineRule],
+    ct: &CancellationToken,
+) -> Result<Vec<crate::toc::TocEvent>, ParserError> {
+    scan_view_lines(content(text).view(), rules, ct)
 }
 
 #[test]
@@ -72,7 +82,7 @@ fn scan_lines_stops_when_cancelled() {
 fn volume_and_chapter_builds_two_level_tree() {
     let text = "第一卷 风起\n第一章 少年\n第二章 上山\n第二卷 云动\n第一章 归来\n";
     let parser = volume_and_chapter();
-    assert!(parser.accept(&content(text)) > MatchConfidence::NONE);
+    assert!(parser.accept(content(text).view()) > MatchConfidence::NONE);
     let root = parse(&parser, text);
     let snapshot = TocSnapshot::from(&root);
 
@@ -103,7 +113,7 @@ fn volume_and_chapter_builds_two_level_tree() {
 fn rule_set_accept_is_none_without_hits() {
     let parser = volume_and_chapter();
     assert_eq!(
-        parser.accept(&content("hello\nworld\n")),
+        parser.accept(content("hello\nworld\n").view()),
         MatchConfidence::NONE
     );
 }
@@ -145,7 +155,7 @@ fn split_evenly_empty_text_yields_no_parts() {
 fn volume_and_chapter_parses_bare_headings() {
     let text = "卷一 风起\n第一章 少年\n卷二 云动\n章一 归来\n";
     let parser = volume_and_chapter();
-    assert!(parser.accept(&content(text)) > MatchConfidence::NONE);
+    assert!(parser.accept(content(text).view()) > MatchConfidence::NONE);
     let root = parse(&parser, text);
     let snapshot = TocSnapshot::from(&root);
 
@@ -230,7 +240,7 @@ fn regression_bare_heading_respects_full_numeral_length() {
 fn regression_confidence_does_not_wrap() {
     for count in [255, 256, 257, 512] {
         assert_eq!(
-            volume_and_chapter().accept(&content(&"第一章 标题\n".repeat(count))),
+            volume_and_chapter().accept(content(&"第一章 标题\n".repeat(count)).view()),
             MatchConfidence(100)
         );
     }
@@ -242,7 +252,7 @@ fn regression_cancelled_rule_parser_never_succeeds() {
     ct.cancel();
     for text in ["", "正文", "第一章 标题"] {
         assert!(matches!(
-            volume_and_chapter().parse(&ct, &content(text)),
+            volume_and_chapter().parse(&ct, content(text).view()),
             Err(ParserError::Cancelled)
         ));
     }
@@ -470,7 +480,7 @@ fn vbook_inline_volumes_remove_repeated_prefixes_and_keep_offsets() {
     };
     let parser = VBookTocParser::from_config(&config).unwrap();
     let text = "第一章 卷前\r\n第一卷 人生若只如初见 第1章 苏铭\r\n第一卷 人生若只如初见 第2章 蛮启\r\n卷三 风起 章一 开始\r\n章二 继续";
-    assert!(parser.accept(&content(text)) > MatchConfidence::NONE);
+    assert!(parser.accept(content(text).view()) > MatchConfidence::NONE);
     let entries = TocSnapshot::from(&parse(&parser, text));
     assert_eq!(entries.len(), 3);
     assert_eq!(entries[0].title, "第一章 卷前");
@@ -690,7 +700,7 @@ fn cancelled_all_toc_modes_return_the_same_error_even_for_empty_text() {
         let parser = config.build().unwrap();
         for text in ["", "第一章 开始\n正文"] {
             assert!(matches!(
-                parser.parse(&ct, &content(text)),
+                parser.parse(&ct, content(text).view()),
                 Err(ParserError::Cancelled)
             ));
         }

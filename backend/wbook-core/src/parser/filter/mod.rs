@@ -3,9 +3,9 @@ use std::sync::LazyLock;
 use regex::Regex;
 use tokio_util::sync::CancellationToken;
 
-use crate::extractor::{Content, ParsedContent};
+use crate::document::TextEdit;
+use crate::document::TextView;
 use crate::parser::{check_cancelled, FilterParser, MatchConfidence, ParserError};
-use crate::types::{TextOp, TextRange};
 
 #[cfg(test)]
 mod tests;
@@ -40,38 +40,33 @@ impl FilterParser for AdFilterParser {
 
     /// Ad filtering is a safe default for any plain text, so always accept
     /// at low confidence.
-    fn accept(&self, _content: &ParsedContent) -> MatchConfidence {
+    fn accept(&self, _content: TextView<'_>) -> MatchConfidence {
         MatchConfidence(10)
     }
 
     fn parse(
         &self,
         ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<Vec<TextOp>, ParserError> {
+        content: TextView<'_>,
+    ) -> Result<Vec<TextEdit>, ParserError> {
         check_cancelled(ct)?;
-        let Content::Text(text) = &content.content;
+        let text = content;
         let keywords: Vec<&str> = AD_KEYWORDS
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
             .collect();
         let mut ops = Vec::new();
-        let mut line_start = 0u64;
-        for raw_line in text.split_inclusive('\n') {
-            check_cancelled(ct)?;
-            let line_end = line_start + raw_line.len() as u64;
+        for line in text.lines(ct) {
+            let line = line?;
+            let raw_line = line.raw.as_ref();
             if keywords.iter().any(|kw| raw_line.contains(kw)) || URL_PATTERN.is_match(raw_line) {
-                let range = TextRange::new(line_start, line_end).expect("line range is ordered");
-                ops.push(TextOp::Delete { range });
+                ops.push(TextEdit {
+                    range: line.range,
+                    insert: String::new(),
+                });
             }
-            line_start = line_end;
         }
-        ops.sort_by_key(|op| match op {
-            TextOp::Replace { range, .. }
-            | TextOp::Delete { range }
-            | TextOp::Insert { range, .. } => range.start,
-        });
         check_cancelled(ct)?;
         Ok(ops)
     }

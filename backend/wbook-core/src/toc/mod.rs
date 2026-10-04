@@ -30,11 +30,10 @@ pub struct TreeNodeMeta {
     pub range: Option<TextRange>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Type)]
 pub struct TocNode {
     pub id: NodeId, // id is the index of the node in the slab
     pub title: String,
-    pub patch: Option<String>, // git-diff like patch content, to be applied while document is split.
     pub meta: TreeNodeMeta,
     #[serde(skip_serializing, default)]
     // No need to serialize parent, it's a weak reference, should rebuild on data load.
@@ -49,6 +48,12 @@ pub struct TocNode {
 pub struct TocRoot {
     children: Vec<NodeId>,
     container: Slab<TocNode>,
+}
+
+impl TocRoot {
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = &TocNode> {
+        self.container.iter().map(|(_, node)| node)
+    }
 }
 
 pub trait Toc {
@@ -122,7 +127,6 @@ impl Toc for TocRoot {
         entry.insert(TocNode {
             id,
             title: title.to_string(),
-            patch: None,
             meta: meta.unwrap_or(TreeNodeMeta {
                 words: 0,
                 range: None,

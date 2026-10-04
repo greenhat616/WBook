@@ -1,11 +1,12 @@
+use crate::document::TextDocument;
 use tokio_util::sync::CancellationToken;
 
 use super::AdFilterParser;
 use crate::extractor::{Content, Encoding, ParsedContent};
 use crate::parser::{FilterParser, MatchConfidence};
-use crate::types::{TextOp, TextRange};
+use crate::types::TextRange;
 
-fn content(text: &str) -> ParsedContent {
+fn content(text: &str) -> TextDocument {
     ParsedContent {
         encoding: Encoding {
             name: "utf-8".to_string(),
@@ -14,23 +15,27 @@ fn content(text: &str) -> ParsedContent {
         content: Content::Text(text.to_string()),
         source_path: None,
     }
+    .into()
 }
 
 fn deleted_ranges(text: &str) -> Vec<TextRange> {
     let ops = AdFilterParser::new()
-        .parse(&CancellationToken::new(), &content(text))
+        .parse(&CancellationToken::new(), content(text).view())
         .unwrap();
     ops.iter()
-        .map(|op| match op {
-            TextOp::Delete { range } => *range,
-            other => panic!("expected Delete, got {other:?}"),
+        .map(|op| {
+            assert!(op.insert.is_empty());
+            op.range
         })
         .collect()
 }
 
 #[test]
 fn accept_always_low_confidence() {
-    assert_eq!(AdFilterParser::new().accept(&content("")), MatchConfidence(10));
+    assert_eq!(
+        AdFilterParser::new().accept(content("").view()),
+        MatchConfidence(10)
+    );
 }
 
 #[test]
@@ -39,8 +44,14 @@ fn deletes_keyword_lines_and_keeps_normal_lines() {
     let ranges = deleted_ranges(text);
     assert_eq!(ranges.len(), 2);
     // Deleted ranges cover the whole ad line including its trailing newline.
-    assert_eq!(&text[ranges[0].start as usize..ranges[0].end as usize], "请记住本书首发域名。\n");
-    assert_eq!(&text[ranges[1].start as usize..ranges[1].end as usize], "无弹窗阅读。\n");
+    assert_eq!(
+        &text[ranges[0].start as usize..ranges[0].end as usize],
+        "请记住本书首发域名。\n"
+    );
+    assert_eq!(
+        &text[ranges[1].start as usize..ranges[1].end as usize],
+        "无弹窗阅读。\n"
+    );
     assert!(ranges[0].start < ranges[1].start);
 }
 
@@ -49,8 +60,14 @@ fn deletes_url_lines() {
     let text = "正常\n请访问 www.example.com 下载\n见 https://abc.xyz/x\n结尾";
     let ranges = deleted_ranges(text);
     assert_eq!(ranges.len(), 2);
-    assert_eq!(&text[ranges[0].start as usize..ranges[0].end as usize], "请访问 www.example.com 下载\n");
-    assert_eq!(&text[ranges[1].start as usize..ranges[1].end as usize], "见 https://abc.xyz/x\n");
+    assert_eq!(
+        &text[ranges[0].start as usize..ranges[0].end as usize],
+        "请访问 www.example.com 下载\n"
+    );
+    assert_eq!(
+        &text[ranges[1].start as usize..ranges[1].end as usize],
+        "见 https://abc.xyz/x\n"
+    );
 }
 
 #[test]
@@ -65,7 +82,7 @@ fn cancellation_including_empty_input_returns_cancelled() {
     ct.cancel();
     for text in ["", "正文\n请访问 www.example.com"] {
         assert!(matches!(
-            AdFilterParser::new().parse(&ct, &content(text)),
+            AdFilterParser::new().parse(&ct, content(text).view()),
             Err(crate::parser::ParserError::Cancelled)
         ));
     }

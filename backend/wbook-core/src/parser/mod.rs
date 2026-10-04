@@ -1,5 +1,5 @@
-//! Parsers consume the intermediate representation (`ParsedContent`) produced by
-//! an Extractor and turn it into document structures.
+//! Parsers read a fixed current-text view so successive stages observe edits
+//! without copying the entire document.
 //!
 //! TOC parsers share heading rules and assemble events with [`crate::toc::TocBuilder`].
 //! The level parser borrows calibre's per-level rule selection; VBook-style
@@ -9,9 +9,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tokio_util::sync::CancellationToken;
 
-use crate::extractor::ParsedContent;
+use crate::document::{DocumentError, TextEdit, TextView};
 use crate::toc::TocRoot;
-use crate::types::{ByteRange, TextOp, TextRange};
 
 pub mod filter;
 pub mod metadata;
@@ -19,29 +18,6 @@ pub mod toc;
 
 pub use filter::AdFilterParser;
 pub use metadata::{Metadata, SimpleMetadataParser};
-
-/// A position in the content: character range in the decoded text plus byte
-/// range in the raw file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
-pub struct ContentRange {
-    pub chars: TextRange,
-    pub bytes: ByteRange,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-pub enum TransformOperation {
-    Replace {
-        range: ContentRange,
-        replacement: String,
-    },
-    Delete {
-        range: ContentRange,
-    },
-    Insert {
-        range: ContentRange,
-        insertion: String,
-    },
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub enum ParserKind {
@@ -67,6 +43,15 @@ pub enum ParserError {
     Other(#[from] anyhow::Error),
 }
 
+impl From<DocumentError> for ParserError {
+    fn from(error: DocumentError) -> Self {
+        match error {
+            DocumentError::Cancelled => Self::Cancelled,
+            other => Self::Other(other.into()),
+        }
+    }
+}
+
 pub(crate) fn check_cancelled(ct: &CancellationToken) -> Result<(), ParserError> {
     if ct.is_cancelled() {
         Err(ParserError::Cancelled)
@@ -88,13 +73,9 @@ pub trait TocParser: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Whether this parser can handle the given content, and with what confidence.
-    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+    fn accept(&self, content: TextView<'_>) -> MatchConfidence;
 
-    fn parse(
-        &self,
-        ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<TocRoot, ParserError>;
+    fn parse(&self, ct: &CancellationToken, content: TextView<'_>) -> Result<TocRoot, ParserError>;
 
     fn kind(&self) -> ParserKind {
         ParserKind::Toc
@@ -105,13 +86,13 @@ pub trait FilterParser: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Whether this parser can handle the given content, and with what confidence.
-    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+    fn accept(&self, content: TextView<'_>) -> MatchConfidence;
 
     fn parse(
         &self,
         ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<Vec<TextOp>, ParserError>;
+        content: TextView<'_>,
+    ) -> Result<Vec<TextEdit>, ParserError>;
 
     fn kind(&self) -> ParserKind {
         ParserKind::Filter
@@ -122,13 +103,10 @@ pub trait MetadataParser: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Whether this parser can handle the given content, and with what confidence.
-    fn accept(&self, content: &ParsedContent) -> MatchConfidence;
+    fn accept(&self, content: TextView<'_>) -> MatchConfidence;
 
-    fn parse(
-        &self,
-        ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<Metadata, ParserError>;
+    fn parse(&self, ct: &CancellationToken, content: TextView<'_>)
+        -> Result<Metadata, ParserError>;
 
     fn kind(&self) -> ParserKind {
         ParserKind::Metadata
@@ -169,7 +147,7 @@ impl CombinedParser {
     pub fn parse(
         &self,
         ct: &CancellationToken,
-        content: &ParsedContent,
+        content: TextView<'_>,
     ) -> Result<TocRoot, ParserError> {
         check_cancelled(ct)?;
         match self.strategy {
@@ -183,7 +161,7 @@ impl CombinedParser {
     fn parse_best_match(
         &self,
         ct: &CancellationToken,
-        content: &ParsedContent,
+        content: TextView<'_>,
     ) -> Result<TocRoot, ParserError> {
         let mut candidates: Vec<&dyn TocParser> = self
             .parsers
@@ -214,7 +192,7 @@ impl TocParser for CombinedParser {
         "combined"
     }
 
-    fn accept(&self, content: &ParsedContent) -> MatchConfidence {
+    fn accept(&self, content: TextView<'_>) -> MatchConfidence {
         self.parsers
             .iter()
             .map(|parser| parser.accept(content))
@@ -222,11 +200,7 @@ impl TocParser for CombinedParser {
             .unwrap_or(MatchConfidence::NONE)
     }
 
-    fn parse(
-        &self,
-        ct: &CancellationToken,
-        content: &ParsedContent,
-    ) -> Result<TocRoot, ParserError> {
+    fn parse(&self, ct: &CancellationToken, content: TextView<'_>) -> Result<TocRoot, ParserError> {
         CombinedParser::parse(self, ct, content)
     }
 }
@@ -234,10 +208,11 @@ impl TocParser for CombinedParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extractor::{Content, Encoding};
+    use crate::document::TextDocument;
+    use crate::extractor::{Content, Encoding, ParsedContent};
     use crate::toc::{Toc, TocSnapshot};
 
-    fn content() -> ParsedContent {
+    fn content() -> TextDocument {
         ParsedContent {
             encoding: Encoding {
                 name: "utf-8".to_string(),
@@ -246,6 +221,7 @@ mod tests {
             content: Content::Text("第一章 ……".to_string()),
             source_path: None,
         }
+        .into()
     }
 
     struct StubParser {
@@ -259,14 +235,14 @@ mod tests {
             self.name
         }
 
-        fn accept(&self, _content: &ParsedContent) -> MatchConfidence {
+        fn accept(&self, _content: TextView<'_>) -> MatchConfidence {
             self.confidence
         }
 
         fn parse(
             &self,
             _ct: &CancellationToken,
-            _content: &ParsedContent,
+            _content: TextView<'_>,
         ) -> Result<TocRoot, ParserError> {
             if self.fail {
                 return Err(ParserError::Other(anyhow::anyhow!("{} failed", self.name)));
@@ -295,7 +271,7 @@ mod tests {
             fail: false,
         });
         let toc = combined
-            .parse(&CancellationToken::new(), &content())
+            .parse(&CancellationToken::new(), content().view())
             .unwrap();
         assert_eq!(first_title(&toc), "high");
     }
@@ -314,7 +290,7 @@ mod tests {
             fail: false,
         });
         let toc = combined
-            .parse(&CancellationToken::new(), &content())
+            .parse(&CancellationToken::new(), content().view())
             .unwrap();
         assert_eq!(first_title(&toc), "low");
     }
@@ -327,7 +303,7 @@ mod tests {
             confidence: MatchConfidence::NONE,
             fail: false,
         });
-        let result = combined.parse(&CancellationToken::new(), &content());
+        let result = combined.parse(&CancellationToken::new(), content().view());
         assert!(matches!(result, Err(ParserError::NoMatch(_))));
     }
 
@@ -344,7 +320,7 @@ mod tests {
             confidence: MatchConfidence(10),
             fail: true,
         });
-        let result = combined.parse(&CancellationToken::new(), &content());
+        let result = combined.parse(&CancellationToken::new(), content().view());
         match result {
             Err(ParserError::NoMatch(summary)) => {
                 assert!(summary.contains("first"));
@@ -357,7 +333,7 @@ mod tests {
     #[test]
     fn merge_strategy_is_reserved() {
         let combined = CombinedParser::new(CombineStrategy::Merge);
-        let result = combined.parse(&CancellationToken::new(), &content());
+        let result = combined.parse(&CancellationToken::new(), content().view());
         assert!(matches!(result, Err(ParserError::Other(_))));
     }
 
@@ -370,11 +346,11 @@ mod tests {
             "cancel"
         }
 
-        fn accept(&self, _: &ParsedContent) -> MatchConfidence {
+        fn accept(&self, _: TextView<'_>) -> MatchConfidence {
             MatchConfidence(100)
         }
 
-        fn parse(&self, ct: &CancellationToken, _: &ParsedContent) -> Result<TocRoot, ParserError> {
+        fn parse(&self, ct: &CancellationToken, _: TextView<'_>) -> Result<TocRoot, ParserError> {
             if self.set_token {
                 ct.cancel();
                 Ok(TocRoot::new())
@@ -395,7 +371,7 @@ mod tests {
                 fail: false,
             });
             assert!(matches!(
-                combined.parse(&CancellationToken::new(), &content()),
+                combined.parse(&CancellationToken::new(), content().view()),
                 Err(ParserError::Cancelled)
             ));
         }
@@ -407,7 +383,7 @@ mod tests {
         ct.cancel();
         let combined = CombinedParser::new(CombineStrategy::BestMatch);
         assert!(matches!(
-            combined.parse(&ct, &content()),
+            combined.parse(&ct, content().view()),
             Err(ParserError::Cancelled)
         ));
     }
