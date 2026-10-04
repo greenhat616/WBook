@@ -1,4 +1,4 @@
-use super::{NodeId, Toc, TocError, TocRoot, TreeNodeMeta};
+use super::{NodeId, Toc, TocError, TocRangeKind, TocRoot, TreeNodeMeta};
 use crate::types::TextRange;
 
 /// A single flattened TOC event, aligned with calibre's level-based TOC detection:
@@ -11,6 +11,7 @@ pub struct TocEvent {
     pub title: String,
     /// `None` for pure container entries.
     pub range: Option<TextRange>,
+    pub range_kind: TocRangeKind,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,6 +64,7 @@ impl TocBuilder {
             level,
             title,
             range,
+            range_kind,
         } = event;
         let level = level.max(1);
         // Level jump: auto-insert anonymous container nodes for the missing levels.
@@ -76,7 +78,15 @@ impl TocBuilder {
         let parent = self.stack.last().copied();
         let id = self
             .root
-            .add_with_meta(&title, Some(TreeNodeMeta { words: 0, range }), parent)?
+            .add_with_meta(
+                &title,
+                Some(TreeNodeMeta {
+                    words: 0,
+                    range,
+                    range_kind,
+                }),
+                parent,
+            )?
             .id;
         self.stack.push(id);
         Ok(id)

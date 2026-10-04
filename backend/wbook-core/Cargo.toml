@@ -19,7 +19,10 @@ dashmap = "6"
 slab = "0.4"
 str-utils = "0.3"
 
-epub-builder = "0.8"
+zip = { version = "6", default-features = false, features = ["deflate"] }
+quick-xml = "0.38"
+language-tags = "0.3"
+tempfile = "3"
 send-to-kindle = "1"
 
 rocksdb = "0.25"
@@ -49,3 +52,6 @@ tracing-subscriber = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 codepage = "0.1"
 windows-sys = { version = "0.59", features = ["Win32_Globalization"] }
+
+[dev-dependencies]
+roxmltree = "0.21"

@@ -82,7 +82,17 @@ Preview uses `TextView::read`; output uses `write_range` or a version-checked `P
 
 The Rust parser API now accepts `TextView` by value. Construct a document by moving `ParsedContent` into `TextDocument`, then pass `document.view()` to a parser. `TextOp`, `TransformOperation`, `ContentRange` and `ByteRange` have been removed. `TocNode` no longer deserializes directly; load entries through `TocSnapshot` so legacy patches are checked. `TocSnapshot` remains a structural format; a bare snapshot has no document-version validity guarantee.
 
-The implementation and validation plan is recorded in [the transform pipeline spec](specs/2026-10-04-text-transform-pipeline/design.md). Arbitrary whole-document regex matching, automatic reconciliation of manually adjusted TOCs, piece trees, buffer garbage collection and complete EPUB chapter splitting remain outside this change.
+The implementation and validation plan is recorded in [the transform pipeline spec](specs/2026-10-04-text-transform-pipeline/design.md). Arbitrary whole-document regex matching, automatic reconciliation of manually adjusted TOCs, piece trees and buffer garbage collection remain outside that change.
+
+### Rendering and EPUB export
+
+`export::export_epub` consumes an edited `ProcessingDocument` and explicit language / layout options. It plans sections from typed TOC ranges, renders embedded Tera XHTML templates to temporary resources, writes an EPUB 3 ZIP, validates its structure and links, then publishes without replacing an existing destination. `render_book` and `package_epub` can also be called separately so preview and packaging share the same resources. `RenderedBook` owns its temporary directory; callers can use `close()` to observe cleanup failures instead of relying on best-effort Drop.
+
+`TreeNodeMeta.range_kind` distinguishes `Heading`, `Body`, `Container` and legacy `Unknown` ranges. Export rejects Unknown rather than guessing. Heading spans may be adjacent fragments of an inline VBook heading. A repeated inline volume prefix belongs to the following chapter's consumed heading span, keeping it out of the previous chapter body. Source positions determine body ownership; the edited TOC determines reading order.
+
+Layouts are `SplitChapters` (default), `Paged` (one content file with section page-break hints), and `SingleHtml` (one continuous content file). All use EPUB-compatible XHTML and the same section anchors. Native `zip` replaces the unused `epub-builder` dependency because independent navigation and file-backed archive writing are needed. MOBI conversion remains a future stage consuming a validated EPUB artifact, with no Kindle runtime dependency for EPUB export.
+
+See the [render/package spec](specs/2026-10-04-render-package-pipeline/design.md), [verification record](specs/2026-10-04-render-package-pipeline/verification.md), and `examples/render_epub.rs` for a runnable sample.
 
 ### Lifecycle
 

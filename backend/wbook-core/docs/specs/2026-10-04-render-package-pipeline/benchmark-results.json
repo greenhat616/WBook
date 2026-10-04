@@ -1,0 +1,104 @@
+{
+  "platform": "Windows-11-10.0.26300-SP0",
+  "results": [
+    {
+      "path": "backend/target/export-benchmark-final/10-split/wbook-split.epub",
+      "layout": "split",
+      "source_bytes": 10487988,
+      "rendered_bytes": 11392596,
+      "epub_bytes": 247266,
+      "render_ms": 254,
+      "package_validate_publish_ms": 73,
+      "total_ms": 327,
+      "peak_working_set_bytes": 17760256
+    },
+    {
+      "path": "backend/target/export-benchmark-final/10-paged/wbook-paged.epub",
+      "layout": "paged",
+      "source_bytes": 10487988,
+      "rendered_bytes": 11318550,
+      "epub_bytes": 103461,
+      "render_ms": 180,
+      "package_validate_publish_ms": 39,
+      "total_ms": 219,
+      "peak_working_set_bytes": 17596416
+    },
+    {
+      "path": "backend/target/export-benchmark-final/10-single/wbook-single.epub",
+      "layout": "single",
+      "source_bytes": 10487988,
+      "rendered_bytes": 11315393,
+      "epub_bytes": 100550,
+      "render_ms": 176,
+      "package_validate_publish_ms": 39,
+      "total_ms": 215,
+      "peak_working_set_bytes": 17403904
+    },
+    {
+      "path": "backend/target/export-benchmark-final/100-split/wbook-split.epub",
+      "layout": "split",
+      "source_bytes": 104882733,
+      "rendered_bytes": 113928813,
+      "epub_bytes": 2456098,
+      "render_ms": 2566,
+      "package_validate_publish_ms": 1174,
+      "total_ms": 3740,
+      "peak_working_set_bytes": 118202368
+    },
+    {
+      "path": "backend/target/export-benchmark-final/100-paged/wbook-paged.epub",
+      "layout": "paged",
+      "source_bytes": 104882733,
+      "rendered_bytes": 113186031,
+      "epub_bytes": 1012373,
+      "render_ms": 1778,
+      "package_validate_publish_ms": 376,
+      "total_ms": 2154,
+      "peak_working_set_bytes": 112861184
+    },
+    {
+      "path": "backend/target/export-benchmark-final/100-single/wbook-single.epub",
+      "layout": "single",
+      "source_bytes": 104882733,
+      "rendered_bytes": 113154362,
+      "epub_bytes": 984177,
+      "render_ms": 1776,
+      "package_validate_publish_ms": 376,
+      "total_ms": 2152,
+      "peak_working_set_bytes": 113061888
+    },
+    {
+      "path": "backend/target/export-benchmark-final/300-split/wbook-split.epub",
+      "layout": "split",
+      "source_bytes": 314577577,
+      "rendered_bytes": 341709535,
+      "epub_bytes": 7358791,
+      "render_ms": 11592,
+      "package_validate_publish_ms": 3884,
+      "total_ms": 15476,
+      "peak_working_set_bytes": 342290432
+    },
+    {
+      "path": "backend/target/export-benchmark-final/300-paged/wbook-paged.epub",
+      "layout": "paged",
+      "source_bytes": 314577577,
+      "rendered_bytes": 339481189,
+      "epub_bytes": 3030812,
+      "render_ms": 7420,
+      "package_validate_publish_ms": 2245,
+      "total_ms": 9665,
+      "peak_working_set_bytes": 325599232
+    },
+    {
+      "path": "backend/target/export-benchmark-final/300-single/wbook-single.epub",
+      "layout": "single",
+      "source_bytes": 314577577,
+      "rendered_bytes": 339386182,
+      "epub_bytes": 2946346,
+      "render_ms": 7497,
+      "package_validate_publish_ms": 2243,
+      "total_ms": 9740,
+      "peak_working_set_bytes": 325750784
+    }
+  ]
+}

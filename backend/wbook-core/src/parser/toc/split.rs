@@ -62,6 +62,7 @@ impl TocParser for SplitEvenlyParser {
                 None => text.len(),
             };
             events.push(TocEvent {
+                range_kind: crate::toc::TocRangeKind::Body,
                 level: 1,
                 title: format!("第 {} 部分", index + 1),
                 range: Some(TextRange::new(start, end).expect("ranges are ordered")),

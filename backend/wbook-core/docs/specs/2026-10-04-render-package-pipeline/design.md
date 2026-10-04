@@ -1,7 +1,7 @@
 # 渲染与打包流水线：设计
 
 - 日期：2026-10-04
-- 状态：设计草案，尚未实施
+- 状态：核心渲染与 EPUB 导出已实施；验证结果及限制见 [verification.md](verification.md)
 - 需求：[requirements.md](requirements.md)
 - 实施与验证：[tasks.md](tasks.md)
 
@@ -9,9 +9,9 @@
 
 `ProcessingDocument` 已持有当前正文、版本化解析结果和元数据 overrides。`current_results()` 拒绝过期结果，`TextView` 提供区间读取；现有 `OutputPlan` 仅保存调用方传入的范围，不推导章节、不渲染、不打包。
 
-当前 `TreeNodeMeta.range` 有三种来源：规则解析器给出标题范围，等分解析器给出完整正文块，`TocBuilder` 可回填容器聚合范围。它们在现有 wire 格式中没有判别信息。因此章节规划之前必须补齐范围语义，不能把现有 range 直接拼成 EPUB。
+当前 `TreeNodeMeta.range` 有三种来源：规则解析器给出标题范围，等分解析器给出完整正文块，`TocBuilder` 可回填容器聚合范围。本次为 wire 格式补充 `range_kind` 判别信息，章节规划据此解释范围，不能把任意 range 直接拼成 EPUB。
 
-仓库声明 `tera = "2"`、`epub-builder = "0.8"`，工作区锁定为 2.4.0 与 0.8.3；尚无渲染或打包模块。`SessionHandle` / `Command` 仍是占位，本期提供可独立调用的核心导出入口，不以补完 GUI 和 Session 为前提。
+实施前仓库声明 `tera = "2"`、`epub-builder = "0.8"`，锁定为 2.4.0 与 0.8.3。本次保留 Tera 2.4.0，将未被使用的 epub-builder 替换为 zip 6.0.0，新增 export 模块。`SessionHandle` / `Command` 仍是占位，本期提供可独立调用的核心导出入口，不以补完 GUI 和 Session 为前提。
 
 ## 2. 流程与职责
 
@@ -34,7 +34,7 @@ flowchart LR
 
 ## 3. 输入固定与 options
 
-以下为拟议形状，非已存在 API：
+已实施的核心 options：
 
 ```rust
 pub enum RenderLayout {
@@ -61,17 +61,17 @@ pub struct ExportOptions {
 
 默认布局为 `SplitChapters`。首期只有内嵌模板，不增加只有一个值的模板选择字段。后续开放模板时，另加明确的模板来源与版本契约。
 
-建议入口 `export_epub(ct, &ProcessingDocument, &ExportOptions, destination) -> Result<ExportArtifact, ExportError>`；`OutputFormat` 用于上层请求和目标检查，当前分派只接受 EPUB。`ExportArtifact` 至少包含实际格式、最终路径、文档版本和本次出版标识。
+核心入口 `export_epub(ct, &ProcessingDocument, &ExportOptions, destination) -> Result<ExportArtifact, ExportError>`；`OutputFormat` 用于上层请求和目标检查，当前分派只接受 EPUB。`ExportArtifact` 至少包含实际格式、最终路径、文档版本和本次出版标识。
 
-入口开始时检查 `current_results()`，借用固定 `TextView`，复制目录与小体积元数据，合并 overrides，解析 options。同步核心调用期间不可变借用阻止正文修改；调用方应在 worker 内串行访问同一文档，不持有异步锁跨越整个导出。并行编辑快照不属于本期。
+入口开始时检查 `current_results()`，借用固定 `TextView`，复制目录中用于输出的标题、深度、范围及小体积元数据，合并 overrides，解析 options。同步核心调用期间不可变借用阻止正文修改；调用方应在 worker 内串行访问同一文档，不持有异步锁跨越整个导出。并行编辑快照不属于本期。
 
-`BookPlan` 是作业内私有值，带 `DocumentVersion`；渲染入口仍检查版本。目录快照、options 与出版元数据由计划拥有，不在后续阶段重新读取 `metadata_overrides`。本期不缓存或持久化计划，避免仅凭正文 revision 误认目录、标题或 options 未变。
+`render_book` 返回拥有临时资源的 `RenderedBook`，`package_epub` 接受这份产物，允许预览后原样打包。`BookPlan` 是作业内私有值，带 `DocumentVersion`；渲染入口仍检查版本。目录的标题、深度与正文范围、options 与出版元数据由计划拥有，不在后续阶段重新读取 `metadata_overrides`。本期不缓存或持久化计划，避免仅凭正文 revision 误认目录、标题或 options 未变。
 
 出版元数据规则：合并后标题为空或全空白则报错；作者为空则省略；language 必填合法 BCP 47 标签，调用方不知道语言时可显式选 `und`。identifier 未提供时为作业生成一次 UUID URN，修改时间取作业开始的 UTC 时间。重试一个新作业可产生新标识；需要保持书籍身份的调用方传入同一标识。固定标识与时间可用于确定性测试。
 
 ## 4. 目录范围与兼容策略
 
-给 `TreeNodeMeta` 增加 `range_kind: TocRangeKind`，拟议值为 `Heading`、`Body`、`Container`、`Unknown`。保留 `range`，减少现有树操作与显示范围的迁移；字段组合在安装和规划时验证：
+`TreeNodeMeta` 已增加 `range_kind: TocRangeKind`，取值为 `Heading`、`Body`、`Container`、`Unknown`。保留 `range`，减少现有树操作与显示范围的迁移；安装检查版本与范围边界，规划进一步检查字段组合和结构：
 
 | kind      | range 的含义                   | 规划行为                               |
 | --------- | ------------------------------ | -------------------------------------- |
@@ -84,7 +84,7 @@ pub struct ExportOptions {
 
 旧快照缺少字段时读为 Unknown，不自动把所有 range 当标题。用户需重新解析并显式安装，或在当前文档上确认各范围语义；不会静默覆盖已编辑目录。结构快照仍不携带版本认证。NodeId 只在作业内用于关联；现有快照恢复可能重分配 ID，因此输出路径和锚点使用计划生成的编号。
 
-首期同一目录的非容器节点必须全部为 Heading 或全部为 Body；混合模式报 `InvalidStructure`，留待存在真实需求后扩展。Container 可出现在两者之间。用户修改目录后再次检查范围、唯一性、树结构和当前文档版本。
+首期同一目录的非容器节点必须全部为 Heading 或全部为 Body；混合模式报 `InvalidInput`，留待存在真实需求后扩展。Container 可出现在两者之间。用户修改目录后再次检查范围、唯一性、树结构和当前文档版本。
 
 ## 5. BookPlan 与章节推导
 
@@ -92,8 +92,8 @@ pub struct ExportOptions {
 
 ### 标题式目录
 
-1. 收集 Heading 节点，按源 range.start 排序。检查非空、边界有效、无重叠、同起点无歧义，以及标题覆盖完整逻辑行（允许末尾空白），不含 CR/LF。不能用显示标题与原行相等来验证，因为用户可能已改名。
-2. 源标题消耗范围为该行及其后最多一个 LF 或 CRLF；移除的是这一已识别行的排版换行，不吞掉其后的空行。
+1. 收集 Heading 节点，按源 range.start 排序。检查非空、边界有效、无重叠、同起点无歧义，且范围不含 CR/LF。VBook 的同行卷名、章名允许相邻的局部范围；重复的卷名前缀并入后续章名的消耗范围。不能用显示标题与原行相等来验证，因为用户可能已改名。
+2. 源标题消耗范围为标注的范围及紧随其后的最多一个 LF 或 CRLF；移除的是标题结尾的排版换行，不吞掉其后的空行。
 3. 每个标题的正文从消耗范围末尾延伸至下一源标题开始；最后延伸至文档末尾。首标题之前的 `[0, first_start)` 为前言，有字节就保留。只有标题没有正文的节仍合法。
 4. 按目录 DFS 前序排列这些逻辑节。卷标题后、子章前的正文属于卷自己的节；父节不包含子节正文。调换子树时子树内各节一起按新树顺序输出，前言固定最前。
 5. 删除某一 Heading 目录项后，它不再作为标题消耗；原行与正文留在相邻源节内按普通文字渲染。删除所有目录项时，整个非空文本成为一个无附加标题的正文节。
@@ -106,25 +106,25 @@ Body 节点范围按源坐标排序后必须无缝、无重叠覆盖全文，等
 
 Container 无论是否有聚合 range 都不复制正文。有名容器在其后代前生成一个只含标题的逻辑节，提供自己的导航锚点；空的有名容器也可保留该标题节。匿名容器不输出标题或导航条目，导航提升其有名后代；空匿名容器忽略。标题显示层级按去掉匿名容器后的深度计算，超过六级时用 `h6` 加深度 class，导航仍保留真实的有名层级。
 
-若非空文档只有容器，全文放在最前的无标题正文节，随后输出有名容器标题节。空文档即使有手工目录也返回 `EmptyDocument`。
+若非空文档只有容器，全文放在最前的无标题正文节，随后输出有名容器标题节。空文档即使有手工目录也返回 `InvalidInput`（empty document）。
 
 规划验证源正文范围与被替换的标题消耗范围的并集恰好覆盖全文、两两不相交。随后重排只改变顺序；不得以被打包文件的字节相等来检验这一性质，因为转义、标题替换和换行排版会改变字节。
 
 ## 6. Tera 模板与渲染产物
 
-默认模板由 `include_str!` 嵌入，通过 Tera 注册一次复用。内嵌 `document-start.xhtml`、`section-start.xhtml`、`paragraph.xhtml`、对应结束片段与 `style.css`；每个文件可由这些片段依次写入 writer，无需先构造整本 `body_html`。
+默认模板由 `include_str!` 嵌入，通过 Tera 注册一次复用。内嵌 `document.xhtml`、`section.xhtml`、`paragraph.xhtml`、`package.xml` 与 `style.css`，结束标签使用固定片段；每个文件可由这些片段依次写入 writer，无需先构造整本 `body_html`。
 
 模板 context 只包含出版元数据、当前节 ID / 标题 / 深度、当前段落文本和由核心生成的相对资源路径。模板不能访问任意文件、网络或 shell；本期不开放用户模板。显式给 `.xhtml` 开启自动转义，正文和元数据不得使用 `safe`。Tera 默认自动转义后缀不包含 `.xhtml`，且不做上下文感知转义，因此数据只进入文本节点或带引号的普通属性，不插入脚本、CSS 或任意标签名。[Tera 官方文档](https://keats.github.io/tera/)
 
-每个非空逻辑行输出一段，保留行内空白；空行输出带空行样式的合法空段。LF / CRLF 只参与段落边界，无末尾换行不影响末段；终止换行不额外创造空段。跨片段行先按当前文本拼接；Body 边界截断逻辑行时分别在各节成段。禁止 XML 字符须在写入前检测，错误带源偏移或元数据字段名。若 Tera 的实体转义产生 XML 不支持的命名实体，适配为数字实体；以 XML 解析测试证明，不依赖浏览器容错。
+每个非空逻辑行输出一段，保留行内空白；空行输出带空行样式的合法空段。LF / CRLF 只参与段落边界，无末尾换行不影响末段；终止换行不额外创造空段。跨片段行先按当前文本拼接；Body 边界截断逻辑行时分别在各节成段。禁止 XML 字符须在写入前检测，错误带源偏移或元数据字段名。Tera 自动转义后通过独立 XML 解析测试；另将孤立 CR 写为数字实体，避免 XML 换行归一化改变正文。
 
-`RenderedBook` 保存临时资源目录、内容文件列表、媒体类型、有序 spine 候选与导航树。资源名由核心生成，例如 `text/section-0001.xhtml`、`text/book.xhtml`、`styles/book.css`；锚点如 `section-0001`，不用用户标题作路径。所有引用在打包前校验为包内相对地址，预览使用同一资源目录及链接。
+`RenderedBook` 保存临时资源目录、按 spine 顺序排列的内容文件列表和逻辑计划；媒体类型由固定资源类别决定，导航 XHTML 从同一计划生成。资源名由核心生成，例如 `text/section-0001.xhtml`、`text/book.xhtml`、`styles/book.css`；锚点如 `section-0001`，不用用户标题作路径。所有引用在打包前校验为包内相对地址，预览使用同一资源目录及链接。
 
-| 模式          | 正文资源               | 章节边界                                                                                        |
-| ------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
-| SplitChapters | 每逻辑节一个 XHTML     | 文件边界；不再额外要求首行分页                                                                  |
-| Paged         | 一个 `text/book.xhtml` | 后续节添加分页 class，CSS 请求 `break-before: page` 并提供 `page-break-before: always` 兼容声明 |
-| SingleHtml    | 一个 `text/book.xhtml` | 标题元素与节锚点，不加分页 class                                                                |
+| 模式          | 正文资源               | 章节边界                                                                                                                              |
+| ------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| SplitChapters | 每逻辑节一个 XHTML     | 文件边界；不再额外要求首行分页                                                                                                        |
+| Paged         | 一个 `text/book.xhtml` | 后续节添加分页 class，屏幕采用 `break-before: column` 适配多栏阅读器，保留 `page-break-before: always`，打印采用 `break-before: page` |
+| SingleHtml    | 一个 `text/book.xhtml` | 标题元素与节锚点，不加分页 class                                                                                                      |
 
 Paged 和 SingleHtml 的区别仅在分页 class；分页是阅读器可重排布局提示，不生成固定页码或 `page-list`。预览与阅读器可以不同，正文、标题和链接必须相同。
 
@@ -132,7 +132,7 @@ Paged 和 SingleHtml 的区别仅在分页 class；分页是阅读器可重排�
 
 ## 7. EPUB 打包
 
-优先使用 `epub-builder 0.8.3` 的原生 Rust ZIP 后端，避免新增系统 zip 或 Kindle 运行依赖。实施第一步验证其 EPUB 3、嵌套导航、自定义锚点、文件读取与 ZIP 顺序支持；不足时只替换打包模块内必要部分，不让其私有模板或类型扩散到规划和渲染 API。正文模板始终由 Tera 管理；OPF、导航与 container 可交由打包库生成，但必须消费同一份元数据与导航映射。
+依赖检查确认 `epub-builder 0.8.3` 的 `ZipLibrary` 持有整包 `Cursor<Vec<u8>>`，且 `add_content` 同时使用 TOC URL 作为内容文件路径。其公开接口不适合本期独立导航和任意出版标识契约。因此改用 zip 6.0.0 直接写文件，并用 Tera 生成 OPF 与 XHTML 导航；container 使用固定 XML，不引入外部 zip 或 Kindle 工具。范围规划和正文渲染不依赖 ZIP 类型。
 
 按 [EPUB 3.3](https://www.w3.org/TR/epub-33/) 验证这些最低结构要求：
 
@@ -140,9 +140,9 @@ Paged 和 SingleHtml 的区别仅在分页 class；分页是阅读器可重排�
 - `META-INF/container.xml` 指向有效 OPF；package 的 `version` 为 `3.0`，unique-identifier 引用存在的标识。
 - OPF 包含标题、语言、标识、UTC 修改时间；manifest 包含正文、CSS 与带 `nav` 属性的导航资源。
 - spine 按计划顺序引用正文内容文件；单文件模式只有一个正文 itemref。
-- XHTML 使用正确命名空间；导航具备 TOC nav，链接包含真实文件及锚点。可保留库生成的 NCX 以兼容旧阅读器，但它不能替代 EPUB 3 导航。
+- XHTML 使用正确命名空间；导航具备 TOC nav，链接包含真实文件及锚点。本期不生成可选 NCX，以 EPUB 3 导航为准。
 
-运行时在临时产物上检查 ZIP / XML、必需资源、manifest / spine、唯一 ID 及链接引用。开发验收另外使用 [EPUBCheck](https://www.w3.org/publishing/epubcheck/)；不把 Java 或 EPUBCheck 变成普通用户每次导出的安装前置条件。必须核查库的 `generate` 成功并不自动证明以上条件。
+运行时在临时产物上检查 ZIP / XML、必需资源、manifest / spine、唯一 ID 及链接引用。开发验收另外使用 [EPUBCheck](https://www.w3.org/publishing/epubcheck/)；不把 Java 或 EPUBCheck 变成普通用户每次导出的安装前置条件。ZIP 写入成功并不自动证明以上条件。
 
 ## 8. 产物依赖与未来后处理
 
@@ -168,11 +168,11 @@ Amazon 文档给出通过 Kindle Previewer 打开 EPUB 后导出 MOBI 的操作�
 
 每个作业拥有独立临时目录；渲染资源存于该目录，最终包临时文件位于目标所在文件系统。目标父目录不存在或目标已存在时预检失败。发布采用具备“不覆盖既有目标”语义的同文件系统原子发布原语，处理检查后目标才被创建的竞态；禁止先删除目标再 rename。
 
-阶段为 `Planning`、`Rendering`、`Packaging`、`Validating`、`Publishing`。上层可消费阶段事件，无需新增完整 Session 状态机。所有循环、writer 包装及阶段交界检查 `CancellationToken`；打包库不可中断的调用返回后也必须先查取消再发布，记录这种取消延迟。
+阶段为 `Planning`、`Rendering`、`Packaging`、`Validating`、`Publishing`。错误中报告阶段；本期未引入进度事件或完整 Session 状态机。所有循环、writer 包装及阶段交界检查 `CancellationToken`；打包库不可中断的调用返回后也必须先查取消再发布，记录这种取消延迟。
 
 `ExportError` 区分文档 / 版本错误、范围语义缺失、结构错误、非法元数据 / 文本、模板、打包、校验、I/O、目标已存在、不支持格式与取消，并附阶段、节点 / 源范围 / 资源路径等相关上下文。模板内部失败不包含整本正文日志。
 
-临时资源由作业所有者清理，只删除自己创建的路径。发布前失败或取消不留下完整目标名；清理失败应保留原始错误并带出待清理路径。进程崩溃可能留下临时目录，本期不增加全局自动清理器。成功发布是提交点，随后取消不撤回结果；不宣称跨多个输出文件的原子事务或掉电持久性。
+临时资源由作业所有者清理，只删除自己创建的路径。发布前失败或取消不留下完整目标名；打包临时文件的显式清理失败保留原始错误并带出待清理路径；完整 export 入口也报告已渲染资源的清理失败。独立预览调用者用 `RenderedBook::close()` 观察清理错误；渲染尚未返回产物即失败时和普通 Drop 使用 tempfile 的尽力清理。进程崩溃可能留下临时目录，本期不增加全局自动清理器。成功发布是提交点，随后取消不撤回结果；不宣称跨多个输出文件的原子事务或掉电持久性。
 
 ## 10. 实施边界
 
