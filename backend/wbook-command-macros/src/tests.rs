@@ -35,6 +35,7 @@ fn shared_and_desktop_declarations_generate_one_registry() {
         pub mod commands {
             use super::*;
             #[desktop_only]
+            #[query]
             pub fn get_port(port: tauri::State<'_, Port>) -> u16 { port.0 }
             pub async fn read(app: &Wbook, session_id: SessionId) -> Result<String, CommandError> {
                 app.read(session_id).await
@@ -62,9 +63,11 @@ fn shared_and_desktop_declarations_generate_one_registry() {
     assert!(body.contains("call (app , args . session_id) . await"));
     let builder = function(&module, "builder");
     let body = &builder.block;
-    assert!(quote!(#body).to_string().contains(
-        "collect_commands ! [__wbook_tauri_commands :: get_port , __wbook_tauri_commands :: read]"
+    let body = quote!(#body).to_string();
+    assert!(body.contains(
+        "CommandSet :: new (:: tauri_specta :: collect_commands ! [__wbook_tauri_commands :: get_port] , :: tauri_specta :: collect_commands ! [__wbook_tauri_commands :: read] ,)"
     ));
+    assert!(body.contains("ErrorHandlingMode :: Throw"));
     let dispatch = function(&module, "dispatch");
     let body = &dispatch.block;
     let body = quote!(#body).to_string();
@@ -218,6 +221,7 @@ fn unsupported_signatures_produce_targeted_diagnostics() {
             "reserved",
         ),
         ("#[desktop_only(extra)] fn read() {}", "without arguments"),
+        ("#[query] #[query] fn read() {}", "use query once"),
     ] {
         let module = syn::parse_str(&format!("mod commands {{ {function} }}")).unwrap();
         let error = expand(module).unwrap_err();

@@ -3,8 +3,11 @@ use std::path::Path;
 pub fn generate() -> Result<String, Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("bindings.ts");
-    crate::commands::builder::<tauri::Wry>()
-        .export(specta_typescript::Typescript::default(), &path)?;
+    let (queries, builder) = crate::commands::builder::<tauri::Wry>();
+    builder.export(
+        specta_typescript::Typescript::default().with_raw(queries),
+        &path,
+    )?;
     let source = std::fs::read_to_string(path)?;
     adapt_transport(&source)
 }

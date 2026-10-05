@@ -5,20 +5,20 @@ import { invoke as __TAURI_INVOKE } from "./transport";
 /** Commands */
 export const commands = {
 	getPort: () => __TAURI_INVOKE<number>("get_port"),
-	createSession: (source: string, options: ProcessingOptions) => typedError<SessionSnapshot, CommandError>(__TAURI_INVOKE("create_session", { source, options })),
-	listSessions: () => typedError<SessionSnapshot[], CommandError>(__TAURI_INVOKE("list_sessions")),
-	getSession: (sessionId: SessionId) => typedError<SessionSnapshot, CommandError>(__TAURI_INVOKE("get_session", { sessionId })),
-	closeSession: (sessionId: SessionId) => typedError<ClosedSession, CommandError>(__TAURI_INVOKE("close_session", { sessionId })),
-	initializeSession: (sessionId: SessionId) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("initialize_session", { sessionId })),
-	parseSession: (sessionId: SessionId, config: TocParserConfig) => typedError<OperationResponse<ParsedResults_Serialize>, CommandError>(__TAURI_INVOKE("parse_session", { sessionId, config })),
-	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults_Deserialize) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("install_results", { sessionId, expected, results })),
-	applyEdits: (sessionId: SessionId, expected: Revision, batch: EditBatch) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("apply_edits", { sessionId, expected, batch })),
-	setMetadataOverrides: (sessionId: SessionId, expected: Revision, overrides: Metadata) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("set_metadata_overrides", { sessionId, expected, overrides })),
-	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => typedError<OperationResponse<string>, CommandError>(__TAURI_INVOKE("read_text", { sessionId, version, range })),
-	readResults: (sessionId: SessionId) => typedError<OperationResponse<WorkspaceResults_Serialize>, CommandError>(__TAURI_INVOKE("read_results", { sessionId })),
-	renderPreview: (sessionId: SessionId, expected: Revision, options: ExportOptions) => typedError<OperationResponse<PreviewInfo>, CommandError>(__TAURI_INVOKE("render_preview", { sessionId, expected, options })),
-	exportEpub: (sessionId: SessionId, expected: Revision, options: ExportOptions, destination: string) => typedError<OperationResponse<ExportedBook>, CommandError>(__TAURI_INVOKE("export_epub", { sessionId, expected, options, destination })),
-	cancelOperation: (sessionId: SessionId, operationId: OperationId) => typedError<CancelReply, CommandError>(__TAURI_INVOKE("cancel_operation", { sessionId, operationId })),
+	listSessions: () => __TAURI_INVOKE<SessionSnapshot[]>("list_sessions"),
+	getSession: (sessionId: SessionId) => __TAURI_INVOKE<SessionSnapshot>("get_session", { sessionId }),
+	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => __TAURI_INVOKE<OperationResponse<string>>("read_text", { sessionId, version, range }),
+	readResults: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<WorkspaceResults_Serialize>>("read_results", { sessionId }),
+	createSession: (source: string, options: ProcessingOptions) => __TAURI_INVOKE<SessionSnapshot>("create_session", { source, options }),
+	closeSession: (sessionId: SessionId) => __TAURI_INVOKE<ClosedSession>("close_session", { sessionId }),
+	initializeSession: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<Revision>>("initialize_session", { sessionId }),
+	parseSession: (sessionId: SessionId, config: TocParserConfig) => __TAURI_INVOKE<OperationResponse<ParsedResults_Serialize>>("parse_session", { sessionId, config }),
+	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults_Deserialize) => __TAURI_INVOKE<OperationResponse<Revision>>("install_results", { sessionId, expected, results }),
+	applyEdits: (sessionId: SessionId, expected: Revision, batch: EditBatch) => __TAURI_INVOKE<OperationResponse<Revision>>("apply_edits", { sessionId, expected, batch }),
+	setMetadataOverrides: (sessionId: SessionId, expected: Revision, overrides: Metadata) => __TAURI_INVOKE<OperationResponse<Revision>>("set_metadata_overrides", { sessionId, expected, overrides }),
+	renderPreview: (sessionId: SessionId, expected: Revision, options: ExportOptions) => __TAURI_INVOKE<OperationResponse<PreviewInfo>>("render_preview", { sessionId, expected, options }),
+	exportEpub: (sessionId: SessionId, expected: Revision, options: ExportOptions, destination: string) => __TAURI_INVOKE<OperationResponse<ExportedBook>>("export_epub", { sessionId, expected, options, destination }),
+	cancelOperation: (sessionId: SessionId, operationId: OperationId) => __TAURI_INVOKE<CancelReply>("cancel_operation", { sessionId, operationId }),
 };
 
 /* Constants */
@@ -322,12 +322,44 @@ export type WorkspaceStatus = {
 	preview_id: string | null,
 };
 
-/* Tauri Specta runtime */
-async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
-    try {
-        return { status: "ok", data: await result };
-    } catch (e) {
-        if (e instanceof Error) throw e;
-        return { status: "error", error: e as any };
-    }
-}
+/** Tanstack Query */
+import { mutationOptions, queryOptions } from '@tanstack/react-query';
+
+export const queries = {
+	getPort: (...args: Parameters<typeof commands.getPort>) => queryOptions({ queryKey: ["getPort", ...args], queryFn: () => commands.getPort(...args) }),
+	listSessions: (...args: Parameters<typeof commands.listSessions>) => queryOptions({ queryKey: ["listSessions", ...args], queryFn: () => commands.listSessions(...args) }),
+	getSession: (...args: Parameters<typeof commands.getSession>) => queryOptions({ queryKey: ["getSession", ...args], queryFn: () => commands.getSession(...args) }),
+	readText: (...args: Parameters<typeof commands.readText>) => queryOptions({ queryKey: ["readText", ...args], queryFn: () => commands.readText(...args) }),
+	readResults: (...args: Parameters<typeof commands.readResults>) => queryOptions({ queryKey: ["readResults", ...args], queryFn: () => commands.readResults(...args) }),
+};
+export const queryKeys = {
+	getPort: (...args: Partial<Parameters<typeof commands.getPort>>) => ["getPort", ...args],
+	listSessions: (...args: Partial<Parameters<typeof commands.listSessions>>) => ["listSessions", ...args],
+	getSession: (...args: Partial<Parameters<typeof commands.getSession>>) => ["getSession", ...args],
+	readText: (...args: Partial<Parameters<typeof commands.readText>>) => ["readText", ...args],
+	readResults: (...args: Partial<Parameters<typeof commands.readResults>>) => ["readResults", ...args],
+};
+export const mutations = {
+	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0]; options: Parameters<typeof commands.createSession>[1] }) => commands.createSession(input.source, input.options) }),
+	closeSession: () => mutationOptions({ mutationKey: ["closeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.closeSession>[0] }) => commands.closeSession(input.sessionId) }),
+	initializeSession: () => mutationOptions({ mutationKey: ["initializeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.initializeSession>[0] }) => commands.initializeSession(input.sessionId) }),
+	parseSession: () => mutationOptions({ mutationKey: ["parseSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.parseSession>[0]; config: Parameters<typeof commands.parseSession>[1] }) => commands.parseSession(input.sessionId, input.config) }),
+	installResults: () => mutationOptions({ mutationKey: ["installResults"], mutationFn: (input: { sessionId: Parameters<typeof commands.installResults>[0]; expected: Parameters<typeof commands.installResults>[1]; results: Parameters<typeof commands.installResults>[2] }) => commands.installResults(input.sessionId, input.expected, input.results) }),
+	applyEdits: () => mutationOptions({ mutationKey: ["applyEdits"], mutationFn: (input: { sessionId: Parameters<typeof commands.applyEdits>[0]; expected: Parameters<typeof commands.applyEdits>[1]; batch: Parameters<typeof commands.applyEdits>[2] }) => commands.applyEdits(input.sessionId, input.expected, input.batch) }),
+	setMetadataOverrides: () => mutationOptions({ mutationKey: ["setMetadataOverrides"], mutationFn: (input: { sessionId: Parameters<typeof commands.setMetadataOverrides>[0]; expected: Parameters<typeof commands.setMetadataOverrides>[1]; overrides: Parameters<typeof commands.setMetadataOverrides>[2] }) => commands.setMetadataOverrides(input.sessionId, input.expected, input.overrides) }),
+	renderPreview: () => mutationOptions({ mutationKey: ["renderPreview"], mutationFn: (input: { sessionId: Parameters<typeof commands.renderPreview>[0]; expected: Parameters<typeof commands.renderPreview>[1]; options: Parameters<typeof commands.renderPreview>[2] }) => commands.renderPreview(input.sessionId, input.expected, input.options) }),
+	exportEpub: () => mutationOptions({ mutationKey: ["exportEpub"], mutationFn: (input: { sessionId: Parameters<typeof commands.exportEpub>[0]; expected: Parameters<typeof commands.exportEpub>[1]; options: Parameters<typeof commands.exportEpub>[2]; destination: Parameters<typeof commands.exportEpub>[3] }) => commands.exportEpub(input.sessionId, input.expected, input.options, input.destination) }),
+	cancelOperation: () => mutationOptions({ mutationKey: ["cancelOperation"], mutationFn: (input: { sessionId: Parameters<typeof commands.cancelOperation>[0]; operationId: Parameters<typeof commands.cancelOperation>[1] }) => commands.cancelOperation(input.sessionId, input.operationId) }),
+};
+export const mutationKeys = {
+	createSession: () => ["createSession"],
+	closeSession: () => ["closeSession"],
+	initializeSession: () => ["initializeSession"],
+	parseSession: () => ["parseSession"],
+	installResults: () => ["installResults"],
+	applyEdits: () => ["applyEdits"],
+	setMetadataOverrides: () => ["setMetadataOverrides"],
+	renderPreview: () => ["renderPreview"],
+	exportEpub: () => ["exportEpub"],
+	cancelOperation: () => ["cancelOperation"],
+};

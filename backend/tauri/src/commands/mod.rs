@@ -21,6 +21,7 @@ mod api {
     use super::*;
 
     #[desktop_only]
+    #[query]
     pub fn get_port(port: tauri::State<'_, Port>) -> u16 {
         port.0
     }
@@ -33,10 +34,12 @@ mod api {
         Ok(app.session_manager().create(source, options)?.snapshot())
     }
 
+    #[query]
     pub async fn list_sessions(app: &Wbook) -> Result<Vec<SessionSnapshot>, CommandError> {
         Ok(app.session_manager().list())
     }
 
+    #[query]
     pub async fn get_session(
         app: &Wbook,
         session_id: SessionId,
@@ -113,6 +116,7 @@ mod api {
         .await
     }
 
+    #[query]
     pub async fn read_text(
         app: &Wbook,
         session_id: SessionId,
@@ -127,6 +131,7 @@ mod api {
         .await
     }
 
+    #[query]
     pub async fn read_results(
         app: &Wbook,
         session_id: SessionId,

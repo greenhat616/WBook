@@ -7,7 +7,7 @@
 
 ## 分层与声明
 
-`wbook-command-macros` 是独立 proc-macro crate。`#[unified_commands]` 标注内联模块，普通 Rust 命令函数使用 `&Wbook` 服务参数、拥有所有权的命名输入和 `Result<T, CommandError>` 返回值。宏保留原函数、属性和所在作用域，函数互调与递归不改变含义；另外生成同名子模块的 `name::call`，在委托原函数前后检查传输整数范围，以及 camelCase Args 和 HTTP 分发。带 Tauri / Specta 标记的 wrapper 放在私有模块中，由同一个 collect 注册。`#[desktop_only]` 标记 get_port，保持原返回值并排除 HTTP 调用。无需再维护声明宏 DSL 或第二份命令列表。
+`wbook-command-macros` 是独立 proc-macro crate。`#[unified_commands]` 标注内联模块，普通 Rust 命令函数使用 `&Wbook` 服务参数、拥有所有权的命名输入和 `Result<T, CommandError>` 返回值。宏保留原函数、属性和所在作用域，函数互调与递归不改变含义；另外生成同名子模块的 `name::call`，在委托原函数前后检查传输整数范围，以及 camelCase Args 和 HTTP 分发。带 Tauri / Specta 标记的 wrapper 放在私有模块中，由 tauri-specta-query 的 CommandSet 统一注册：`#[query]` 标记只读命令，其余命令视为 mutation。`#[desktop_only]` 标记 get_port，保持原返回值并排除 HTTP 调用。无需再维护声明宏 DSL 或第二份命令列表。
 
 该属性宏保留参考设计的四项产物，但由一个内联模块提供静态注册范围，不需要 inventory 或 TypeId 容器。当前服务固定为 Wbook；明确验证函数签名，拒绝 self、泛型、不支持的借用输入、unsafe / extern / variadic 和错误返回类型，错误定位到原声明。宏处理只做编译期接线，不处理业务状态。
 
@@ -25,7 +25,7 @@ CommandError 使用稳定 kind：invalid_params、method_not_found、platform_un
 
 Axum 的 `/bridge/rpc` 解析请求，按宏生成的 match 分发；所有入口错误转为 CommandError。get_port 不进入业务分发，单独返回 platform_unsupported。Tauri 的原生命令参数解析错误保留框架行为，由客户端转为传输 Error；已经进入共享实现的领域错误在两端一致。
 
-使用 tauri-specta Builder 的 invoke_handler 和 TypeScript exporter。生成到临时文件，校验唯一 invoke import 并替换为 `./transport`，再写入 `src/bindings.ts`；不在启动时修改源码。导出器保留 Serde 输入 / 输出差异，显式选择 Result 错误模式和安全整数协议对应的 number 类型。
+使用 CommandSet 产出的 tauri-specta Builder 的 invoke_handler 和 TypeScript exporter，并以 `with_raw` 附加生成的 TanStack Query 辅助（queries / queryKeys / mutations / mutationKeys）。生成到临时文件，校验唯一 invoke import 并替换为 `./transport`，再写入 `src/bindings.ts`；不在启动时修改源码。导出器保留 Serde 输入 / 输出差异，显式选择 Throw 错误模式（命令失败时 Promise 以 CommandError reject，使 Query 进入错误状态）和安全整数协议对应的 number 类型。tauri-specta-query 与其依赖的 Specta rc.26 尚未发布，通过 git rev 与 `[patch.crates-io]` 固定。
 
 `src/transport.ts` 在调用时检测 Tauri；浏览器使用 `VITE_WBOOK_RPC_URL`，默认 `/bridge/rpc`。固定开发示例使用 WBOOK_RPC_PORT=1421 与 VITE_WBOOK_RPC_URL=http://127.0.0.1:1421/bridge/rpc。生成器同步导出桌面专属命令常量；适配器仅在调用时读取该常量，ES module 相互引用不在模块初始化阶段访问未初始化绑定。
 

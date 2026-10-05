@@ -34,7 +34,7 @@ impl Harness {
         let app = mock_builder()
             .manage(core.clone())
             .manage(Port(1421))
-            .invoke_handler(crate::commands::builder().invoke_handler())
+            .invoke_handler(crate::commands::builder().1.invoke_handler())
             .build(mock_context(noop_assets()))
             .unwrap();
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
