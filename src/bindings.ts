@@ -10,12 +10,12 @@ export const commands = {
 	getSession: (sessionId: SessionId) => typedError<SessionSnapshot, CommandError>(__TAURI_INVOKE("get_session", { sessionId })),
 	closeSession: (sessionId: SessionId) => typedError<ClosedSession, CommandError>(__TAURI_INVOKE("close_session", { sessionId })),
 	initializeSession: (sessionId: SessionId) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("initialize_session", { sessionId })),
-	parseSession: (sessionId: SessionId, config: TocParserConfig) => typedError<OperationResponse<ParsedResults>, CommandError>(__TAURI_INVOKE("parse_session", { sessionId, config })),
-	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("install_results", { sessionId, expected, results })),
+	parseSession: (sessionId: SessionId, config: TocParserConfig) => typedError<OperationResponse<ParsedResults_Serialize>, CommandError>(__TAURI_INVOKE("parse_session", { sessionId, config })),
+	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults_Deserialize) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("install_results", { sessionId, expected, results })),
 	applyEdits: (sessionId: SessionId, expected: Revision, batch: EditBatch) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("apply_edits", { sessionId, expected, batch })),
 	setMetadataOverrides: (sessionId: SessionId, expected: Revision, overrides: Metadata) => typedError<OperationResponse<Revision>, CommandError>(__TAURI_INVOKE("set_metadata_overrides", { sessionId, expected, overrides })),
 	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => typedError<OperationResponse<string>, CommandError>(__TAURI_INVOKE("read_text", { sessionId, version, range })),
-	readResults: (sessionId: SessionId) => typedError<OperationResponse<WorkspaceResults>, CommandError>(__TAURI_INVOKE("read_results", { sessionId })),
+	readResults: (sessionId: SessionId) => typedError<OperationResponse<WorkspaceResults_Serialize>, CommandError>(__TAURI_INVOKE("read_results", { sessionId })),
 	renderPreview: (sessionId: SessionId, expected: Revision, options: ExportOptions) => typedError<OperationResponse<PreviewInfo>, CommandError>(__TAURI_INVOKE("render_preview", { sessionId, expected, options })),
 	exportEpub: (sessionId: SessionId, expected: Revision, options: ExportOptions, destination: string) => typedError<OperationResponse<ExportedBook>, CommandError>(__TAURI_INVOKE("export_epub", { sessionId, expected, options, destination })),
 	cancelOperation: (sessionId: SessionId, operationId: OperationId) => typedError<CancelReply, CommandError>(__TAURI_INVOKE("cancel_operation", { sessionId, operationId })),
@@ -144,9 +144,17 @@ export type Outcome<T> = { status: "ok"; data: T } | { status: "error"; error: C
 
 export type OutputFormat = "Epub";
 
-export type ParsedResults = {
+export type ParsedResults = ParsedResults_Serialize | ParsedResults_Deserialize;
+
+export type ParsedResults_Deserialize = {
 	version: DocumentVersion,
-	toc: TocRoot,
+	toc: TocRoot_Deserialize,
+	metadata: Metadata,
+};
+
+export type ParsedResults_Serialize = {
+	version: DocumentVersion,
+	toc: TocRoot_Serialize,
 	metadata: Metadata,
 };
 
@@ -218,11 +226,22 @@ export type TextRange = {
 };
 
 /**  Wire-format TOC entry (aligned with calibre's "TOC entry" terminology). */
-export type TocEntry = {
+export type TocEntry = TocEntry_Serialize | TocEntry_Deserialize;
+
+/**  Wire-format TOC entry (aligned with calibre's "TOC entry" terminology). */
+export type TocEntry_Deserialize = {
 	id: NodeId,
 	title: string,
-	meta: TreeNodeMeta,
-	children: TocEntry[],
+	meta: TreeNodeMeta_Deserialize,
+	children: TocEntry_Deserialize[],
+};
+
+/**  Wire-format TOC entry (aligned with calibre's "TOC entry" terminology). */
+export type TocEntry_Serialize = {
+	id: NodeId,
+	title: string,
+	meta: TreeNodeMeta_Serialize,
+	children: TocEntry_Serialize[],
 };
 
 export type TocParserConfig = ({ Levels: TocRulesConfig }) & { SplitEvenly?: never; VBook?: never } | ({ VBook: VBookConfig }) & { Levels?: never; SplitEvenly?: never } | ({ SplitEvenly: {
@@ -231,20 +250,31 @@ export type TocParserConfig = ({ Levels: TocRulesConfig }) & { SplitEvenly?: nev
 
 export type TocRangeKind = "Heading" | "Body" | "Container" | "Unknown";
 
-export type TocRoot = {
-	id: NodeId,
-	title: string,
-	meta: TreeNodeMeta,
-	children: TocEntry[],
-}[];
+export type TocRoot = TocRoot_Serialize | TocRoot_Deserialize;
+
+export type TocRoot_Deserialize = TocEntry_Deserialize[];
+
+export type TocRoot_Serialize = TocEntry_Serialize[];
 
 export type TocRulesConfig = {
 	levels: LevelRulesConfig[],
 };
 
-export type TreeNodeMeta = {
+export type TreeNodeMeta = TreeNodeMeta_Serialize | TreeNodeMeta_Deserialize;
+
+export type TreeNodeMeta_Deserialize = {
 	words: number,
 	range_kind?: TocRangeKind,
+	/**
+	 *  The content range of the node itself. `None` for pure container nodes
+	 *  (like calibre TOC entries whose src points at their first child).
+	 */
+	range: TextRange | null,
+};
+
+export type TreeNodeMeta_Serialize = {
+	words: number,
+	range_kind: TocRangeKind,
 	/**
 	 *  The content range of the node itself. `None` for pure container nodes
 	 *  (like calibre TOC entries whose src points at their first child).
@@ -268,8 +298,16 @@ export type VolumeMode = "None" | ({ Normal: {
 
 export type WorkspaceId = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 
-export type WorkspaceResults = {
-	results: ParsedResults | null,
+export type WorkspaceResults = WorkspaceResults_Serialize | WorkspaceResults_Deserialize;
+
+export type WorkspaceResults_Deserialize = {
+	results: ParsedResults_Deserialize | null,
+	current: boolean,
+	overrides: Metadata,
+};
+
+export type WorkspaceResults_Serialize = {
+	results: ParsedResults_Serialize | null,
 	current: boolean,
 	overrides: Metadata,
 };
