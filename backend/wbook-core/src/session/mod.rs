@@ -266,6 +266,20 @@ impl SessionHandle {
         self.0.snapshot.subscribe()
     }
 
+    pub fn current_preview(&self) -> Result<Option<PreviewInfo>, Rejected> {
+        let inner = self.0.inner.lock().unwrap();
+        match inner.lifecycle {
+            Lifecycle::Closing => return Err(Rejected::Closing),
+            Lifecycle::Closed(_) => return Err(Rejected::Closed),
+            Lifecycle::Open => {}
+        }
+        match &inner.slot {
+            Slot::Idle(workspace) => Ok(workspace.current_preview()),
+            Slot::Busy(_) => Err(Rejected::Busy),
+            Slot::Lost => Err(Rejected::Unavailable),
+        }
+    }
+
     pub fn initialize(&self) -> Result<Receipt<Revision>, Rejected> {
         self.run(OpKind::Initialize, |ws, cx| ws.initialize(cx))
     }
