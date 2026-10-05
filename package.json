@@ -5,6 +5,9 @@
   "license": "LGPL-3.0-or-later",
   "type": "module",
   "scripts": {
+    "bindings:generate": "cargo run --manifest-path backend/Cargo.toml -p wbook --example export_bindings",
+    "bindings:check": "cargo run --manifest-path backend/Cargo.toml -p wbook --example export_bindings -- --check",
+    "bindings:typecheck": "tsc --project tsconfig.bindings.json",
     "build": "vite build",
     "dev": "vite",
     "postinstall": "husky install",

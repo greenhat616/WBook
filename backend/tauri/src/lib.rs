@@ -1,8 +1,17 @@
+use std::sync::{atomic::Ordering, Arc};
+
+use tauri::Manager;
 use tauri_plugin_sentry::{minidump, sentry};
 
-use wbook_core::types::Port;
+use wbook_core::{types::Port, Params};
 
+pub mod bindings;
 mod commands;
+mod rpc;
+mod runtime;
+
+#[cfg(test)]
+mod tests;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,14 +26,44 @@ pub fn run() {
     // Everything before here runs in both app and crash reporter processes
     let _guard = minidump::init(&client);
 
-    let port = portpicker::pick_unused_port().expect("failed to find unused port");
-    tauri::async_runtime::spawn(server::start(port));
     // Everything after here runs in only the app process
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(_guard)
-        .manage(Port(port))
-        .invoke_handler(tauri::generate_handler![commands::get_port])
+        .invoke_handler(commands::builder().invoke_handler())
+        .setup(|app| {
+            let port =
+                std::env::var("WBOOK_RPC_PORT").map_or(Ok(0), |value| value.parse::<u16>())?;
+            let params = Params {
+                data_dir: camino::Utf8PathBuf::from_path_buf(app.path().app_data_dir()?)
+                    .map_err(|_| std::io::Error::other("App data path must be UTF-8"))?,
+                config_dir: camino::Utf8PathBuf::from_path_buf(app.path().app_config_dir()?)
+                    .map_err(|_| std::io::Error::other("App config path must be UTF-8"))?,
+            };
+            let runtime = Arc::new(tauri::async_runtime::block_on(runtime::AppRuntime::start(
+                params, port,
+            ))?);
+            app.manage(runtime.core.clone());
+            app.manage(Port(runtime.port));
+            app.manage(runtime);
+            Ok(())
+        })
         .plugin(tauri_plugin_sentry::init(&client))
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+    app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            let runtime = app.state::<Arc<runtime::AppRuntime>>().inner().clone();
+            if runtime.finished.load(Ordering::Acquire) {
+                return;
+            }
+            api.prevent_exit();
+            if !runtime.exiting.swap(true, Ordering::AcqRel) {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    runtime.shutdown().await;
+                    app.exit(code.unwrap_or(0));
+                });
+            }
+        }
+    });
 }
