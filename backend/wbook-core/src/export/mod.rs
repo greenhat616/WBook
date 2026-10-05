@@ -25,7 +25,7 @@ pub enum RenderLayout {
     SingleHtml,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Type)]
 pub struct RenderOptions {
     pub layout: RenderLayout,
 }
@@ -35,7 +35,7 @@ pub enum OutputFormat {
     Epub,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 pub struct ExportOptions {
     pub render: RenderOptions,
     pub format: OutputFormat,
