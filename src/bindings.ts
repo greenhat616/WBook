@@ -161,6 +161,7 @@ export type Phase = "Extracting" | { Filtering: {
 } } | "Parsing" | "Installing" | "Editing" | "Reading" | "Rendering" | "Exporting";
 
 export type PreviewInfo = {
+	id: string,
 	revision: Revision,
 	options: ExportOptions,
 	directory: string,
@@ -280,6 +281,7 @@ export type WorkspaceStatus = {
 	filters: FilterProgress,
 	has_overrides: boolean,
 	preview: ExportOptions | null,
+	preview_id: string | null,
 };
 
 /* Tauri Specta runtime */

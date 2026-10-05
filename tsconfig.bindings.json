@@ -13,7 +13,9 @@
   "include": [
     "src/bindings.ts",
     "src/transport.ts",
+    "src/bridge.ts",
     "src/types/vite-env.d.ts",
-    "tests/utils/transport.test.ts"
+    "tests/utils/transport.test.ts",
+    "tests/utils/bridge.test.ts"
   ]
 }
