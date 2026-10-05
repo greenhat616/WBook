@@ -32,7 +32,7 @@ pub fn run() {
     // Everything after here runs in only the app process
     let app = tauri::Builder::default()
         .manage(_guard)
-        .invoke_handler(commands::builder().invoke_handler())
+        .invoke_handler(commands::builder().1.invoke_handler())
         .setup(|app| {
             let port =
                 std::env::var("WBOOK_RPC_PORT").map_or(Ok(0), |value| value.parse::<u16>())?;

@@ -5504,6 +5504,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-specta-query"
+version = "0.0.1"
+source = "git+https://github.com/specta-rs/tauri-specta.git?rev=ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e#ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e"
+dependencies = [
+ "heck 0.5.0",
+ "serde",
+ "serde_json",
+ "specta",
+ "tauri",
+ "tauri-specta",
+]
+
+[[package]]
 name = "tauri-utils"
 version = "2.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6524,6 +6537,7 @@ dependencies = [
  "tauri-plugin-sentry",
  "tauri-plugin-shell",
  "tauri-specta",
+ "tauri-specta-query",
  "tempfile",
  "tokio",
  "tokio-util",

@@ -18,24 +18,18 @@ describe('generated commands share the transport contract', () => {
   test('desktop invokes the original command and camelCase arguments', async () => {
     vi.mocked(isTauri).mockReturnValue(true)
     vi.mocked(tauriInvoke).mockResolvedValue('NotActive')
-    expect(await commands.cancelOperation(1, 2)).toEqual({
-      status: 'ok',
-      data: 'NotActive'
-    })
+    expect(await commands.cancelOperation(1, 2)).toBe('NotActive')
     expect(tauriInvoke).toHaveBeenCalledWith('cancel_operation', {
       sessionId: 1,
       operationId: 2
     })
   })
 
-  test('browser posts to the configured endpoint and wraps the bare value', async () => {
+  test('browser posts to the configured endpoint and returns the bare value', async () => {
     vi.stubEnv('VITE_WBOOK_RPC_URL', 'http://127.0.0.1:1421/bridge/rpc')
     const fetch = vi.fn().mockResolvedValue(Response.json('NotActive'))
     vi.stubGlobal('fetch', fetch)
-    expect(await commands.cancelOperation(1, 2)).toEqual({
-      status: 'ok',
-      data: 'NotActive'
-    })
+    expect(await commands.cancelOperation(1, 2)).toBe('NotActive')
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:1421/bridge/rpc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,7 +44,7 @@ describe('generated commands share the transport contract', () => {
     vi.stubEnv('VITE_WBOOK_RPC_URL', '')
     const fetch = vi.fn().mockResolvedValue(Response.json([]))
     vi.stubGlobal('fetch', fetch)
-    expect(await commands.listSessions()).toEqual({ status: 'ok', data: [] })
+    expect(await commands.listSessions()).toEqual([])
     expect(fetch.mock.calls[0][0]).toBe('/bridge/rpc')
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
       method: 'list_sessions',
@@ -68,7 +62,7 @@ describe('generated commands share the transport contract', () => {
         'fetch',
         vi.fn().mockResolvedValue(Response.json(error, { status: 404 }))
       )
-      expect(await commands.getSession(1)).toEqual({ status: 'error', error })
+      await expect(commands.getSession(1)).rejects.toEqual(error)
     }
   )
 

@@ -19,7 +19,8 @@ export function unwrap<T>(result: Outcome<T>, stage = '命令'): T {
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String((error as CommandError).message)
+    const { kind, message } = error as CommandError
+    return `命令失败 (${kind})：${message}`
   }
   return String(error)
 }
