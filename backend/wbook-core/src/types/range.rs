@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
+use snafu::Snafu;
 use specta::Type;
-use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Snafu)]
 pub enum RangeError {
-    #[error("invalid range: start `{start}` is greater than end `{end}`")]
+    #[snafu(display("invalid range: start `{start}` is greater than end `{end}`"))]
     Inverted { start: u64, end: u64 },
 }
 

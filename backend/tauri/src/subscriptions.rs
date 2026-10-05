@@ -7,6 +7,7 @@ use axum::{
     Router,
 };
 use futures_util::{stream, Stream};
+use snafu::ResultExt;
 use tokio::sync::watch;
 use wbook_core::{
     session::{LifecycleState, SessionId, SessionSnapshot},
@@ -14,6 +15,7 @@ use wbook_core::{
 };
 
 use crate::commands::dto::{check_integers, CommandError, ErrorKind};
+use crate::errors::{DecodePathSnafu, EncodeResponseSnafu};
 
 pub fn router(core: Arc<Wbook>) -> Router {
     Router::new()
@@ -25,8 +27,9 @@ async fn subscribe(
     State(core): State<Arc<Wbook>>,
     session_id: Result<Path<u64>, PathRejection>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, CommandError> {
-    let Path(session_id) = session_id
-        .map_err(|error| CommandError::new(ErrorKind::InvalidParams, error.body_text()))?;
+    let Path(session_id) = session_id.context(DecodePathSnafu {
+        endpoint: "session subscription",
+    })?;
     check_integers(&session_id, ErrorKind::InvalidParams)?;
     let receiver = core
         .session_manager()
@@ -47,11 +50,13 @@ fn snapshots(
         let snapshot = receiver.borrow_and_update().clone();
         let next = (snapshot.lifecycle != LifecycleState::Closed).then_some((receiver, false));
         let event = check_integers(&snapshot, ErrorKind::InternalError).and_then(|()| {
-            Event::default()
+            let data = serde_json::to_string(&snapshot).context(EncodeResponseSnafu {
+                context: "session snapshot event",
+            })?;
+            Ok(Event::default()
                 .event("session")
                 .id(snapshot.seq.to_string())
-                .json_data(&snapshot)
-                .map_err(|error| CommandError::new(ErrorKind::InternalError, error.to_string()))
+                .data(data))
         });
         match event {
             Ok(event) => Some((Ok(event), next)),

@@ -31,23 +31,25 @@ pub enum ParserKind {
     Metadata,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum ParserError {
-    #[error("parsing cancelled")]
+    #[snafu(display("parsing cancelled"))]
     Cancelled,
 
-    #[error("no parser accepted the content: {0}")]
-    NoMatch(String),
+    #[snafu(display("no parser accepted the content: {message}"))]
+    NoMatch { message: String },
 
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    #[snafu(context(false), display("{source}"))]
+    Other { source: anyhow::Error },
 }
 
 impl From<DocumentError> for ParserError {
     fn from(error: DocumentError) -> Self {
         match error {
             DocumentError::Cancelled => Self::Cancelled,
-            other => Self::Other(other.into()),
+            other => Self::Other {
+                source: other.into(),
+            },
         }
     }
 }
@@ -152,9 +154,11 @@ impl CombinedParser {
         check_cancelled(ct)?;
         match self.strategy {
             CombineStrategy::BestMatch => self.parse_best_match(ct, content),
-            CombineStrategy::Merge => Err(ParserError::Other(anyhow::anyhow!(
-                "CombineStrategy::Merge is reserved and not implemented yet"
-            ))),
+            CombineStrategy::Merge => Err(ParserError::Other {
+                source: anyhow::anyhow!(
+                    "CombineStrategy::Merge is reserved and not implemented yet"
+                ),
+            }),
         }
     }
 
@@ -183,7 +187,9 @@ impl CombinedParser {
             }
         }
         check_cancelled(ct)?;
-        Err(ParserError::NoMatch(errors.join("; ")))
+        Err(ParserError::NoMatch {
+            message: errors.join("; "),
+        })
     }
 }
 
@@ -245,7 +251,9 @@ mod tests {
             _content: TextView<'_>,
         ) -> Result<TocRoot, ParserError> {
             if self.fail {
-                return Err(ParserError::Other(anyhow::anyhow!("{} failed", self.name)));
+                return Err(ParserError::Other {
+                    source: anyhow::anyhow!("{} failed", self.name),
+                });
             }
             let mut toc = TocRoot::new();
             toc.add_with_meta(self.name, None, None).unwrap();
@@ -304,7 +312,7 @@ mod tests {
             fail: false,
         });
         let result = combined.parse(&CancellationToken::new(), content().view());
-        assert!(matches!(result, Err(ParserError::NoMatch(_))));
+        assert!(matches!(result, Err(ParserError::NoMatch { message: _ })));
     }
 
     #[test]
@@ -322,7 +330,7 @@ mod tests {
         });
         let result = combined.parse(&CancellationToken::new(), content().view());
         match result {
-            Err(ParserError::NoMatch(summary)) => {
+            Err(ParserError::NoMatch { message: summary }) => {
                 assert!(summary.contains("first"));
                 assert!(summary.contains("second"));
             }
@@ -334,7 +342,7 @@ mod tests {
     fn merge_strategy_is_reserved() {
         let combined = CombinedParser::new(CombineStrategy::Merge);
         let result = combined.parse(&CancellationToken::new(), content().view());
-        assert!(matches!(result, Err(ParserError::Other(_))));
+        assert!(matches!(result, Err(ParserError::Other { source: _ })));
     }
 
     struct CancellingParser {

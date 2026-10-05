@@ -127,7 +127,7 @@ fn test_process_not_found() {
     let err = SimpleExtractor::new()
         .process(&CancellationToken::new(), &ProcessOptions {}, &path)
         .unwrap_err();
-    assert!(matches!(err, ExtractorError::Io(_)));
+    assert!(matches!(err, ExtractorError::Io { source: _ }));
 }
 
 #[test]

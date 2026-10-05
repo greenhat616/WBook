@@ -131,23 +131,23 @@ pub struct OperationResult<T> {
     pub warnings: Vec<CleanupFailure>,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum OpError {
-    #[error(transparent)]
-    Workspace(#[from] WorkspaceError),
-    #[error("workspace worker panicked or was stopped; side effects are unknown")]
+    #[snafu(context(false), display("{source}"))]
+    Workspace { source: WorkspaceError },
+    #[snafu(display("workspace worker panicked or was stopped; side effects are unknown"))]
     Panicked,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, snafu::Snafu)]
 pub enum Rejected {
-    #[error("session is busy")]
+    #[snafu(display("session is busy"))]
     Busy,
-    #[error("workspace is unavailable")]
+    #[snafu(display("workspace is unavailable"))]
     Unavailable,
-    #[error("session is closing")]
+    #[snafu(display("session is closing"))]
     Closing,
-    #[error("session is closed")]
+    #[snafu(display("session is closed"))]
     Closed,
 }
 

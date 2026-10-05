@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use snafu::ResultExt;
 use specta::Type;
 use tokio_util::sync::CancellationToken;
 
@@ -67,33 +68,32 @@ pub enum ExportStage {
     Publishing,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum ExportFailure {
-    #[error("export cancelled")]
+    #[snafu(display("export cancelled"))]
     Cancelled,
-    #[error("invalid export input: {0}")]
-    InvalidInput(String),
-    #[error("export validation failed: {0}")]
-    Validation(String),
-    #[error("destination already exists: {0}")]
-    TargetExists(PathBuf),
-    #[error(transparent)]
-    Document(#[from] DocumentError),
-    #[error(transparent)]
-    Pipeline(#[from] PipelineError),
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    Template(#[from] tera::Error),
-    #[error(transparent)]
-    Zip(#[from] zip::result::ZipError),
+    #[snafu(display("invalid export input: {message}"))]
+    InvalidInput { message: String },
+    #[snafu(display("export validation failed: {message}"))]
+    Validation { message: String },
+    #[snafu(display("destination already exists: {}", path.display()))]
+    TargetExists { path: PathBuf },
+    #[snafu(context(false), display("{source}"))]
+    Document { source: DocumentError },
+    #[snafu(context(false), display("{source}"))]
+    Pipeline { source: PipelineError },
+    #[snafu(context(false), display("{source}"))]
+    Io { source: io::Error },
+    #[snafu(context(false), display("{source}"))]
+    Template { source: tera::Error },
+    #[snafu(context(false), display("{source}"))]
+    Zip { source: zip::result::ZipError },
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("export failed during {stage:?}: {source}")]
+#[derive(Debug, snafu::Snafu)]
+#[snafu(display("export failed during {stage:?}: {source}"))]
 pub struct ExportError {
     pub stage: ExportStage,
-    #[source]
     pub source: ExportFailure,
     pub cleanup_failures: Vec<CleanupFailure>,
 }
@@ -115,13 +115,15 @@ fn stage<T>(
 ) -> std::result::Result<T, ExportError> {
     check(ct)
         .and_then(|()| action())
-        .map_err(|source| ExportError {
-            stage,
-            source: if ct.is_cancelled() {
+        .map_err(|source| {
+            if ct.is_cancelled() {
                 ExportFailure::Cancelled
             } else {
                 source
-            },
+            }
+        })
+        .context(ExportSnafu {
+            stage,
             cleanup_failures: Vec::new(),
         })
 }
@@ -190,9 +192,13 @@ pub fn package_epub(
         let mut error = ExportError {
             stage: ExportStage::Publishing,
             source: if failure.error.kind() == io::ErrorKind::AlreadyExists {
-                ExportFailure::TargetExists(destination.to_owned())
+                ExportFailure::TargetExists {
+                    path: destination.to_owned(),
+                }
             } else {
-                ExportFailure::Io(failure.error)
+                ExportFailure::Io {
+                    source: failure.error,
+                }
             },
             cleanup_failures: Vec::new(),
         };
@@ -226,15 +232,18 @@ fn parent(path: &Path) -> &Path {
 
 fn preflight(path: &Path) -> Result<()> {
     match path.symlink_metadata() {
-        Ok(_) => return Err(ExportFailure::TargetExists(path.to_owned())),
+        Ok(_) => {
+            return Err(ExportFailure::TargetExists {
+                path: path.to_owned(),
+            })
+        }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error.into()),
     }
     if path.file_name().is_none() || !parent(path).is_dir() {
-        return Err(ExportFailure::InvalidInput(format!(
-            "invalid destination: {}",
-            path.display()
-        )));
+        return Err(ExportFailure::InvalidInput {
+            message: format!("invalid destination: {}", path.display()),
+        });
     }
     Ok(())
 }
