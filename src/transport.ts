@@ -12,7 +12,7 @@ function isCommandError(value: unknown): value is CommandError {
   )
 }
 
-function checkIntegers(value: unknown): void {
+export function checkIntegers(value: unknown): void {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
     throw new Error('Numeric values must be JavaScript safe integers')
   }

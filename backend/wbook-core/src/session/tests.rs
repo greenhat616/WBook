@@ -77,6 +77,42 @@ fn gate() -> (
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn current_preview_is_read_only_and_obeys_session_admission() {
+    let manager = SessionManager::new(Handle::current());
+    let directory = tempfile::tempdir().unwrap();
+    let path = source(&directory);
+    fs::write(&path, "第一章 Start\nBody").unwrap();
+    let handle = manager.create(path, options()).unwrap();
+    assert_eq!(handle.current_preview().unwrap(), None);
+    let revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
+    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+        .await
+        .outcome
+        .unwrap();
+    let snapshot = handle.snapshot();
+    assert_eq!(handle.current_preview().unwrap(), Some(preview.clone()));
+    assert_eq!(handle.snapshot(), snapshot);
+
+    let (started, observed, release, blocked) = gate();
+    let receipt = handle
+        .run(OpKind::ReadResults, move |_, _| {
+            started.send(()).unwrap();
+            blocked.recv_timeout(HANG_GUARD).unwrap();
+            Ok(())
+        })
+        .unwrap();
+    guard(observed).await.unwrap();
+    assert_eq!(handle.current_preview(), Err(Rejected::Busy));
+    handle.request_close();
+    assert_eq!(handle.current_preview(), Err(Rejected::Closing));
+    release.send(()).unwrap();
+    finish(receipt).await.outcome.unwrap();
+    guard(handle.close()).await;
+    assert_eq!(handle.current_preview(), Err(Rejected::Closed));
+    assert!(!preview.directory.exists());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     let manager = SessionManager::new(Handle::current());
     let directory = tempfile::tempdir().unwrap();
@@ -430,6 +466,7 @@ async fn panic_completes_receipt_loses_only_its_workspace_and_allows_close() {
         }
     );
     assert_eq!(failed.initialize().unwrap_err(), Rejected::Unavailable);
+    assert_eq!(failed.current_preview(), Err(Rejected::Unavailable));
     assert_eq!(failed.cancel(op), CancelReply::NotActive);
     assert_eq!(*failed.subscribe().borrow(), failed.snapshot());
     assert_eq!(
@@ -951,7 +988,8 @@ async fn workspace_allocation_is_moved_and_snapshots_contain_no_body_toc_or_hist
             "document_version",
             "filters",
             "has_overrides",
-            "preview"
+            "preview",
+            "preview_id"
         ]
     );
     let keys: Vec<_> = snapshot["last"]
