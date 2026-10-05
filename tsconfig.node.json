@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": "./",
     "composite": true,
     "skipLibCheck": true,
     "module": "ESNext",

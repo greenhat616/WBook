@@ -13,6 +13,8 @@ module.exports = {
     // 'stylelint-config-prettier'
   ],
   rules: {
+    "import-notation": "string",
+    "at-rule-prelude-no-invalid": [true, { ignoreAtRules: ["apply", "config"] }],
     "font-family-name-quotes": null,
     "font-family-no-missing-generic-family-keyword": null,
     "max-nesting-depth": [
@@ -30,6 +32,7 @@ module.exports = {
       true,
       {
         ignoreAtRules: [
+          "config",
           "tailwind",
           "unocss",
           "layer",
