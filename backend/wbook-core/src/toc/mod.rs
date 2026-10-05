@@ -135,7 +135,7 @@ impl Toc for TocRoot {
     ) -> Result<&TocNode, TocError> {
         if let Some(parent_id) = parent {
             if !self.contains(parent_id) {
-                return Err(TocError::NodeParentNotFound(parent_id));
+                return Err(TocError::NodeParentNotFound { node_id: parent_id });
             }
         }
         let entry = self.container.vacant_entry();

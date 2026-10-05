@@ -21,6 +21,34 @@ fn options(layout: RenderLayout) -> ExportOptions {
     }
 }
 
+#[test]
+fn export_stage_keeps_the_actual_io_source_and_cleanup_context() {
+    use std::error::Error;
+
+    let directory = tempfile::tempdir().unwrap();
+    let missing = directory.path().join("missing.xhtml");
+    let error = stage(&CancellationToken::new(), ExportStage::Rendering, || {
+        Ok(fs::read(missing)?)
+    })
+    .unwrap_err();
+    assert_eq!(error.stage, ExportStage::Rendering);
+    assert!(error.cleanup_failures.is_empty());
+    assert!(error
+        .to_string()
+        .starts_with("export failed during Rendering:"));
+    let failure = error
+        .source()
+        .unwrap()
+        .downcast_ref::<ExportFailure>()
+        .unwrap();
+    let source = failure
+        .source()
+        .unwrap()
+        .downcast_ref::<io::Error>()
+        .unwrap();
+    assert_eq!(source.kind(), io::ErrorKind::NotFound);
+}
+
 fn book(text: &str, parser: &dyn TocParser) -> ProcessingDocument {
     let ct = CancellationToken::new();
     let mut book = ProcessingDocument::new(
@@ -340,7 +368,11 @@ fn stale_results_and_unknown_legacy_ranges_are_rejected() {
         render_book(&ct, &doc, &options(RenderLayout::SingleHtml))
             .unwrap_err()
             .source,
-        ExportFailure::Pipeline(PipelineError::Document(DocumentError::StaleVersion { .. }))
+        ExportFailure::Pipeline {
+            source: PipelineError::Document {
+                source: DocumentError::StaleVersion { .. }
+            }
+        }
     ));
 }
 
@@ -453,7 +485,7 @@ fn cancellation_and_existing_destination_preserve_files() {
         export_epub(&ct, &doc, &options(RenderLayout::SingleHtml), &path)
             .unwrap_err()
             .source,
-        ExportFailure::TargetExists(_)
+        ExportFailure::TargetExists { path: _ }
     ));
     assert_eq!(fs::read(&path).unwrap(), b"existing");
     ct.cancel();
@@ -570,7 +602,7 @@ fn publication_race_never_overwrites_an_existing_target() {
         assert!(results
             .iter()
             .filter_map(|r| r.as_ref().err())
-            .all(|e| matches!(e.source, ExportFailure::TargetExists(_))));
+            .all(|e| matches!(e.source, ExportFailure::TargetExists { path: _ })));
     });
     archive(&path);
     assert_eq!(fs::read_dir(output.path()).unwrap().count(), 1);
@@ -702,7 +734,9 @@ fn render_rejects_a_plan_from_another_document() {
     let plan = plan::build(&ct, &first, &options(RenderLayout::SingleHtml)).unwrap();
     assert!(matches!(
         render::render(&ct, second.view(), plan).unwrap_err(),
-        ExportFailure::Document(DocumentError::WrongDocument)
+        ExportFailure::Document {
+            source: DocumentError::WrongDocument
+        }
     ));
 }
 
@@ -777,7 +811,9 @@ fn cleanup_failure_keeps_the_original_error_and_reports_the_path() {
         .unwrap();
     let mut error = ExportError {
         stage: ExportStage::Packaging,
-        source: ExportFailure::Validation("original failure".into()),
+        source: ExportFailure::Validation {
+            message: "original failure".into(),
+        },
         cleanup_failures: vec![],
     };
     cleanup_file(file, &mut error);

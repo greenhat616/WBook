@@ -80,17 +80,18 @@ fn insert_entry(
     seen: &mut HashSet<NodeId>,
 ) -> Result<NodeId, TocError> {
     if !seen.insert(entry.id) {
-        return Err(TocError::InvalidSnapshot(format!(
-            "duplicated node id: {}",
-            entry.id.0
-        )));
+        return Err(TocError::InvalidSnapshot {
+            message: format!("duplicated node id: {}", entry.id.0),
+        });
     }
     if let Some(range) = entry.meta.range {
         if range.start > range.end {
-            return Err(TocError::InvalidSnapshot(format!(
-                "inverted range [{}, {}) on node `{}`",
-                range.start, range.end, entry.title
-            )));
+            return Err(TocError::InvalidSnapshot {
+                message: format!(
+                    "inverted range [{}, {}) on node `{}`",
+                    range.start, range.end, entry.title
+                ),
+            });
         }
     }
     let id = toc

@@ -123,7 +123,7 @@ async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     };
     assert!(matches!(
         manager.create(path.clone(), invalid),
-        Err(ManagerError::InvalidConfig(_))
+        Err(ManagerError::InvalidConfig { source: _ })
     ));
     assert!(manager.list().is_empty());
     let handle = manager.create(path.clone(), options()).unwrap();
@@ -136,9 +136,11 @@ async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     assert_eq!(result.revision, Revision(0));
     assert!(matches!(
         result.outcome,
-        Err(OpError::Workspace(WorkspaceError::Extractor(
-            ExtractorError::Io(_)
-        )))
+        Err(OpError::Workspace {
+            source: WorkspaceError::Extractor {
+                source: ExtractorError::Io { source: _ }
+            }
+        })
     ));
     assert_eq!(
         handle.snapshot().last.unwrap().category,
@@ -235,9 +237,11 @@ async fn cancelled_old_operations_cannot_cancel_new_ones_and_errors_keep_their_c
     release.send(()).unwrap();
     assert!(matches!(
         finish(first).await.outcome,
-        Err(OpError::Workspace(WorkspaceError::Document(
-            DocumentError::Cancelled
-        )))
+        Err(OpError::Workspace {
+            source: WorkspaceError::Document {
+                source: DocumentError::Cancelled
+            }
+        })
     ));
     assert_eq!(
         handle.snapshot().last.unwrap().category,
@@ -267,7 +271,9 @@ async fn cancelled_old_operations_cannot_cancel_new_ones_and_errors_keep_their_c
     release.send(()).unwrap();
     assert!(matches!(
         finish(next).await.outcome,
-        Err(OpError::Workspace(WorkspaceError::NoDocument))
+        Err(OpError::Workspace {
+            source: WorkspaceError::NoDocument
+        })
     ));
     assert_eq!(
         handle.snapshot().last.unwrap().category,
@@ -1044,7 +1050,9 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
     assert_eq!(result.revision, Revision(revision.0 + 1));
     assert!(matches!(
         result.outcome,
-        Err(OpError::Workspace(WorkspaceError::NoDocument))
+        Err(OpError::Workspace {
+            source: WorkspaceError::NoDocument
+        })
     ));
     assert_eq!(result.warnings.len(), 1);
     assert_eq!(result.warnings[0].path, preview.directory);

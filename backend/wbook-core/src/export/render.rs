@@ -41,9 +41,9 @@ static TEMPLATES: LazyLock<std::result::Result<Tera, tera::Error>> = LazyLock::n
 pub(super) fn template(name: &str, context: &Context, writer: impl Write) -> Result<()> {
     match &*TEMPLATES {
         Ok(tera) => Ok(tera.render_to(name, context, writer)?),
-        Err(error) => Err(super::ExportFailure::InvalidInput(format!(
-            "embedded template error: {error}"
-        ))),
+        Err(error) => Err(super::ExportFailure::InvalidInput {
+            message: format!("embedded template error: {error}"),
+        }),
     }
 }
 

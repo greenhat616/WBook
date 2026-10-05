@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
+use snafu::ResultExt;
 use specta::Type;
 use wbook_core::{
     app::ManagerError,
@@ -10,6 +11,8 @@ use wbook_core::{
     session::{self, OpError, OpKind, OperationId, OperationSummary, Receipt, Rejected},
     workspace::{self, Revision, WorkspaceError},
 };
+
+use crate::errors::{DecodeArgumentsSnafu, EncodeResponseSnafu, ReceiveReceiptSnafu};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -38,12 +41,19 @@ pub enum ErrorKind {
     InternalError,
 }
 
-#[derive(Debug, Serialize, Type, thiserror::Error)]
-#[error("{message}")]
+#[derive(Debug, Serialize, Type)]
 pub struct CommandError {
     pub kind: ErrorKind,
     pub message: String,
 }
+
+impl fmt::Display for CommandError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for CommandError {}
 
 impl CommandError {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
@@ -59,7 +69,7 @@ impl From<ManagerError> for CommandError {
         let kind = match error {
             ManagerError::NotFound => ErrorKind::NotFound,
             ManagerError::ShuttingDown => ErrorKind::ShuttingDown,
-            ManagerError::InvalidConfig(_) => ErrorKind::InvalidConfig,
+            ManagerError::InvalidConfig { .. } => ErrorKind::InvalidConfig,
         };
         Self::new(kind, error.to_string())
     }
@@ -81,18 +91,18 @@ impl From<OpError> for CommandError {
     fn from(error: OpError) -> Self {
         let kind = match &error {
             OpError::Panicked => ErrorKind::Panicked,
-            OpError::Workspace(error) if error.is_cancelled() => ErrorKind::Cancelled,
-            OpError::Workspace(error) => match error {
-                WorkspaceError::InvalidConfig(_) => ErrorKind::InvalidConfig,
+            OpError::Workspace { source } if source.is_cancelled() => ErrorKind::Cancelled,
+            OpError::Workspace { source } => match source {
+                WorkspaceError::InvalidConfig { .. } => ErrorKind::InvalidConfig,
                 WorkspaceError::StaleRevision { .. } => ErrorKind::StaleRevision,
                 WorkspaceError::NoDocument => ErrorKind::NoDocument,
                 WorkspaceError::AlreadyInitialized => ErrorKind::AlreadyInitialized,
                 WorkspaceError::ResultsNotCurrent => ErrorKind::ResultsNotCurrent,
                 WorkspaceError::ReadTooLarge { .. } => ErrorKind::ReadTooLarge,
-                WorkspaceError::Extractor(_) => ErrorKind::Extractor,
-                WorkspaceError::Document(_) => ErrorKind::Document,
-                WorkspaceError::Pipeline(_) => ErrorKind::Pipeline,
-                WorkspaceError::Export(_) => ErrorKind::Export,
+                WorkspaceError::Extractor { .. } => ErrorKind::Extractor,
+                WorkspaceError::Document { .. } => ErrorKind::Document,
+                WorkspaceError::Pipeline { .. } => ErrorKind::Pipeline,
+                WorkspaceError::Export { .. } => ErrorKind::Export,
             },
         };
         Self::new(kind, error.to_string())
@@ -133,16 +143,19 @@ pub struct OperationResponse<T> {
 pub async fn complete<T, U: From<T>>(
     receipt: Result<Receipt<T>, Rejected>,
 ) -> Result<OperationResponse<U>, CommandError> {
-    let result = receipt?
-        .await
-        .map_err(|error| CommandError::new(ErrorKind::InternalError, error.to_string()))?;
+    let receipt = receipt?;
+    let op = receipt.op;
+    let result = receipt.await.context(ReceiveReceiptSnafu { op })?;
     Ok(operation_response(result))
 }
 
 fn operation_response<T, U: From<T>>(result: session::OperationResult<T>) -> OperationResponse<U> {
     let mut warnings: Vec<CleanupWarning> = result.warnings.into_iter().map(Into::into).collect();
     // Export failures carry their own cleanup diagnostics outside the workspace warning queue.
-    if let Err(OpError::Workspace(WorkspaceError::Export(error))) = &result.outcome {
+    if let Err(OpError::Workspace {
+        source: WorkspaceError::Export { source: error },
+    }) = &result.outcome
+    {
         warnings.extend(error.cleanup_failures.iter().map(|warning| CleanupWarning {
             path: warning.path.clone(),
             message: warning.message.clone(),
@@ -218,24 +231,14 @@ pub fn decode_arguments<T: DeserializeOwned>(
     method: &'static str,
     params: Value,
 ) -> Result<T, CommandError> {
-    serde_json::from_value(params).map_err(|error| {
-        CommandError::new(
-            ErrorKind::InvalidParams,
-            format!("Could not decode arguments for {method}: {error}"),
-        )
-    })
+    Ok(serde_json::from_value(params).context(DecodeArgumentsSnafu { method })?)
 }
 
 pub fn encode_response(
     context: &'static str,
     value: &impl Serialize,
 ) -> Result<Value, CommandError> {
-    serde_json::to_value(value).map_err(|error| {
-        CommandError::new(
-            ErrorKind::InternalError,
-            format!("Could not encode {context}: {error}"),
-        )
-    })
+    Ok(serde_json::to_value(value).context(EncodeResponseSnafu { context })?)
 }
 
 pub fn check_integers(value: &impl Serialize, kind: ErrorKind) -> Result<(), CommandError> {
@@ -251,8 +254,7 @@ pub fn check_integers(value: &impl Serialize, kind: ErrorKind) -> Result<(), Com
             _ => true,
         }
     }
-    let value = serde_json::to_value(value)
-        .map_err(|error| CommandError::new(ErrorKind::InternalError, error.to_string()))?;
+    let value = encode_response("JavaScript integer validation", value)?;
     if safe(&value) {
         Ok(())
     } else {
@@ -273,16 +275,18 @@ mod tests {
             op: OperationId(7),
             kind: OpKind::ExportEpub,
             revision: Revision(4),
-            outcome: Err(OpError::Workspace(WorkspaceError::Export(
-                export::ExportError {
-                    stage: export::ExportStage::Rendering,
-                    source: export::ExportFailure::Cancelled,
-                    cleanup_failures: vec![export::CleanupFailure {
-                        path: "render-temp".into(),
-                        message: "render cleanup failed".into(),
-                    }],
+            outcome: Err(OpError::Workspace {
+                source: WorkspaceError::Export {
+                    source: export::ExportError {
+                        stage: export::ExportStage::Rendering,
+                        source: export::ExportFailure::Cancelled,
+                        cleanup_failures: vec![export::CleanupFailure {
+                            path: "render-temp".into(),
+                            message: "render cleanup failed".into(),
+                        }],
+                    },
                 },
-            ))),
+            }),
             warnings: vec![export::CleanupFailure {
                 path: "preview-temp".into(),
                 message: "preview cleanup failed".into(),

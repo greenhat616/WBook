@@ -5,12 +5,16 @@ use specta::Type;
 
 use super::rule::LineRule;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum TocConfigError {
-    #[error("invalid TOC configuration: {0}")]
-    Invalid(String),
-    #[error(transparent)]
-    Regex(#[from] regex::Error),
+    #[snafu(display("invalid TOC configuration: {message}"))]
+    Invalid { message: String },
+    #[snafu(display("invalid TOC pattern {pattern:?}: {source}"))]
+    #[snafu(visibility(pub(super)))]
+    Regex {
+        pattern: String,
+        source: regex::Error,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -53,9 +57,9 @@ impl SimpleRuleConfig {
                 .max_numeral_len
                 .is_some_and(|max| max < self.min_numeral_len)
         {
-            return Err(TocConfigError::Invalid(
-                "invalid numeral length bounds".into(),
-            ));
+            return Err(TocConfigError::Invalid {
+                message: "invalid numeral length bounds".into(),
+            });
         }
         if self
             .prefixes
@@ -63,10 +67,11 @@ impl SimpleRuleConfig {
             .chain(&self.suffixes)
             .any(|s| s.is_empty() || s.contains(['\r', '\n']))
         {
-            return Err(TocConfigError::Invalid(
-                "affixes must be nonempty single-line literals; use an empty list for no affix"
-                    .into(),
-            ));
+            return Err(TocConfigError::Invalid {
+                message:
+                    "affixes must be nonempty single-line literals; use an empty list for no affix"
+                        .into(),
+            });
         }
         Ok(())
     }
@@ -103,9 +108,9 @@ impl TocRulesConfig {
         let mut levels: Vec<_> = self.levels.iter().collect();
         for config in &levels {
             if config.level == 0 || !seen.insert(config.level) {
-                return Err(TocConfigError::Invalid(
-                    "TOC levels must be positive and unique".into(),
-                ));
+                return Err(TocConfigError::Invalid {
+                    message: "TOC levels must be positive and unique".into(),
+                });
             }
         }
         // A parent match wins when the same line also matches a child rule.
