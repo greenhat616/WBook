@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["server", "tauri", "wbook-core"]
+members = ["server", "tauri", "wbook-core", "wbook-command-macros"]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,7 +24,7 @@ regex = "1.10"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 simd-json = { version = "0.18" }
-specta = { version = "2.0.0-rc.25", features = ["camino", "derive", "jiff"] }
+specta = { version = "=2.0.0-rc.25", features = ["camino", "derive", "jiff"] }
 
 tokio = { version = "1", features = ["full"] }
 
