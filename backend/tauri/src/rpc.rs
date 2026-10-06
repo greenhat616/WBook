@@ -30,7 +30,9 @@ fn empty_params() -> Value {
 pub fn router(app: Arc<Wbook>) -> Router {
     Router::new()
         .route("/bridge/rpc", post(invoke))
-        .with_state(app)
+        .with_state(app.clone())
+        .merge(crate::subscriptions::router(app.clone()))
+        .merge(crate::preview::router(app))
 }
 
 async fn invoke(

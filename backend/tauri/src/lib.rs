@@ -7,8 +7,10 @@ use wbook_core::{types::Port, Params};
 
 pub mod bindings;
 mod commands;
+mod preview;
 mod rpc;
 mod runtime;
+mod subscriptions;
 
 #[cfg(test)]
 mod tests;
