@@ -59,6 +59,7 @@ struct WorkspaceState {
 }
 
 struct Preview {
+    id: String,
     options: ExportOptions,
     book: RenderedBook,
 }
@@ -85,6 +86,7 @@ pub struct WorkspaceStatus {
     pub filters: FilterProgress,
     pub has_overrides: bool,
     pub preview: Option<ExportOptions>,
+    pub preview_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -96,6 +98,7 @@ pub struct WorkspaceResults {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 pub struct PreviewInfo {
+    pub id: String,
     pub revision: Revision,
     pub options: ExportOptions,
     pub directory: PathBuf,
@@ -228,6 +231,7 @@ impl Workspace {
             has_overrides: document
                 .is_some_and(|doc| doc.metadata_overrides != Metadata::default()),
             preview: self.preview.as_ref().map(|preview| preview.options.clone()),
+            preview_id: self.preview.as_ref().map(|preview| preview.id.clone()),
         }
     }
 
@@ -479,11 +483,16 @@ impl Workspace {
 
     fn preview_info(&self, preview: &Preview) -> PreviewInfo {
         PreviewInfo {
+            id: preview.id.clone(),
             revision: self.revision(),
             options: preview.options.clone(),
             directory: preview.book.directory().to_owned(),
             files: preview.book.content_files().to_vec(),
         }
+    }
+
+    pub fn current_preview(&self) -> Option<PreviewInfo> {
+        self.preview.as_ref().map(|preview| self.preview_info(preview))
     }
 
     pub fn render_preview(
@@ -503,7 +512,11 @@ impl Workspace {
         }
         let book = export::render_book(cx.ct, document, &options)?;
         self.close_preview();
-        let preview = Preview { options, book };
+        let preview = Preview {
+            id: Uuid::new_v4().to_string(),
+            options,
+            book,
+        };
         let info = self.preview_info(&preview);
         self.preview = Some(preview);
         Ok(info)

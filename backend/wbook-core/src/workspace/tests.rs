@@ -189,6 +189,7 @@ fn commit_table_and_stale_results() {
     );
     assert!(!preview.directory.exists());
     assert!(ws.status().preview.is_none());
+    assert!(ws.status().preview_id.is_none());
     let preview = ws.render_preview(&cx, Revision(5), options()).unwrap();
     let overrides = Metadata {
         title: Some("Manual book".into()),
@@ -836,6 +837,10 @@ fn preview_reuses_equal_options_replaces_changed_options_and_keeps_old_on_failur
     let before = saved_state(&ws);
     let mut opts = options();
     let mut preview = ws.render_preview(&cx, revision, opts.clone()).unwrap();
+    let first_id = preview.id.clone();
+    assert_eq!(Uuid::parse_str(&first_id).unwrap().get_version_num(), 4);
+    assert_eq!(ws.current_preview(), Some(preview.clone()));
+    assert_eq!(ws.status().preview_id.as_deref(), Some(preview.id.as_str()));
     let marker = preview.directory.join("reuse-marker");
     fs::write(&marker, b"retained").unwrap();
     assert_eq!(
@@ -850,6 +855,9 @@ fn preview_reuses_equal_options_replaces_changed_options_and_keeps_old_on_failur
             _ => opts.identifier = Some("urn:changed".into()),
         }
         let next = ws.render_preview(&cx, revision, opts.clone()).unwrap();
+        assert_ne!(next.id, preview.id);
+        assert_eq!(ws.status().preview_id.as_deref(), Some(next.id.as_str()));
+        assert_eq!(next.revision, preview.revision);
         assert_ne!(next.directory, preview.directory);
         assert!(!preview.directory.exists());
         preview = next;
@@ -865,7 +873,13 @@ fn preview_reuses_equal_options_replaces_changed_options_and_keeps_old_on_failur
         .unwrap_err()
         .is_cancelled());
     assert!(preview.directory.exists());
+    assert_eq!(ws.current_preview(), Some(preview.clone()));
+    let restored = ws
+        .render_preview(&context(&CancellationToken::new()), revision, options())
+        .unwrap();
+    assert_ne!(restored.id, first_id);
     assert!(ws.close().is_empty());
+    assert!(!restored.directory.exists());
     assert!(!preview.directory.exists());
 }
 
