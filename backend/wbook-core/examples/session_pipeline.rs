@@ -74,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
     let options = ExportOptions {
         render: RenderOptions {
             layout: RenderLayout::SingleHtml,
+            ..Default::default()
         },
         format: OutputFormat::Epub,
         language: "en".into(),

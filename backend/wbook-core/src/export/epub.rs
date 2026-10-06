@@ -46,7 +46,7 @@ pub(super) fn write(
     let mut context = Context::new();
     context.insert("book", &book.plan.metadata);
     context.insert("files", &book.files);
-    render::template(
+    render::builtin_template(
         "package.xml",
         &context,
         CancelWriter {

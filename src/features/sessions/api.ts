@@ -1,7 +1,15 @@
 import type { CommandError, ExportOptions, Outcome } from '../../bindings'
 
 export const exportOptions: ExportOptions = {
-  render: { layout: 'SingleHtml' },
+  render: {
+    layout: 'SingleHtml',
+    templates: {
+      stylesheet: null,
+      document: null,
+      section: null,
+      paragraph: null
+    }
+  },
   format: 'Epub',
   language: 'zh-CN',
   identifier: null

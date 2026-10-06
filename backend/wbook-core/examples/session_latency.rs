@@ -43,6 +43,7 @@ fn options() -> ExportOptions {
     ExportOptions {
         render: RenderOptions {
             layout: RenderLayout::SingleHtml,
+            ..Default::default()
         },
         format: OutputFormat::Epub,
         language: "zh-Hant".into(),

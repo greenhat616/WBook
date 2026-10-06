@@ -193,6 +193,7 @@ export type RenderLayout = "SplitChapters" | "Paged" | "SingleHtml";
 
 export type RenderOptions = {
 	layout: RenderLayout,
+	templates: TemplateOverrides,
 };
 
 export type ResultCategory = "Succeeded" | "Failed" | "Cancelled" | "Panicked";
@@ -228,6 +229,18 @@ export type SimpleRuleConfig = {
 	min_numeral_len: number,
 	max_numeral_len: number | null,
 	max_title_len: number,
+};
+
+/**
+ *  Replacements for the built-in stylesheet and XHTML fragments; `None`
+ *  keeps the built-in one. The package document and navigation entries are
+ *  not replaceable because validation depends on their structure.
+ */
+export type TemplateOverrides = {
+	stylesheet: string | null,
+	document: string | null,
+	section: string | null,
+	paragraph: string | null,
 };
 
 export type TextEdit = {

@@ -67,7 +67,9 @@ pub enum Activity {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 pub enum Availability {
-    Available(WorkspaceStatus),
+    // Boxed because render options, including template overrides, make the
+    // status much larger than the lost marker.
+    Available(Box<WorkspaceStatus>),
     Lost { last_revision: Revision },
 }
 
@@ -228,7 +230,7 @@ impl SessionHandle {
             source: source.clone(),
             lifecycle: LifecycleState::Open,
             activity: Activity::Idle,
-            workspace_status: Availability::Available(status),
+            workspace_status: Availability::Available(Box::new(status)),
             last: None,
         })
         .0;

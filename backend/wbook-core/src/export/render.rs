@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -7,7 +8,7 @@ use tera::{Context, Tera};
 use tokio_util::sync::CancellationToken;
 
 use super::plan::{xml_text, BookPlan};
-use super::{check, CancelWriter, RenderLayout, Result};
+use super::{check, CancelWriter, RenderLayout, Result, TemplateOverrides};
 use crate::document::TextView;
 
 static TEMPLATES: LazyLock<std::result::Result<Tera, tera::Error>> = LazyLock::new(|| {
@@ -38,13 +39,57 @@ static TEMPLATES: LazyLock<std::result::Result<Tera, tera::Error>> = LazyLock::n
     Ok(tera)
 });
 
-pub(super) fn template(name: &str, context: &Context, writer: impl Write) -> Result<()> {
-    match &*TEMPLATES {
-        Ok(tera) => Ok(tera.render_to(name, context, writer)?),
-        Err(error) => Err(super::ExportFailure::InvalidInput {
+const STYLESHEET: &str = include_str!("templates/style.css");
+
+fn builtin() -> Result<&'static Tera> {
+    TEMPLATES
+        .as_ref()
+        .map_err(|error| super::ExportFailure::InvalidInput {
             message: format!("embedded template error: {error}"),
-        }),
+        })
+}
+
+/// Overrides replace built-in templates of the same name, so they keep the
+/// built-in XML escaping and can still be rendered by the same code paths.
+pub(super) fn templates(overrides: &TemplateOverrides) -> Result<Cow<'static, Tera>> {
+    let tera = builtin()?;
+    let custom: Vec<_> = [
+        ("document.xhtml", &overrides.document),
+        ("section.xhtml", &overrides.section),
+        ("paragraph.xhtml", &overrides.paragraph),
+    ]
+    .into_iter()
+    .filter_map(|(name, content)| content.as_deref().map(|content| (name, content)))
+    .collect();
+    if custom.is_empty() {
+        return Ok(Cow::Borrowed(tera));
     }
+    let mut tera = tera.clone();
+    tera.add_raw_templates(custom)?;
+    Ok(Cow::Owned(tera))
+}
+
+pub(super) fn defaults() -> TemplateOverrides {
+    let builtin = |source: &str| Some(source.to_string());
+    TemplateOverrides {
+        stylesheet: builtin(STYLESHEET),
+        document: builtin(include_str!("templates/document.xhtml")),
+        section: builtin(include_str!("templates/section.xhtml")),
+        paragraph: builtin(include_str!("templates/paragraph.xhtml")),
+    }
+}
+
+pub(super) fn template(
+    tera: &Tera,
+    name: &str,
+    context: &Context,
+    writer: impl Write,
+) -> Result<()> {
+    Ok(tera.render_to(name, context, writer)?)
+}
+
+pub(super) fn builtin_template(name: &str, context: &Context, writer: impl Write) -> Result<()> {
+    template(builtin()?, name, context, writer)
 }
 
 #[derive(Debug)]
@@ -81,14 +126,16 @@ pub(super) fn render(
     ct: &CancellationToken,
     view: TextView<'_>,
     plan: BookPlan,
+    overrides: &TemplateOverrides,
 ) -> Result<RenderedBook> {
     view.version().check(plan.version)?;
+    let tera = templates(overrides)?;
     let directory = tempfile::Builder::new().prefix("wbook-render-").tempdir()?;
     fs::create_dir(directory.path().join("text"))?;
     fs::create_dir(directory.path().join("styles"))?;
     fs::write(
         directory.path().join("styles/book.css"),
-        include_bytes!("templates/style.css"),
+        overrides.stylesheet.as_deref().unwrap_or(STYLESHEET),
     )?;
     let files = if plan.layout == RenderLayout::SplitChapters {
         plan.sections
@@ -113,7 +160,7 @@ pub(super) fn render(
         let mut context = Context::new();
         context.insert("book", &book.plan.metadata);
         context.insert("navigation", &false);
-        template("document.xhtml", &context, &mut writer)?;
+        template(&tera, "document.xhtml", &context, &mut writer)?;
         let indices = if book.plan.layout == RenderLayout::SplitChapters {
             file_index..file_index + 1
         } else {
@@ -130,7 +177,7 @@ pub(super) fn render(
                 "paged",
                 &(book.plan.layout == RenderLayout::Paged && index > 0),
             );
-            template("section.xhtml", &context, &mut writer)?;
+            template(&tera, "section.xhtml", &context, &mut writer)?;
             if let Some(range) = section.body {
                 for line in view.range_lines(ct, book.plan.version, range)? {
                     let line = line?;
@@ -143,7 +190,7 @@ pub(super) fn render(
                     let mut paragraph = Context::new();
                     paragraph.insert("text", &text);
                     paragraph.insert("empty", &text.is_empty());
-                    template("paragraph.xhtml", &paragraph, &mut writer)?;
+                    template(&tera, "paragraph.xhtml", &paragraph, &mut writer)?;
                 }
             }
             writer.write_all(b"</section>\n")?;
@@ -151,12 +198,12 @@ pub(super) fn render(
         writer.write_all(b"</body></html>\n")?;
         writer.flush()?;
     }
-    navigation(ct, &book)?;
+    navigation(ct, &book, &tera)?;
     check(ct)?;
     Ok(book)
 }
 
-fn navigation(ct: &CancellationToken, book: &RenderedBook) -> Result<()> {
+fn navigation(ct: &CancellationToken, book: &RenderedBook, tera: &Tera) -> Result<()> {
     let mut writer = CancelWriter {
         ct,
         inner: BufWriter::new(File::create(book.directory().join("nav.xhtml"))?),
@@ -165,7 +212,7 @@ fn navigation(ct: &CancellationToken, book: &RenderedBook) -> Result<()> {
     context.insert("book", &book.plan.metadata);
     context.insert("navigation", &true);
     // The navigation resource is at the package root, unlike text resources.
-    template("document.xhtml", &context, &mut writer)?;
+    template(tera, "document.xhtml", &context, &mut writer)?;
     writer.write_all(b"<nav xmlns:epub=\"http://www.idpf.org/2007/ops\" epub:type=\"toc\" id=\"toc\"><h1>Contents</h1><ol>\n")?;
     let mut depth = 0;
     for (index, section) in book
@@ -190,7 +237,7 @@ fn navigation(ct: &CancellationToken, book: &RenderedBook) -> Result<()> {
             "href",
             &format!("{}#{}", book.section_file(index), section.id),
         );
-        template("nav-item.xhtml", &context, &mut writer)?;
+        template(tera, "nav-item.xhtml", &context, &mut writer)?;
     }
     if depth == 0 {
         context.insert("title", &book.plan.metadata.title);
@@ -198,7 +245,7 @@ fn navigation(ct: &CancellationToken, book: &RenderedBook) -> Result<()> {
             "href",
             &format!("{}#{}", book.section_file(0), book.plan.sections[0].id),
         );
-        template("nav-item.xhtml", &context, &mut writer)?;
+        template(tera, "nav-item.xhtml", &context, &mut writer)?;
         depth = 1;
     }
     writer.write_all(b"</li>\n")?;

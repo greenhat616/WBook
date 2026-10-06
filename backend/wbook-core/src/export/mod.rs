@@ -26,9 +26,32 @@ pub enum RenderLayout {
     SingleHtml,
 }
 
+/// Replacements for the built-in stylesheet and XHTML fragments; `None`
+/// keeps the built-in one. The package document and navigation entries are
+/// not replaceable because validation depends on their structure.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct TemplateOverrides {
+    pub stylesheet: Option<String>,
+    pub document: Option<String>,
+    pub section: Option<String>,
+    pub paragraph: Option<String>,
+}
+
+impl TemplateOverrides {
+    /// The built-in sources, as a starting point for editing.
+    pub fn builtin() -> Self {
+        render::defaults()
+    }
+
+    pub fn validate(&self) -> std::result::Result<(), ExportFailure> {
+        render::templates(self).map(drop)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Type)]
 pub struct RenderOptions {
     pub layout: RenderLayout,
+    pub templates: TemplateOverrides,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -137,7 +160,7 @@ pub fn render_book(
         plan::build(ct, document, options)
     })?;
     stage(ct, ExportStage::Rendering, || {
-        render::render(ct, document.view(), plan)
+        render::render(ct, document.view(), plan, &options.render.templates)
     })
 }
 

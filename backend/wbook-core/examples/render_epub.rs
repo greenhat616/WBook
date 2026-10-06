@@ -61,7 +61,10 @@ fn main() -> anyhow::Result<()> {
             continue;
         }
         let options = ExportOptions {
-            render: RenderOptions { layout: mode },
+            render: RenderOptions {
+                layout: mode,
+                ..Default::default()
+            },
             format: OutputFormat::Epub,
             language: "zh-Hans".into(),
             identifier: Some(format!("urn:wbook:example:along-the-river:{name}")),

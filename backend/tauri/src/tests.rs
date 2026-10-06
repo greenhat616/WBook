@@ -185,7 +185,7 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
         .unwrap();
     let updated = h.rpc_ok("set_metadata_overrides", json!({ "sessionId": id, "expected": data(&installed), "overrides": { "title": "RPC Book", "author": "Test Author" } })).await;
     let revision = data(&updated);
-    let options = json!({ "render": { "layout": "SingleHtml" }, "format": "Epub", "language": "zh-CN", "identifier": "urn:wbook:rpc-test" });
+    let options = json!({ "render": { "layout": "SingleHtml", "templates": {} }, "format": "Epub", "language": "zh-CN", "identifier": "urn:wbook:rpc-test" });
     let preview = data(
         &h.ipc(
             "render_preview",

@@ -71,7 +71,7 @@ impl SessionHandle {
                         revision,
                         outcome.map_err(OpError::from),
                         warnings,
-                        Availability::Available(status),
+                        Availability::Available(Box::new(status)),
                     )
                 }
                 Err(error) => {

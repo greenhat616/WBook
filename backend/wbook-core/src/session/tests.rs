@@ -39,6 +39,7 @@ fn export_options() -> ExportOptions {
     ExportOptions {
         render: RenderOptions {
             layout: RenderLayout::SingleHtml,
+            ..Default::default()
         },
         format: OutputFormat::Epub,
         language: "en".into(),
@@ -130,7 +131,9 @@ async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     assert!(!path.exists());
     assert_eq!(
         handle.snapshot().workspace_status,
-        Availability::Available(Workspace::new(path.clone(), options()).unwrap().status())
+        Availability::Available(Box::new(
+            Workspace::new(path.clone(), options()).unwrap().status()
+        ))
     );
     let result = finish(handle.initialize().unwrap()).await;
     assert_eq!(result.revision, Revision(0));
@@ -315,11 +318,8 @@ async fn committed_status_is_recomputed_outside_the_worker_and_snapshot_precedes
     assert!(completed.seq > running.seq);
     assert!(matches!(
         completed.workspace_status,
-        Availability::Available(WorkspaceStatus {
-            document: DocumentStatus::Current,
-            revision: Revision(2),
-            ..
-        })
+        Availability::Available(ref status)
+            if status.document == DocumentStatus::Current && status.revision == Revision(2)
     ));
     let roundtrip: SessionSnapshot =
         serde_json::from_str(&serde_json::to_string(&handle.snapshot()).unwrap()).unwrap();
@@ -1058,10 +1058,7 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
     assert_eq!(result.warnings[0].path, preview.directory);
     assert!(matches!(
         handle.snapshot().workspace_status,
-        Availability::Available(WorkspaceStatus {
-            has_overrides: true,
-            ..
-        })
+        Availability::Available(ref status) if status.has_overrides
     ));
     assert!(finish(handle.read_results().unwrap())
         .await

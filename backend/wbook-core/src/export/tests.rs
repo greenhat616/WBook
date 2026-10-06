@@ -14,7 +14,10 @@ use crate::types::TextRange;
 
 fn options(layout: RenderLayout) -> ExportOptions {
     ExportOptions {
-        render: RenderOptions { layout },
+        render: RenderOptions {
+            layout,
+            ..Default::default()
+        },
         format: OutputFormat::Epub,
         language: "zh-Hans".into(),
         identifier: Some("urn:wbook:test&book".into()),
@@ -733,7 +736,7 @@ fn render_rejects_a_plan_from_another_document() {
     let second = book("正文", &chapter_only());
     let plan = plan::build(&ct, &first, &options(RenderLayout::SingleHtml)).unwrap();
     assert!(matches!(
-        render::render(&ct, second.view(), plan).unwrap_err(),
+        render::render(&ct, second.view(), plan, &TemplateOverrides::default()).unwrap_err(),
         ExportFailure::Document {
             source: DocumentError::WrongDocument
         }
@@ -822,4 +825,63 @@ fn cleanup_failure_keeps_the_original_error_and_reports_the_path() {
     assert!(error.to_string().contains("original failure"));
     drop(handle);
     fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn template_overrides_replace_fragments_and_stylesheet_and_still_escape() {
+    let ct = CancellationToken::new();
+    let document = book("第一章 开端\n<正文>", &chapter_only());
+    let mut options = options(RenderLayout::SingleHtml);
+    options.render.templates = TemplateOverrides {
+        stylesheet: Some("p { color: red; }".into()),
+        paragraph: Some("<p class=\"custom\">{{ text }}</p>\n".into()),
+        ..TemplateOverrides::default()
+    };
+    let rendered = render_book(&ct, &document, &options).unwrap();
+    let body = fs::read_to_string(rendered.directory().join(&rendered.files[0])).unwrap();
+    assert!(
+        body.contains("<p class=\"custom\">&lt;正文&gt;</p>"),
+        "{body}"
+    );
+    assert_eq!(
+        fs::read_to_string(rendered.directory().join("styles/book.css")).unwrap(),
+        "p { color: red; }"
+    );
+
+    let output = tempfile::tempdir().unwrap();
+    package_epub(&ct, &rendered, output.path().join("custom.epub")).unwrap();
+}
+
+#[test]
+fn builtin_templates_round_trip_as_overrides() {
+    let builtin = TemplateOverrides::builtin();
+    builtin.validate().unwrap();
+    let document = book("第一章 开端\n正文", &chapter_only());
+    let render = |templates: TemplateOverrides| {
+        let mut options = options(RenderLayout::SingleHtml);
+        options.render.templates = templates;
+        projection(&render_book(&CancellationToken::new(), &document, &options).unwrap())
+    };
+    assert_eq!(render(builtin), render(TemplateOverrides::default()));
+}
+
+#[test]
+fn invalid_template_override_is_rejected() {
+    let broken = TemplateOverrides {
+        section: Some("{% if title %}".into()),
+        ..TemplateOverrides::default()
+    };
+    assert!(matches!(
+        broken.validate(),
+        Err(ExportFailure::Template { source: _ })
+    ));
+    let document = book("第一章 开端\n正文", &chapter_only());
+    let mut options = options(RenderLayout::SingleHtml);
+    options.render.templates = broken;
+    assert_eq!(
+        render_book(&CancellationToken::new(), &document, &options)
+            .unwrap_err()
+            .stage,
+        ExportStage::Rendering
+    );
 }
