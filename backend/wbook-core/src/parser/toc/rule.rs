@@ -1,7 +1,10 @@
 use regex::Regex;
+use snafu::ResultExt;
 use tokio_util::sync::CancellationToken;
 
-use super::config::{HeadingRuleConfig, NumeralStyle, SimpleRuleConfig, TocConfigError};
+use super::config::{
+    HeadingRuleConfig, NumeralStyle, RegexSnafu, SimpleRuleConfig, TocConfigError,
+};
 use crate::document::TextView;
 use crate::parser::{check_cancelled, ParserError};
 use crate::toc::{TocBuilder, TocEvent, TocRoot};
@@ -23,9 +26,9 @@ enum Matcher {
 impl LineRule {
     pub fn new(level: usize, config: &HeadingRuleConfig) -> Result<Self, TocConfigError> {
         if level == 0 {
-            return Err(TocConfigError::Invalid(
-                "TOC levels must be positive".into(),
-            ));
+            return Err(TocConfigError::Invalid {
+                message: "TOC levels must be positive".into(),
+            });
         }
         let matcher = match config {
             HeadingRuleConfig::Simple(config) => {
@@ -33,14 +36,16 @@ impl LineRule {
                 Matcher::Simple(config.clone())
             }
             HeadingRuleConfig::Regex(config) => {
-                let pattern = Regex::new(&config.pattern)?;
+                let pattern = Regex::new(&config.pattern).with_context(|_| RegexSnafu {
+                    pattern: config.pattern.clone(),
+                })?;
                 if config
                     .title_group
                     .is_some_and(|group| group >= pattern.captures_len())
                 {
-                    return Err(TocConfigError::Invalid(
-                        "title capture group does not exist".into(),
-                    ));
+                    return Err(TocConfigError::Invalid {
+                        message: "title capture group does not exist".into(),
+                    });
                 }
                 Matcher::Regex {
                     pattern,
@@ -160,7 +165,7 @@ pub(super) fn build_toc(
         check_cancelled(ct)?;
         builder
             .push(event)
-            .map_err(|err| ParserError::Other(err.into()))?;
+            .map_err(|err| ParserError::Other { source: err.into() })?;
     }
     let root = builder.build();
     check_cancelled(ct)?;

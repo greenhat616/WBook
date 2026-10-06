@@ -21,14 +21,14 @@ struct Registry {
     sessions: HashMap<SessionId, SessionHandle>,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum ManagerError {
-    #[error("session not found")]
+    #[snafu(display("session not found"))]
     NotFound,
-    #[error("session manager is shutting down")]
+    #[snafu(display("session manager is shutting down"))]
     ShuttingDown,
-    #[error(transparent)]
-    InvalidConfig(#[from] TocConfigError),
+    #[snafu(context(false), display("{source}"))]
+    InvalidConfig { source: TocConfigError },
 }
 
 impl SessionManager {
@@ -72,7 +72,9 @@ impl SessionManager {
         options: ProcessingOptions,
     ) -> Result<SessionHandle, ManagerError> {
         let workspace = Workspace::new(source, options).map_err(|error| match error {
-            WorkspaceError::InvalidConfig(error) => ManagerError::InvalidConfig(error),
+            WorkspaceError::InvalidConfig { source: error } => {
+                ManagerError::InvalidConfig { source: error }
+            }
             _ => unreachable!("workspace creation only validates configuration"),
         })?;
         self.open(workspace)

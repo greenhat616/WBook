@@ -10,7 +10,9 @@ use zip::{CompressionMethod, ZipArchive};
 use super::{check, ExportFailure, RenderedBook, Result};
 
 fn invalid(message: impl Into<String>) -> ExportFailure {
-    ExportFailure::Validation(message.into())
+    ExportFailure::Validation {
+        message: message.into(),
+    }
 }
 
 #[derive(Default)]

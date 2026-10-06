@@ -587,7 +587,7 @@ fn parser_configs_roundtrip_and_build_a_single_trait_object() {
 fn invalid_configuration_returns_errors_instead_of_panicking() {
     assert!(matches!(
         SplitEvenlyParser::new(0),
-        Err(TocConfigError::Invalid(_))
+        Err(TocConfigError::Invalid { message: _ })
     ));
     assert!(TocParserConfig::SplitEvenly { parts: 0 }.build().is_err());
     for (regex, capture) in [("[", None), ("^章$", Some(1))] {

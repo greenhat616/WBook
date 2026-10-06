@@ -30,7 +30,7 @@ tera = "2"
 
 # workspace dependencies
 anyhow = { workspace = true }
-thiserror = { workspace = true }
+snafu = { workspace = true }
 
 camino = { workspace = true }
 config = { workspace = true }

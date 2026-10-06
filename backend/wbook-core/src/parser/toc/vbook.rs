@@ -49,14 +49,14 @@ impl VBookTocParser {
             ChapterMode::Rules(rules) => compile_rules(2, rules)?,
             ChapterMode::EndMarker { marker } => {
                 if marker.trim().is_empty() || marker.contains(['\r', '\n']) {
-                    return Err(TocConfigError::Invalid(
-                        "chapter end marker must be a nonempty single line".into(),
-                    ));
+                    return Err(TocConfigError::Invalid {
+                        message: "chapter end marker must be a nonempty single line".into(),
+                    });
                 }
                 if matches!(config.volumes, VolumeMode::FromChapterTitles { .. }) {
-                    return Err(TocConfigError::Invalid(
-                        "splitting volume prefixes requires chapter heading rules".into(),
-                    ));
+                    return Err(TocConfigError::Invalid {
+                        message: "splitting volume prefixes requires chapter heading rules".into(),
+                    });
                 }
                 vec![]
             }
@@ -274,9 +274,9 @@ fn compile_rules(
 
 fn validate_group_size(size: Option<usize>) -> Result<(), TocConfigError> {
     if size == Some(0) {
-        return Err(TocConfigError::Invalid(
-            "chapters per volume must be positive".into(),
-        ));
+        return Err(TocConfigError::Invalid {
+            message: "chapters per volume must be positive".into(),
+        });
     }
     Ok(())
 }

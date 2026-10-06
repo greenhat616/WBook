@@ -60,7 +60,9 @@ fn test_toc_add_with_missing_parent() {
     let result = toc.add("test", range(0, 0), Some(NodeId(42)));
     assert!(matches!(
         result,
-        Err(TocError::NodeParentNotFound(NodeId(42)))
+        Err(TocError::NodeParentNotFound {
+            node_id: NodeId(42)
+        })
     ));
 }
 
@@ -353,7 +355,7 @@ fn test_try_from_snapshot_rejects_duplicate_ids() {
     let snapshot = vec![entry(NodeId(0)), entry(NodeId(0))];
     assert!(matches!(
         TocRoot::try_from(snapshot),
-        Err(TocError::InvalidSnapshot(_))
+        Err(TocError::InvalidSnapshot { message: _ })
     ));
 }
 
@@ -371,7 +373,7 @@ fn test_try_from_snapshot_rejects_inverted_range() {
     }];
     assert!(matches!(
         TocRoot::try_from(snapshot),
-        Err(TocError::InvalidSnapshot(_))
+        Err(TocError::InvalidSnapshot { message: _ })
     ));
 }
 

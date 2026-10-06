@@ -134,7 +134,9 @@ fn stale_results_and_plans_are_rejected_without_discarding_manual_work() {
     .unwrap();
     assert!(matches!(
         doc.current_results(),
-        Err(PipelineError::Document(DocumentError::StaleVersion { .. }))
+        Err(PipelineError::Document {
+            source: DocumentError::StaleVersion { .. }
+        })
     ));
     assert_eq!(
         TocSnapshot::from(&doc.results().unwrap().toc)[0].title,
@@ -162,7 +164,9 @@ fn stale_results_and_plans_are_rejected_without_discarding_manual_work() {
         .unwrap();
     assert!(matches!(
         doc.install(&ct, wrong),
-        Err(PipelineError::Document(DocumentError::WrongDocument))
+        Err(PipelineError::Document {
+            source: DocumentError::WrongDocument
+        })
     ));
 }
 
@@ -264,9 +268,9 @@ impl FilterParser for FailingFilter {
             ct.cancel();
             Ok(vec![])
         } else {
-            Err(ParserError::Other(anyhow::anyhow!(
-                "intentional parser failure"
-            )))
+            Err(ParserError::Other {
+                source: anyhow::anyhow!("intentional parser failure"),
+            })
         }
     }
 }

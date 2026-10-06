@@ -73,8 +73,8 @@ async fn observed_phase(
 fn outcome<T>(result: &OperationResult<T>) -> &'static str {
     match &result.outcome {
         Ok(_) => "succeeded",
-        Err(OpError::Workspace(error)) if error.is_cancelled() => "cancelled",
-        Err(OpError::Workspace(_)) => "failed",
+        Err(OpError::Workspace { source: error }) if error.is_cancelled() => "cancelled",
+        Err(OpError::Workspace { source: _ }) => "failed",
         Err(OpError::Panicked) => "panicked",
     }
 }

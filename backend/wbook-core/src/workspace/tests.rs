@@ -95,11 +95,13 @@ fn creation_validates_config_without_reading_and_extraction_can_retry() {
                 toc: TocParserConfig::SplitEvenly { parts: 0 },
             }
         ),
-        Err(WorkspaceError::InvalidConfig(_))
+        Err(WorkspaceError::InvalidConfig { source: _ })
     ));
     assert!(matches!(
         ws.initialize(&context(&CancellationToken::new())),
-        Err(WorkspaceError::Extractor(ExtractorError::Io(_)))
+        Err(WorkspaceError::Extractor {
+            source: ExtractorError::Io { source: _ }
+        })
     ));
     assert_eq!(ws.revision(), Revision(0));
     fs::write(&source, "body").unwrap();
@@ -359,7 +361,9 @@ impl FilterParser for Filter {
                 insert: "!".into(),
             }]),
             Behavior::Empty => Ok(vec![]),
-            Behavior::Fail => Err(ParserError::NoMatch("injected failure".into())),
+            Behavior::Fail => Err(ParserError::NoMatch {
+                message: "injected failure".into(),
+            }),
             Behavior::Invalid => Ok(vec![TextEdit {
                 range: TextRange {
                     start: 0,
@@ -412,7 +416,9 @@ impl TocParser for Parsing {
                 ct.cancel();
                 return Err(ParserError::Cancelled);
             }
-            return Err(ParserError::NoMatch("injected TOC failure".into()));
+            return Err(ParserError::NoMatch {
+                message: "injected TOC failure".into(),
+            });
         }
         chapter_only().parse(ct, view)
     }
@@ -432,7 +438,9 @@ impl MetadataParser for Parsing {
                 ct.cancel();
                 return Err(ParserError::Cancelled);
             }
-            return Err(ParserError::NoMatch("injected metadata failure".into()));
+            return Err(ParserError::NoMatch {
+                message: "injected metadata failure".into(),
+            });
         }
         SimpleMetadataParser.parse(ct, view)
     }
@@ -630,9 +638,11 @@ fn install_validates_document_version_and_ranges_and_preserves_manual_values() {
     let foreign = other.parse(&cx, config()).unwrap();
     assert!(matches!(
         ws.install(&cx, revision, foreign),
-        Err(WorkspaceError::Pipeline(PipelineError::Document(
-            DocumentError::WrongDocument
-        )))
+        Err(WorkspaceError::Pipeline {
+            source: PipelineError::Document {
+                source: DocumentError::WrongDocument
+            }
+        })
     ));
     let mut bad = ws.parse(&cx, config()).unwrap();
     let id = bad.toc.root_ids()[0];
@@ -642,9 +652,11 @@ fn install_validates_document_version_and_ranges_and_preserves_manual_values() {
     });
     assert!(matches!(
         ws.install(&cx, revision, bad),
-        Err(WorkspaceError::Pipeline(PipelineError::Document(
-            DocumentError::OutOfBounds { .. }
-        )))
+        Err(WorkspaceError::Pipeline {
+            source: PipelineError::Document {
+                source: DocumentError::OutOfBounds { .. }
+            }
+        })
     ));
     assert_eq!(saved_state(&ws), before);
     assert_eq!(
@@ -667,9 +679,11 @@ fn install_validates_document_version_and_ranges_and_preserves_manual_values() {
     let before = saved_state(&ws);
     assert!(matches!(
         ws.install(&cx, ws.revision(), stale),
-        Err(WorkspaceError::Pipeline(PipelineError::Document(
-            DocumentError::StaleVersion { .. }
-        )))
+        Err(WorkspaceError::Pipeline {
+            source: PipelineError::Document {
+                source: DocumentError::StaleVersion { .. }
+            }
+        })
     ));
     assert_eq!(saved_state(&ws), before);
     ws.set_metadata_overrides(
@@ -756,9 +770,9 @@ fn rejected_edits_are_atomic_and_reads_validate_versions_and_utf8_byte_limit() {
     }
     assert!(matches!(
         ws.read_text(&cx, version, TextRange { start: 5, end: 6 }),
-        Err(WorkspaceError::Document(
-            DocumentError::InvalidBoundary { .. }
-        ))
+        Err(WorkspaceError::Document {
+            source: DocumentError::InvalidBoundary { .. }
+        })
     ));
     ws.apply_edits(
         &cx,
@@ -774,7 +788,9 @@ fn rejected_edits_are_atomic_and_reads_validate_versions_and_utf8_byte_limit() {
     .unwrap();
     assert!(matches!(
         ws.read_text(&cx, version, TextRange { start: 0, end: 1 }),
-        Err(WorkspaceError::Document(DocumentError::StaleVersion { .. }))
+        Err(WorkspaceError::Document {
+            source: DocumentError::StaleVersion { .. }
+        })
     ));
     assert!(matches!(
         ws.apply_edits(
@@ -785,7 +801,9 @@ fn rejected_edits_are_atomic_and_reads_validate_versions_and_utf8_byte_limit() {
                 edits: vec![]
             }
         ),
-        Err(WorkspaceError::Document(DocumentError::StaleVersion { .. }))
+        Err(WorkspaceError::Document {
+            source: DocumentError::StaleVersion { .. }
+        })
     ));
     let (_other_directory, mut other) = fixture("Other", 0);
     other.initialize(&cx).unwrap();
@@ -795,7 +813,9 @@ fn rejected_edits_are_atomic_and_reads_validate_versions_and_utf8_byte_limit() {
             other.status().document_version.unwrap(),
             TextRange { start: 0, end: 0 }
         ),
-        Err(WorkspaceError::Document(DocumentError::WrongDocument))
+        Err(WorkspaceError::Document {
+            source: DocumentError::WrongDocument
+        })
     ));
     let (_large_directory, mut large) = fixture(&"é".repeat((READ_LIMIT / 2 + 1) as usize), 0);
     large.initialize(&cx).unwrap();
@@ -916,10 +936,12 @@ fn export_is_independent_preserves_target_and_allows_further_edits() {
         .unwrap_err();
     assert!(matches!(
         error,
-        WorkspaceError::Export(ExportError {
-            source: ExportFailure::TargetExists(_),
-            ..
-        })
+        WorkspaceError::Export {
+            source: ExportError {
+                source: ExportFailure::TargetExists { path: _ },
+                ..
+            }
+        }
     ));
     assert_eq!(fs::read(&destination).unwrap(), published);
     let cancelled = directory.path().join("cancelled.epub");
@@ -962,20 +984,40 @@ fn export_is_independent_preserves_target_and_allows_further_edits() {
 #[test]
 fn cancellation_classification_uses_the_error_category() {
     for error in [
-        WorkspaceError::Extractor(ExtractorError::Shutdown),
-        WorkspaceError::Document(DocumentError::Cancelled),
-        WorkspaceError::Pipeline(PipelineError::Document(DocumentError::Cancelled)),
-        WorkspaceError::Pipeline(PipelineError::Parser(ParserError::Cancelled)),
-        WorkspaceError::Export(ExportError {
-            stage: ExportStage::Publishing,
-            source: ExportFailure::Cancelled,
-            cleanup_failures: vec![],
-        }),
-        WorkspaceError::Export(ExportError {
-            stage: ExportStage::Planning,
-            source: ExportFailure::Pipeline(PipelineError::Parser(ParserError::Cancelled)),
-            cleanup_failures: vec![],
-        }),
+        WorkspaceError::Extractor {
+            source: ExtractorError::Shutdown,
+        },
+        WorkspaceError::Document {
+            source: DocumentError::Cancelled,
+        },
+        WorkspaceError::Pipeline {
+            source: PipelineError::Document {
+                source: DocumentError::Cancelled,
+            },
+        },
+        WorkspaceError::Pipeline {
+            source: PipelineError::Parser {
+                source: ParserError::Cancelled,
+            },
+        },
+        WorkspaceError::Export {
+            source: ExportError {
+                stage: ExportStage::Publishing,
+                source: ExportFailure::Cancelled,
+                cleanup_failures: vec![],
+            },
+        },
+        WorkspaceError::Export {
+            source: ExportError {
+                stage: ExportStage::Planning,
+                source: ExportFailure::Pipeline {
+                    source: PipelineError::Parser {
+                        source: ParserError::Cancelled,
+                    },
+                },
+                cleanup_failures: vec![],
+            },
+        },
     ] {
         assert!(error.is_cancelled());
     }
@@ -983,15 +1025,27 @@ fn cancellation_classification_uses_the_error_category() {
     ct.cancel();
     for error in [
         WorkspaceError::NoDocument,
-        WorkspaceError::Extractor(ExtractorError::Io(std::io::Error::other("read failed"))),
-        WorkspaceError::Pipeline(PipelineError::Parser(ParserError::NoMatch(
-            "bad content".into(),
-        ))),
-        WorkspaceError::Export(ExportError {
-            stage: ExportStage::Publishing,
-            source: ExportFailure::TargetExists("existing.epub".into()),
-            cleanup_failures: vec![],
-        }),
+        WorkspaceError::Extractor {
+            source: ExtractorError::Io {
+                source: std::io::Error::other("read failed"),
+            },
+        },
+        WorkspaceError::Pipeline {
+            source: PipelineError::Parser {
+                source: ParserError::NoMatch {
+                    message: "bad content".into(),
+                },
+            },
+        },
+        WorkspaceError::Export {
+            source: ExportError {
+                stage: ExportStage::Publishing,
+                source: ExportFailure::TargetExists {
+                    path: "existing.epub".into(),
+                },
+                cleanup_failures: vec![],
+            },
+        },
     ] {
         assert!(!error.is_cancelled());
     }

@@ -1,4 +1,4 @@
-use std::{io, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     body::Body,
@@ -8,10 +8,12 @@ use axum::{
     routing::get,
     Router,
 };
+use snafu::ResultExt;
 use tokio_util::io::ReaderStream;
 use wbook_core::{session::SessionId, Wbook};
 
 use crate::commands::dto::{check_integers, CommandError, ErrorKind};
+use crate::errors::{DecodePathSnafu, PreviewFileSnafu};
 
 const CSP: &str = "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'; sandbox allow-same-origin";
 
@@ -28,8 +30,9 @@ async fn resource(
     State(app): State<Arc<Wbook>>,
     path: Result<Path<(u64, String, String)>, PathRejection>,
 ) -> Result<Response, CommandError> {
-    let Path((session, id, resource)) =
-        path.map_err(|error| CommandError::new(ErrorKind::InvalidParams, error.body_text()))?;
+    let Path((session, id, resource)) = path.context(DecodePathSnafu {
+        endpoint: "preview resource",
+    })?;
     check_integers(&session, ErrorKind::InvalidParams)?;
     if !valid_resource_path(&resource) {
         return Err(CommandError::new(
@@ -52,17 +55,37 @@ async fn resource(
     };
     let directory = tokio::fs::canonicalize(&preview.directory)
         .await
-        .map_err(file_error)?;
-    let path = tokio::fs::canonicalize(directory.join(&resource))
+        .with_context(|_| PreviewFileSnafu {
+            action: "resolve directory for",
+            path: preview.directory.clone(),
+        })?;
+    let requested_path = directory.join(&resource);
+    let path = tokio::fs::canonicalize(&requested_path)
         .await
-        .map_err(file_error)?;
+        .with_context(|_| PreviewFileSnafu {
+            action: "resolve",
+            path: requested_path,
+        })?;
     if !path.starts_with(&directory) {
         return Err(not_found());
     }
     // The descriptor does not extend the preview's lifetime. Cleanup may win
     // this race, while a successfully opened resource can finish streaming.
-    let file = tokio::fs::File::open(path).await.map_err(file_error)?;
-    if !file.metadata().await.map_err(file_error)?.is_file() {
+    let file = tokio::fs::File::open(&path)
+        .await
+        .with_context(|_| PreviewFileSnafu {
+            action: "open",
+            path: path.clone(),
+        })?;
+    if !file
+        .metadata()
+        .await
+        .with_context(|_| PreviewFileSnafu {
+            action: "read metadata for",
+            path,
+        })?
+        .is_file()
+    {
         return Err(not_found());
     }
     Ok((
@@ -86,14 +109,6 @@ fn valid_resource_path(resource: &str) -> bool {
 
 fn not_found() -> CommandError {
     CommandError::new(ErrorKind::NotFound, "Preview resource was not found")
-}
-
-fn file_error(error: io::Error) -> CommandError {
-    if error.kind() == io::ErrorKind::NotFound {
-        not_found()
-    } else {
-        CommandError::new(ErrorKind::InternalError, error.to_string())
-    }
 }
 
 #[cfg(test)]

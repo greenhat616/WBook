@@ -128,31 +128,31 @@ pub enum Phase {
     Exporting,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum WorkspaceError {
-    #[error(transparent)]
-    InvalidConfig(#[from] TocConfigError),
-    #[error("stale workspace revision: expected {expected:?}, actual {actual:?}")]
+    #[snafu(context(false), display("{source}"))]
+    InvalidConfig { source: TocConfigError },
+    #[snafu(display("stale workspace revision: expected {expected:?}, actual {actual:?}"))]
     StaleRevision {
         expected: Revision,
         actual: Revision,
     },
-    #[error("no document has been extracted")]
+    #[snafu(display("no document has been extracted"))]
     NoDocument,
-    #[error("results have already been installed")]
+    #[snafu(display("results have already been installed"))]
     AlreadyInitialized,
-    #[error("parsed results are not current")]
+    #[snafu(display("parsed results are not current"))]
     ResultsNotCurrent,
-    #[error("read size {requested} exceeds the limit of {limit} bytes")]
+    #[snafu(display("read size {requested} exceeds the limit of {limit} bytes"))]
     ReadTooLarge { requested: u64, limit: u64 },
-    #[error(transparent)]
-    Extractor(#[from] ExtractorError),
-    #[error(transparent)]
-    Document(#[from] DocumentError),
-    #[error(transparent)]
-    Pipeline(#[from] PipelineError),
-    #[error(transparent)]
-    Export(#[from] ExportError),
+    #[snafu(context(false), display("{source}"))]
+    Extractor { source: ExtractorError },
+    #[snafu(context(false), display("{source}"))]
+    Document { source: DocumentError },
+    #[snafu(context(false), display("{source}"))]
+    Pipeline { source: PipelineError },
+    #[snafu(context(false), display("{source}"))]
+    Export { source: ExportError },
 }
 
 impl WorkspaceError {
@@ -160,19 +160,27 @@ impl WorkspaceError {
         fn pipeline(error: &PipelineError) -> bool {
             matches!(
                 error,
-                PipelineError::Document(DocumentError::Cancelled)
-                    | PipelineError::Parser(ParserError::Cancelled)
+                PipelineError::Document {
+                    source: DocumentError::Cancelled
+                } | PipelineError::Parser {
+                    source: ParserError::Cancelled
+                }
             )
         }
         match self {
-            Self::Extractor(ExtractorError::Shutdown)
-            | Self::Document(DocumentError::Cancelled) => true,
-            Self::Pipeline(error) => pipeline(error),
-            Self::Export(error) => match &error.source {
-                ExportFailure::Cancelled | ExportFailure::Document(DocumentError::Cancelled) => {
-                    true
-                }
-                ExportFailure::Pipeline(error) => pipeline(error),
+            Self::Extractor {
+                source: ExtractorError::Shutdown,
+            }
+            | Self::Document {
+                source: DocumentError::Cancelled,
+            } => true,
+            Self::Pipeline { source: error } => pipeline(error),
+            Self::Export { source: error } => match &error.source {
+                ExportFailure::Cancelled
+                | ExportFailure::Document {
+                    source: DocumentError::Cancelled,
+                } => true,
+                ExportFailure::Pipeline { source: error } => pipeline(error),
                 _ => false,
             },
             _ => false,
