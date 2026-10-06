@@ -27,6 +27,7 @@ send-to-kindle = "1"
 rocksdb = "0.25"
 
 tera = "2"
+toml = "1"
 
 # workspace dependencies
 anyhow = { workspace = true }

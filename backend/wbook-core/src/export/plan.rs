@@ -33,6 +33,13 @@ pub(super) struct BookPlan {
     pub layout: RenderLayout,
 }
 
+pub(super) fn check_language(tag: &str) -> Result<()> {
+    language_tags::LanguageTag::parse(tag)
+        .map_err(|e| invalid(format!("invalid language: {e}")))?
+        .validate()
+        .map_err(|e| invalid(format!("invalid language: {e}")))
+}
+
 pub(super) fn invalid(message: impl Into<String>) -> ExportFailure {
     ExportFailure::InvalidInput {
         message: message.into(),
@@ -73,11 +80,7 @@ pub(super) fn build(
         .title
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| invalid("missing book title"))?;
-    let language = language_tags::LanguageTag::parse(&options.language)
-        .map_err(|e| invalid(format!("invalid language: {e}")))?;
-    language
-        .validate()
-        .map_err(|e| invalid(format!("invalid language: {e}")))?;
+    check_language(&options.language)?;
     let identifier = options
         .identifier
         .clone()

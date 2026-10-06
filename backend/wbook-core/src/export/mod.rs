@@ -48,6 +48,10 @@ impl TemplateOverrides {
     }
 }
 
+pub fn check_language(tag: &str) -> std::result::Result<(), ExportFailure> {
+    plan::check_language(tag)
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Type)]
 pub struct RenderOptions {
     pub layout: RenderLayout,
