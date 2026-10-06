@@ -1,7 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { mutations, queries } from '../../bindings'
+import { isTauri } from '@tauri-apps/api/core'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { events, mutations, queries } from '../../bindings'
 import { errorMessage } from './api'
+import { defaultParserConfig } from './parser-config'
 
 export function useSessions() {
   const queryClient = useQueryClient()
@@ -10,24 +13,51 @@ export function useSessions() {
   const [createError, setCreateError] = useState<string | null>(null)
   const creating = useRef(false)
 
+  // Session windows close their sessions on the host, which announces it here.
+  // The session is dropped directly: the close is published before
+  // deregistration, so an immediate refetch could still list it.
+  useEffect(() => {
+    if (!isTauri()) return
+    let active = true
+    let unlisten: (() => void) | undefined
+    void events
+      .sessionClosed(getCurrentWebview())
+      .listen(({ payload }) => {
+        const { queryKey } = queries.listSessions()
+        void queryClient
+          .cancelQueries({ queryKey })
+          .then(() =>
+            queryClient.setQueryData(queryKey, (sessions) =>
+              sessions?.filter((item) => item.session !== payload.session)
+            )
+          )
+      })
+      .then((stop) => {
+        if (active) unlisten = stop
+        else stop()
+      })
+    return () => {
+      active = false
+      unlisten?.()
+    }
+  }, [queryClient])
+
   const refresh = useCallback(async () => {
     setCreateError(null)
     await list.refetch()
   }, [list])
 
   const create = useCallback(
-    async (source: string, parts: number) => {
+    async (source: string) => {
       if (creating.current) return null
       creating.current = true
       setCreateError(null)
       try {
         if (!source.trim()) throw new Error('请输入本机文本文件路径')
-        if (!Number.isSafeInteger(parts) || parts < 1) {
-          throw new Error('分段数必须是正整数')
-        }
         const session = await creation.mutateAsync({
           source: source.trim(),
-          options: { filters: [], toc: { SplitEvenly: { parts } } }
+          // Chapters can be re-parsed with other rules from the session page.
+          options: { filters: [], toc: defaultParserConfig }
         })
         const { queryKey } = queries.listSessions()
         // Drop a list request started before creation so it cannot hide the new session.

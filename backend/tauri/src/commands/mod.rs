@@ -16,6 +16,14 @@ use dto::*;
 
 pub use api::*;
 
+/// Commands and events share one builder so the exported bindings and the
+/// running app register the same events.
+pub fn specta_builder<R: tauri::Runtime>() -> (String, tauri_specta::Builder<R>) {
+    let (queries, builder) = builder::<R>();
+    let events = tauri_specta::collect_events![crate::windows::SessionClosed];
+    (queries, builder.events(events))
+}
+
 #[wbook_command_macros::unified_commands]
 mod api {
     use super::*;

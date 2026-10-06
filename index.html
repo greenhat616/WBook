@@ -8,7 +8,11 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <!-- A direct child of <body> applies the scheme to the whole document,
+         including the body background and scrollbars. -->
+    <m3e-theme color="#245b45" scheme="auto" motion="expressive" strong-focus>
+      <div id="root"></div>
+    </m3e-theme>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

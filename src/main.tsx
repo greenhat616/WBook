@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { MotionConfig } from 'framer-motion'
+import '@m3e/web/theme'
 import { router } from './router'
 import './styles/global.css'
 

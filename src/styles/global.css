@@ -4,26 +4,7 @@
 
 @layer base {
   :root {
-    --background: 48 33% 97%;
-    --foreground: 153 20% 16%;
-    --card: 48 50% 99%;
-    --card-foreground: 153 20% 16%;
-    --popover: 48 50% 99%;
-    --popover-foreground: 153 20% 16%;
-    --primary: 153 35% 26%;
-    --primary-foreground: 48 50% 98%;
-    --secondary: 112 22% 90%;
-    --secondary-foreground: 151 30% 25%;
-    --muted: 60 13% 93%;
-    --muted-foreground: 145 8% 40%;
-    --accent: 97 28% 85%;
-    --accent-foreground: 152 30% 22%;
-    --destructive: 3 62% 40%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 110 12% 85%;
-    --input: 120 10% 77%;
-    --ring: 153 35% 30%;
-    --radius: 1.5rem;
+    --radius: 1.75rem;
   }
 
   * {
@@ -51,8 +32,6 @@
     margin: 0;
     overflow-wrap: anywhere;
     -webkit-font-smoothing: antialiased;
-
-    @apply bg-background text-foreground;
   }
 
   #root {
@@ -72,13 +51,13 @@
   }
 
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid var(--md-sys-color-primary);
     outline-offset: 4px;
   }
 
   ::selection {
-    color: hsl(var(--secondary-foreground));
-    background: hsl(var(--accent));
+    color: var(--md-sys-color-on-tertiary-container);
+    background: var(--md-sys-color-tertiary-container);
   }
 }
 

@@ -14,6 +14,8 @@ use tower::ServiceExt;
 use wbook_core::{session::Rejected, types::Port, Params, Wbook};
 
 use crate::commands::dto::{check_integers, CommandError, ErrorKind};
+use crate::windows::SessionClosed;
+use tauri_specta::Event;
 
 struct Harness {
     _app: tauri::App<MockRuntime>,
@@ -31,12 +33,14 @@ impl Harness {
             data_dir: path.clone(),
             config_dir: path,
         }));
+        let (_, specta) = crate::commands::specta_builder();
         let app = mock_builder()
             .manage(core.clone())
             .manage(Port(1421))
-            .invoke_handler(crate::commands::builder().1.invoke_handler())
+            .invoke_handler(specta.invoke_handler())
             .build(mock_context(noop_assets()))
             .unwrap();
+        specta.mount_events(&app);
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
             .build()
             .unwrap();
@@ -467,7 +471,19 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
     assert_eq!(url.scheme(), "http");
     assert_eq!(url.fragment(), Some("/sessions/1"));
 
+    let (closed, announced) = tokio::sync::oneshot::channel();
+    let closed = std::sync::Mutex::new(Some(closed));
+    SessionClosed::listen(&h.window, move |event| {
+        if let Some(closed) = closed.lock().unwrap().take() {
+            let _ = closed.send(event.payload.session);
+        }
+    });
     h.rpc_ok("close_session", args.clone()).await;
+    let payload = tokio::time::timeout(std::time::Duration::from_secs(5), announced)
+        .await
+        .expect("the main window hears about the closed session")
+        .unwrap();
+    assert_eq!(json!(payload.0), created["session"]);
     for args in [args, json!({ "sessionId": 99 })] {
         assert_eq!(
             h.ipc("open_session_window", args).await.unwrap_err()["kind"],
