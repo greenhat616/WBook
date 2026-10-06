@@ -7,6 +7,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	getPort: () => __TAURI_INVOKE<number>("get_port"),
 	getSettings: () => __TAURI_INVOKE<StoredSettings>("get_settings"),
+	defaultSettings: () => __TAURI_INVOKE<Settings>("default_settings"),
 	builtinTemplates: () => __TAURI_INVOKE<TemplateOverrides>("builtin_templates"),
 	listSessions: () => __TAURI_INVOKE<SessionSnapshot[]>("list_sessions"),
 	getSession: (sessionId: SessionId) => __TAURI_INVOKE<SessionSnapshot>("get_session", { sessionId }),
@@ -380,6 +381,7 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 export const queries = {
 	getPort: (...args: Parameters<typeof commands.getPort>) => queryOptions({ queryKey: ["getPort", ...args], queryFn: () => commands.getPort(...args) }),
 	getSettings: (...args: Parameters<typeof commands.getSettings>) => queryOptions({ queryKey: ["getSettings", ...args], queryFn: () => commands.getSettings(...args) }),
+	defaultSettings: (...args: Parameters<typeof commands.defaultSettings>) => queryOptions({ queryKey: ["defaultSettings", ...args], queryFn: () => commands.defaultSettings(...args) }),
 	builtinTemplates: (...args: Parameters<typeof commands.builtinTemplates>) => queryOptions({ queryKey: ["builtinTemplates", ...args], queryFn: () => commands.builtinTemplates(...args) }),
 	listSessions: (...args: Parameters<typeof commands.listSessions>) => queryOptions({ queryKey: ["listSessions", ...args], queryFn: () => commands.listSessions(...args) }),
 	getSession: (...args: Parameters<typeof commands.getSession>) => queryOptions({ queryKey: ["getSession", ...args], queryFn: () => commands.getSession(...args) }),
@@ -390,6 +392,7 @@ export const queries = {
 export const queryKeys = {
 	getPort: (...args: Partial<Parameters<typeof commands.getPort>>) => ["getPort", ...args],
 	getSettings: (...args: Partial<Parameters<typeof commands.getSettings>>) => ["getSettings", ...args],
+	defaultSettings: (...args: Partial<Parameters<typeof commands.defaultSettings>>) => ["defaultSettings", ...args],
 	builtinTemplates: (...args: Partial<Parameters<typeof commands.builtinTemplates>>) => ["builtinTemplates", ...args],
 	listSessions: (...args: Partial<Parameters<typeof commands.listSessions>>) => ["listSessions", ...args],
 	getSession: (...args: Partial<Parameters<typeof commands.getSession>>) => ["getSession", ...args],

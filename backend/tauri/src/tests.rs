@@ -139,6 +139,10 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
         .contains("text-indent"));
     let mut stored = h.rpc_ok("get_settings", json!({})).await;
     assert_eq!(stored["problem"], Value::Null);
+    assert_eq!(
+        h.ipc("default_settings", json!({})).await.unwrap(),
+        stored["settings"]
+    );
     stored["settings"]["toc"]["mode"] = json!("Split");
     stored["settings"]["toc"]["parts"] = json!(1);
     let saved = h

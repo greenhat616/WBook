@@ -7,11 +7,8 @@ import BookIcon from '~icons/material-symbols/menu-book-outline-rounded'
 import NotificationsIcon from '~icons/material-symbols/notifications-outline-rounded'
 import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
 
-// Notifications and settings have no screens yet; keep them visible but inert.
-const pendingActions = [
-  { label: '通知', Icon: NotificationsIcon },
-  { label: '设置', Icon: SettingsIcon }
-]
+// Notifications have no screen yet; keep the button visible but inert.
+const pendingActions = [{ label: '通知', Icon: NotificationsIcon }]
 
 export function AppShell({ children }: { children: ReactNode }) {
   const reducedMotion = useReducedMotion()
@@ -57,6 +54,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon className="size-6" aria-hidden="true" />
           </M3eIconButton>
         ))}
+        <Link
+          slot="trailing"
+          to="/settings"
+          aria-label="设置"
+          title="设置"
+          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted [&.active]:bg-secondary [&.active]:text-secondary-foreground"
+        >
+          <SettingsIcon className="size-6" aria-hidden="true" />
+        </Link>
       </M3eAppBar>
 
       <motion.main

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useWindowReady } from '@/hooks/use-window-ready'
 import { HomePage } from '@/pages/home-page'
 import { SessionPage } from '@/pages/session-page'
+import { SettingsPage } from '@/pages/settings-page'
 
 function MissingPage() {
   return (
@@ -58,6 +59,12 @@ const homeRoute = createRoute({
   component: HomePage
 })
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: SettingsPage
+})
+
 const sessionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sessions/$sessionId',
@@ -75,7 +82,7 @@ function SessionRoute() {
 }
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, sessionRoute]),
+  routeTree: rootRoute.addChildren([homeRoute, settingsRoute, sessionRoute]),
   history: createHashHistory(),
   scrollRestoration: true
 })

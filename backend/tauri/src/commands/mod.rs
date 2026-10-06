@@ -66,6 +66,11 @@ mod api {
     }
 
     #[query]
+    pub async fn default_settings(_app: &Wbook) -> Result<Settings, CommandError> {
+        Ok(Settings::default())
+    }
+
+    #[query]
     pub async fn builtin_templates(_app: &Wbook) -> Result<TemplateOverrides, CommandError> {
         Ok(TemplateOverrides::builtin())
     }
