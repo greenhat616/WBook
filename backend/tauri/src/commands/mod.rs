@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use camino::Utf8PathBuf;
 use wbook_core::{
@@ -24,6 +24,16 @@ mod api {
     #[query]
     pub fn get_port(port: tauri::State<'_, Port>) -> u16 {
         port.0
+    }
+
+    // Async because creating a window from a synchronous command can deadlock on Windows.
+    #[desktop_only]
+    pub async fn open_session_window(
+        windows: tauri::State<'_, crate::windows::SessionWindows>,
+        core: tauri::State<'_, Arc<Wbook>>,
+        session_id: SessionId,
+    ) -> Result<(), CommandError> {
+        windows.open(&core, session_id)
     }
 
     pub async fn create_session(
