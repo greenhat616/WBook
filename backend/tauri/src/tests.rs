@@ -8,7 +8,7 @@ use axum::{
 use serde_json::{json, Value};
 use tauri::{
     test::{mock_builder, mock_context, noop_assets, MockRuntime},
-    WebviewWindow,
+    Manager, WebviewWindow,
 };
 use tower::ServiceExt;
 use wbook_core::{session::Rejected, types::Port, Params, Wbook};
@@ -233,6 +233,18 @@ async fn rejected_requests_and_failed_operations_preserve_their_contract() {
             "platform_unsupported",
         ),
         (
+            "open_session_window",
+            json!({ "sessionId": 1 }),
+            StatusCode::BAD_REQUEST,
+            "platform_unsupported",
+        ),
+        (
+            "window_ready",
+            json!({}),
+            StatusCode::BAD_REQUEST,
+            "platform_unsupported",
+        ),
+        (
             "missing",
             json!({}),
             StatusCode::NOT_FOUND,
@@ -431,4 +443,37 @@ async fn runtime_publishes_the_bound_port_and_shuts_down_sessions_and_http() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn session_windows_open_once_and_only_for_open_sessions() {
+    let h = Harness::new();
+    std::fs::write(h.source(), "Text\n").unwrap();
+    let created = h.ipc("create_session", h.create_params()).await.unwrap();
+    let args = json!({ "sessionId": created["session"] });
+    for _ in 0..2 {
+        assert_eq!(
+            h.ipc("open_session_window", args.clone()).await.unwrap(),
+            Value::Null
+        );
+    }
+    // Reports are idempotent, e.g. after a reload of an already shown window.
+    for _ in 0..2 {
+        assert_eq!(h.ipc("window_ready", json!({})).await.unwrap(), Value::Null);
+    }
+    let windows = h._app.webview_windows();
+    assert_eq!(windows.len(), 2);
+    let url = windows["session-1"].url().unwrap();
+    assert_eq!(url.scheme(), "http");
+    assert_eq!(url.fragment(), Some("/sessions/1"));
+
+    h.rpc_ok("close_session", args.clone()).await;
+    for args in [args, json!({ "sessionId": 99 })] {
+        assert_eq!(
+            h.ipc("open_session_window", args).await.unwrap_err()["kind"],
+            "not_found"
+        );
+    }
+    assert_eq!(h._app.webview_windows().len(), 2);
+    h.core.shutdown().await;
 }

@@ -12,6 +12,7 @@ mod preview;
 mod rpc;
 mod runtime;
 mod subscriptions;
+mod windows;
 
 #[cfg(test)]
 mod tests;
@@ -33,6 +34,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .manage(_guard)
         .invoke_handler(commands::builder().1.invoke_handler())
+        .on_window_event(windows::on_window_event)
         .setup(|app| {
             let port =
                 std::env::var("WBOOK_RPC_PORT").map_or(Ok(0), |value| value.parse::<u16>())?;
@@ -48,6 +50,7 @@ pub fn run() {
             app.manage(runtime.core.clone());
             app.manage(Port(runtime.port));
             app.manage(runtime);
+            windows::reveal_after(app.handle(), windows::MAIN_WINDOW, windows::READY_TIMEOUT);
             Ok(())
         })
         .plugin(tauri_plugin_sentry::init(&client))
