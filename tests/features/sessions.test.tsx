@@ -804,7 +804,9 @@ describe('home page session entry', () => {
     await screen.findByText('C:/book-2.txt')
     await waitFor(() => expect(webview.events.has('session-closed')).toBe(true))
 
-    act(() => webview.events.get('session-closed')!({ payload: 1 }))
+    act(() =>
+      webview.events.get('session-closed')!({ payload: { session: 1 } })
+    )
     await waitFor(() => expect(screen.queryByText('C:/book-1.txt')).toBeNull())
     expect(screen.getByText('C:/book-2.txt')).toBeTruthy()
   })

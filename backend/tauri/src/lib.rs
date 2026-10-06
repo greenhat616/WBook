@@ -31,11 +31,13 @@ pub fn run() {
     let _guard = minidump::init(&client);
 
     // Everything after here runs in only the app process
+    let (_, specta) = commands::specta_builder();
     let app = tauri::Builder::default()
         .manage(_guard)
-        .invoke_handler(commands::builder().1.invoke_handler())
+        .invoke_handler(specta.invoke_handler())
         .on_window_event(windows::on_window_event)
-        .setup(|app| {
+        .setup(move |app| {
+            specta.mount_events(app);
             let port =
                 std::env::var("WBOOK_RPC_PORT").map_or(Ok(0), |value| value.parse::<u16>())?;
             let params = Params {

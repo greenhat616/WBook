@@ -1,10 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
+use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
+use specta::Type;
 use tauri::{
-    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
     WindowEvent,
 };
+use tauri_specta::Event;
 use tokio::sync::watch;
 use wbook_core::{
     session::{LifecycleState, Rejected, SessionId, SessionSnapshot},
@@ -14,13 +17,17 @@ use wbook_core::{
 use crate::{commands::dto::CommandError, errors::WindowSnafu};
 
 pub const MAIN_WINDOW: &str = "main";
-/// Sent to the main window with the session ID once a windowed session has
-/// closed, so its list drops the session without waiting for focus.
-pub const SESSION_CLOSED_EVENT: &str = "session-closed";
 const SESSION_PREFIX: &str = "session-";
 /// How long a hidden window waits for its frontend before it is shown anyway,
 /// so a page that fails to load is still visible and debuggable.
 pub const READY_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Sent to the main window once a windowed session has closed, so its list
+/// drops the session without waiting for focus.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct SessionClosed {
+    pub session: SessionId,
+}
 
 pub fn session_label(id: SessionId) -> String {
     format!("{SESSION_PREFIX}{}", id.0)
@@ -84,7 +91,7 @@ pub fn open<R: Runtime>(
     tauri::async_runtime::spawn(async move {
         until_closed(receiver).await;
         destroy(&app, &label);
-        if let Err(error) = app.emit_to(MAIN_WINDOW, SESSION_CLOSED_EVENT, id.0) {
+        if let Err(error) = (SessionClosed { session: id }).emit_to(&app, MAIN_WINDOW) {
             tracing::warn!(session = id.0, "Could not announce closed session: {error}");
         }
     });

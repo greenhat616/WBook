@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { mutations, queries } from '../../bindings'
+import { events, mutations, queries } from '../../bindings'
 import { errorMessage } from './api'
 import { defaultParserConfig } from './parser-config'
 
@@ -13,22 +13,22 @@ export function useSessions() {
   const [createError, setCreateError] = useState<string | null>(null)
   const creating = useRef(false)
 
-  // Session windows close their sessions on the host, which announces it here
-  // (SESSION_CLOSED_EVENT in backend/tauri/src/windows.rs). The session is
-  // dropped directly: the close is published before deregistration, so an
-  // immediate refetch could still list it.
+  // Session windows close their sessions on the host, which announces it here.
+  // The session is dropped directly: the close is published before
+  // deregistration, so an immediate refetch could still list it.
   useEffect(() => {
     if (!isTauri()) return
     let active = true
     let unlisten: (() => void) | undefined
-    void getCurrentWebview()
-      .listen<number>('session-closed', ({ payload }) => {
+    void events
+      .sessionClosed(getCurrentWebview())
+      .listen(({ payload }) => {
         const { queryKey } = queries.listSessions()
         void queryClient
           .cancelQueries({ queryKey })
           .then(() =>
             queryClient.setQueryData(queryKey, (sessions) =>
-              sessions?.filter((item) => item.session !== payload)
+              sessions?.filter((item) => item.session !== payload.session)
             )
           )
       })

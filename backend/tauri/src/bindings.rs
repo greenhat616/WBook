@@ -3,7 +3,7 @@ use std::path::Path;
 pub fn generate() -> Result<String, Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("bindings.ts");
-    let (queries, builder) = crate::commands::builder::<tauri::Wry>();
+    let (queries, builder) = crate::commands::specta_builder::<tauri::Wry>();
     builder.export(
         specta_typescript::Typescript::default().with_raw(queries),
         &path,

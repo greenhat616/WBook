@@ -933,12 +933,35 @@ checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
 
 [[package]]
 name = "darling"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
+dependencies = [
+ "darling_core 0.23.0",
+ "darling_macro 0.23.0",
+]
+
+[[package]]
+name = "darling"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed17f5901b6630b993ca003def43f2f8ef4014fc13b047b57aad617ff32bc2ec"
 dependencies = [
- "darling_core",
- "darling_macro",
+ "darling_core 0.24.1",
+ "darling_macro 0.24.1",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
+dependencies = [
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim 0.11.1",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -956,11 +979,22 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
+dependencies = [
+ "darling_core 0.23.0",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "darling_macro"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ac7135c3ef02b2f7833bbeb1be5ba7f966dcde8a87c6b87f65a778d71a02785"
 dependencies = [
- "darling_core",
+ "darling_core 0.24.1",
  "quote",
  "syn 3.0.6",
 ]
@@ -4749,7 +4783,7 @@ version = "3.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d607aa01a3cb0ad757d6fd216136910db3c97b102fe686585689615a02dbcdc"
 dependencies = [
- "darling",
+ "darling 0.24.1",
  "proc-macro2",
  "quote",
  "syn 3.0.6",
@@ -5566,7 +5600,20 @@ dependencies = [
  "specta-typescript",
  "specta-util",
  "tauri",
+ "tauri-specta-macros",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "tauri-specta-macros"
+version = "2.0.0-rc.25"
+source = "git+https://github.com/specta-rs/tauri-specta.git?rev=ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e#ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e"
+dependencies = [
+ "darling 0.23.0",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
