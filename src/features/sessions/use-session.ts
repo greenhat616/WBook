@@ -4,7 +4,6 @@ import {
   type CleanupWarning,
   type ClosedSession,
   type OperationResponse,
-  type Outcome,
   type PreviewInfo,
   type SessionSnapshot,
   type WorkspaceResults
@@ -106,7 +105,7 @@ export function useSession(sessionId: number) {
 
   const read = useCallback(
     async (current: Context) => {
-      const snapshot = unwrap(await commands.getSession(current.id))
+      const snapshot = await commands.getSession(current.id)
       if (!current.alive || current.closing || current.closed) return
       applySnapshot(current, snapshot)
       const latest = current.snapshot!
@@ -118,11 +117,11 @@ export function useSession(sessionId: number) {
         available.document === 'Absent'
       )
         return
-      const response = unwrap(await commands.readResults(current.id))
+      const response = await commands.readResults(current.id)
       if (!current.alive || current.closing || current.closed) return
       warnings(current, response.warnings)
       const results = unwrap(response.outcome, '操作')
-      const after = unwrap(await commands.getSession(current.id))
+      const after = await commands.getSession(current.id)
       if (!current.alive || current.closing || current.closed) return
       applySnapshot(current, after)
       if (
@@ -217,7 +216,7 @@ export function useSession(sessionId: number) {
 
   const operate = useCallback(
     async <T>(
-      command: (current: Context) => Promise<Outcome<OperationResponse<T>>>,
+      command: (current: Context) => Promise<OperationResponse<T>>,
       completed: (current: Context, data: T) => void
     ) => {
       const current = context.current
@@ -234,7 +233,7 @@ export function useSession(sessionId: number) {
       current.busy = true
       patch(current, { pending: true, error: null, notice: null })
       try {
-        const response = unwrap(await command(current))
+        const response = await command(current)
         if (!current.alive || current.closing || current.closed) return
         warnings(current, response.warnings)
         const data = unwrap(response.outcome, '操作')
@@ -312,15 +311,16 @@ export function useSession(sessionId: number) {
     const current = context.current
     if (!current?.alive || current.closing || current.closed) return
     try {
-      const snapshot = unwrap(await commands.getSession(current.id))
+      const snapshot = await commands.getSession(current.id)
       if (!current.alive || current.closing || current.closed) return
       applySnapshot(current, snapshot)
       if (snapshot.activity === 'Idle') {
         patch(current, { notice: '当前没有可取消的操作' })
         return
       }
-      const reply = unwrap(
-        await commands.cancelOperation(current.id, snapshot.activity.Running.op)
+      const reply = await commands.cancelOperation(
+        current.id,
+        snapshot.activity.Running.op
       )
       if (!current.closing && !current.closed) {
         patch(current, {
@@ -342,7 +342,7 @@ export function useSession(sessionId: number) {
     current.closing = true
     patch(current, { pending: true, error: null })
     try {
-      const report = unwrap(await commands.closeSession(current.id))
+      const report = await commands.closeSession(current.id)
       if (!current.alive) return null
       warnings(current, report.cleanup_failures)
       current.closed = true

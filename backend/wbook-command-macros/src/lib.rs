@@ -29,6 +29,8 @@ fn expand(mut module: ItemMod) -> syn::Result<TokenStream2> {
     let mut declarations = Vec::new();
     let mut wrappers = Vec::new();
     let mut commands = Vec::new();
+    let mut queries = Vec::new();
+    let mut mutations = Vec::new();
     let mut shared = Vec::new();
     let mut desktop = Vec::new();
     for item in items {
@@ -40,21 +42,12 @@ fn expand(mut module: ItemMod) -> syn::Result<TokenStream2> {
                 if commands.contains(&name) {
                     return Err(syn::Error::new_spanned(name, "duplicate command name"));
                 }
-                let mut desktop_only = false;
-                for attribute in &function.attrs {
-                    if attribute.path().is_ident("desktop_only") {
-                        if desktop_only || !matches!(attribute.meta, syn::Meta::Path(_)) {
-                            return Err(syn::Error::new_spanned(
-                                attribute,
-                                "use desktop_only once without arguments",
-                            ));
-                        }
-                        desktop_only = true;
-                    }
+                let desktop_only = take_marker(&mut function, "desktop_only")?;
+                if take_marker(&mut function, "query")? {
+                    queries.push(name.clone());
+                } else {
+                    mutations.push(name.clone());
                 }
-                function
-                    .attrs
-                    .retain(|attribute| !attribute.path().is_ident("desktop_only"));
                 if desktop_only {
                     desktop.push(name.clone());
                     wrappers.push(expand_desktop(&function));
@@ -98,12 +91,20 @@ fn expand(mut module: ItemMod) -> syn::Result<TokenStream2> {
 
             pub const DESKTOP_ONLY_COMMANDS: &[&str] = &[#(#desktop_names),*];
 
-            pub fn builder<R: ::tauri::Runtime>() -> ::tauri_specta::Builder<R> {
-                ::tauri_specta::Builder::new()
-                    .commands(::tauri_specta::collect_commands![#(#wrapper_module::#commands),*])
-                    .constant("DESKTOP_ONLY_COMMANDS", DESKTOP_ONLY_COMMANDS)
-                    .error_handling(::tauri_specta::ErrorHandlingMode::Result)
-                    .dangerously_cast_bigints_to_number()
+            /// Returns the TanStack Query helpers to export with `Typescript::with_raw`
+            /// together with the builder that owns the invoke handler.
+            pub fn builder<R: ::tauri::Runtime>() -> (String, ::tauri_specta::Builder<R>) {
+                let (queries, builder) = ::tauri_specta_query::CommandSet::new(
+                    ::tauri_specta::collect_commands![#(#wrapper_module::#queries),*],
+                    ::tauri_specta::collect_commands![#(#wrapper_module::#mutations),*],
+                )
+                .constant("DESKTOP_ONLY_COMMANDS", DESKTOP_ONLY_COMMANDS)
+                .build(::tauri_specta_query::TanstackQueryFramework::React);
+                // Query functions must reject so TanStack Query reports failures as errors.
+                let builder = builder
+                    .error_handling(::tauri_specta::ErrorHandlingMode::Throw)
+                    .dangerously_cast_bigints_to_number();
+                (queries, builder)
             }
 
             pub async fn dispatch(
@@ -140,6 +141,25 @@ fn fresh_identifier(prefix: &str, input: TokenStream2) -> Ident {
         name.push('_');
     }
     format_ident!("{name}")
+}
+
+fn take_marker(function: &mut ItemFn, marker: &str) -> syn::Result<bool> {
+    let mut found = false;
+    for attribute in &function.attrs {
+        if attribute.path().is_ident(marker) {
+            if found || !matches!(attribute.meta, syn::Meta::Path(_)) {
+                return Err(syn::Error::new_spanned(
+                    attribute,
+                    format!("use {marker} once without arguments"),
+                ));
+            }
+            found = true;
+        }
+    }
+    function
+        .attrs
+        .retain(|attribute| !attribute.path().is_ident(marker));
+    Ok(found)
 }
 
 fn expand_desktop(function: &ItemFn) -> TokenStream2 {
