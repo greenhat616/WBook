@@ -30,7 +30,9 @@ pub(super) fn detect_encoding(bytes: &[u8]) -> (&'static encoding_rs::Encoding, 
     }
     let window = &bytes[..bytes.len().min(DETECTION_WINDOW)];
     let mut detector = EncodingDetector::new(Iso2022JpDetection::Allow);
-    detector.feed(window, true);
+    // A truncated window may end mid-character; signalling end-of-stream
+    // there would make chardetng reject valid UTF-8.
+    detector.feed(window, window.len() == bytes.len());
     (detector.guess(None, Utf8Detection::Allow), 0)
 }
 
@@ -58,8 +60,7 @@ pub(super) fn decode_body<'a>(
 /// locales such as `zh_CN.GBK` are honored; UTF-8 is assumed when the locale
 /// carries no mappable codeset.
 pub(super) fn system_encoding() -> &'static encoding_rs::Encoding {
-    static CACHE: std::sync::OnceLock<&'static encoding_rs::Encoding> =
-        std::sync::OnceLock::new();
+    static CACHE: std::sync::OnceLock<&'static encoding_rs::Encoding> = std::sync::OnceLock::new();
     CACHE.get_or_init(detect_system_encoding)
 }
 

@@ -65,6 +65,17 @@ fn test_process_utf8_without_bom() {
 }
 
 #[test]
+fn test_process_utf8_split_at_detection_window() {
+    // The one-byte prefix shifts the 3-byte characters so that the
+    // detection window ends mid-character.
+    let text = format!("a{}", "中".repeat(4000));
+    assert!(!text.is_char_boundary(8192));
+    let parsed = process(text.as_bytes()).unwrap();
+    assert_eq!(parsed.encoding.name, "UTF-8");
+    assert_text(&parsed.content, &text);
+}
+
+#[test]
 fn test_process_utf16le_with_bom() {
     let text = "你好，hello world";
     let mut bytes = vec![0xFF, 0xFE];
@@ -161,10 +172,7 @@ fn test_parse_posix_codeset() {
 fn test_codeset_to_encoding() {
     use super::encoding::codeset_to_encoding;
     assert_eq!(codeset_to_encoding("GBK"), Some(encoding_rs::GBK));
-    assert_eq!(
-        codeset_to_encoding("gb18030"),
-        Some(encoding_rs::GB18030)
-    );
+    assert_eq!(codeset_to_encoding("gb18030"), Some(encoding_rs::GB18030));
     // A glibc alias that is not a WHATWG label.
     assert_eq!(codeset_to_encoding("EUC-CN"), Some(encoding_rs::GBK));
     assert_eq!(codeset_to_encoding("Big5"), Some(encoding_rs::BIG5));
