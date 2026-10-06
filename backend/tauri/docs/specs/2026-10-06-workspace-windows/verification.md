@@ -6,7 +6,7 @@
 
 ## 实施结果
 
-windows 模块以 `session-{id}` 标签把窗口与 Session 一一对应，Tauri 窗口表是唯一注册表。open_session_window 为仅桌面命令，经类型擦除的 SessionWindows 状态访问 AppHandle；已有窗口聚焦，并发创建的标签冲突转为聚焦。创建成功后看守任务等待 Session Closed 再销毁窗口。Session 窗口的关闭请求先完成 core 关闭再销毁；主窗口的关闭请求转为应用退出，复用现有停机流程。capability 覆盖 `session-*`。
+windows 模块以 `session-{id}` 标签把窗口与 Session 一一对应，Tauri 窗口表是唯一注册表。open_session_window 为仅桌面、对运行时泛型的命令，直接接收 AppHandle；已有窗口聚焦，并发创建的标签冲突转为聚焦。创建成功后看守任务等待 Session Closed 再销毁窗口。Session 窗口的关闭请求先完成 core 关闭再销毁；主窗口的关闭请求转为应用退出，复用现有停机流程。capability 覆盖 `session-*`。
 
 主页在桌面端创建 Session 或点击列表时打开 / 聚焦其窗口，浏览器端保持页内导航。
 

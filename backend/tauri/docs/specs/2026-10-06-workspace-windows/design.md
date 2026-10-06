@@ -9,7 +9,7 @@
 
 ## 打开
 
-open_session_window 是仅桌面的异步命令（Windows 上同步命令创建窗口可能死锁）。统一命令宏不支持泛型命令，而 AppHandle 依赖运行时类型参数；因此 setup 中把 AppHandle 封装为类型擦除的 SessionWindows 状态，命令只接收 State，生产 Wry 与测试 MockRuntime 共用同一命令。流程：
+open_session_window 是仅桌面的异步命令（Windows 上同步命令创建窗口可能死锁）。窗口命令需要 AppHandle / WebviewWindow 等带运行时参数的类型，因此统一命令宏允许仅桌面命令带唯一一个以 Runtime 为约束的类型参数；共享命令经 HTTP RPC 分发、不存在 Tauri 运行时，仍禁止泛型。宏以 `name::<tauri::Wry>` 注册：tauri_specta 为 invoke handler 去掉 turbofish，由 Tauri 推断实际运行时（测试中为 MockRuntime），只有 Specta 类型导出看到 Wry，而运行时注入的参数不进入导出类型。宏生成的内部项无法引用 builder 自身的 `R`，所以不能写成 `name::<R>`。流程：
 
 1. 从 SessionManager 取句柄，快照 lifecycle 非 Open 时按 Rejected::Closing / Closed 返回错误。
 2. 已有窗口则 unminimize、show、set_focus。

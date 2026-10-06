@@ -28,12 +28,12 @@ mod api {
 
     // Async because creating a window from a synchronous command can deadlock on Windows.
     #[desktop_only]
-    pub async fn open_session_window(
-        windows: tauri::State<'_, crate::windows::SessionWindows>,
+    pub async fn open_session_window<R: tauri::Runtime>(
+        app: tauri::AppHandle<R>,
         core: tauri::State<'_, Arc<Wbook>>,
         session_id: SessionId,
     ) -> Result<(), CommandError> {
-        windows.open(&core, session_id)
+        crate::windows::open(&app, &core, session_id)
     }
 
     pub async fn create_session(

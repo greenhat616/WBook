@@ -37,7 +37,6 @@ impl Harness {
             .invoke_handler(crate::commands::builder().1.invoke_handler())
             .build(mock_context(noop_assets()))
             .unwrap();
-        app.manage(crate::windows::SessionWindows::new(app.handle().clone()));
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
             .build()
             .unwrap();
