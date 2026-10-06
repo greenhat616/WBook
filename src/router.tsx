@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
+import { useWindowReady } from '@/hooks/use-window-ready'
 import { HomePage } from '@/pages/home-page'
 import { SessionPage } from '@/pages/session-page'
 
@@ -25,12 +26,17 @@ function MissingPage() {
   )
 }
 
-const rootRoute = createRootRoute({
-  component: () => (
+function RootLayout() {
+  useWindowReady()
+  return (
     <AppShell>
       <Outlet />
     </AppShell>
-  ),
+  )
+}
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
   notFoundComponent: MissingPage,
   errorComponent: ({ error, reset }) => (
     <section role="alert" className="mx-auto max-w-lg space-y-4 py-16">

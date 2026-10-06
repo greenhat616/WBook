@@ -50,6 +50,7 @@ pub fn run() {
             app.manage(runtime.core.clone());
             app.manage(Port(runtime.port));
             app.manage(runtime);
+            windows::reveal_after(app.handle(), windows::MAIN_WINDOW, windows::READY_TIMEOUT);
             Ok(())
         })
         .plugin(tauri_plugin_sentry::init(&client))
