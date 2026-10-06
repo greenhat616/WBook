@@ -30,6 +30,23 @@ Builder::on_window_event 处理关闭请求：
 
 主窗口始终拦截关闭，因此"最后一个窗口关闭"的隐式退出不会在 Session 窗口仍在时发生。
 
+## 就绪后显示
+
+主窗口在 tauri.conf.json 中 visible: false，Session 窗口以 visible(false) 创建。根路由布局组件挂载后调用仅桌面命令 window_ready；它对运行时泛型、直接接收调用方 WebviewWindow，因此身份来自 Tauri IPC，而非前端参数。窗口不可见时 show + set_focus，已可见时不动，重复报告（StrictMode 开发双调用、刷新）不抢焦点。浏览器下不调用。
+
+不采用 tauri-specta 类型化事件：TypedEvent 只有 id 与 payload，监听方无法得知发送窗口；且 #15652 报告隐藏创建的窗口可能永久收不到 Rust → JS 事件，而 invoke 正常。命令同时能把失败返回给前端。Tauri 官方 splashscreen 指南采用相同的 invoke + show 模式。
+
+兜底：打开 Session 窗口与 setup 中的主窗口各启动一个 10 秒计时，到时窗口仍不可见则显示并告警，防止页面加载失败导致应用不可见。open_session_window 遇到仍隐藏的窗口直接返回，交由就绪或兜底显示。
+
+macOS 调查结论（截至 Tauri 2.11）：
+
+- 支持：visible: false 创建、前端就绪后 show 是官方 splashscreen 指南与 window-state 插件推荐的模式，WKWebView 在隐藏窗口中加载并执行脚本。
+- 风险：WebKit 会节流不可见视图；#12973 报告 macOS 上以 visible: false 启动的窗口中定时任务约 7 秒后停止，维护者归因于后台节流（#5250）。macOS 14+ 可用 backgroundThrottling 配置 WKWebView inactiveSchedulingPolicy。本方案的就绪报告在首屏渲染后立即发出，不依赖长时定时器，后端兜底计时在 Rust 侧不受影响，因此暂不关闭节流。
+- 相关问题：#15652（WebView2 上隐藏创建窗口丢失事件，invoke 不受影响）、#3654（隐藏窗口在用户交互前收不到后端事件）。后续若前端依赖后端推送事件，需要在隐藏阶段之后再订阅或改用 invoke / SSE。
+- 未在 macOS 实机运行。
+
+参考：https://v2.tauri.app/learn/splashscreen/ 、https://github.com/tauri-apps/tauri/issues/15652 、https://github.com/tauri-apps/tauri/discussions/12973 、https://github.com/tauri-apps/tauri/issues/5250 。
+
 ## 权限
 
 capability 的 windows 增加 `session-*`，使 Session 窗口获得与主窗口相同的 core 权限。应用命令未声明 AppManifest 权限，本身对所有窗口可用。

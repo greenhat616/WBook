@@ -10,6 +10,7 @@ export const commands = {
 	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => __TAURI_INVOKE<OperationResponse<string>>("read_text", { sessionId, version, range }),
 	readResults: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<WorkspaceResults_Serialize>>("read_results", { sessionId }),
 	openSessionWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_window", { sessionId }),
+	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
 	createSession: (source: string, options: ProcessingOptions) => __TAURI_INVOKE<SessionSnapshot>("create_session", { source, options }),
 	closeSession: (sessionId: SessionId) => __TAURI_INVOKE<ClosedSession>("close_session", { sessionId }),
 	initializeSession: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<Revision>>("initialize_session", { sessionId }),
@@ -23,7 +24,7 @@ export const commands = {
 };
 
 /* Constants */
-export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window"] as const;
+export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window","window_ready"] as const;
 
 /* Types */
 export type Activity = "Idle" | { Running: {
@@ -342,6 +343,7 @@ export const queryKeys = {
 };
 export const mutations = {
 	openSessionWindow: () => mutationOptions({ mutationKey: ["openSessionWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionWindow>[0] }) => commands.openSessionWindow(input.sessionId) }),
+	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
 	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0]; options: Parameters<typeof commands.createSession>[1] }) => commands.createSession(input.source, input.options) }),
 	closeSession: () => mutationOptions({ mutationKey: ["closeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.closeSession>[0] }) => commands.closeSession(input.sessionId) }),
 	initializeSession: () => mutationOptions({ mutationKey: ["initializeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.initializeSession>[0] }) => commands.initializeSession(input.sessionId) }),
@@ -355,6 +357,7 @@ export const mutations = {
 };
 export const mutationKeys = {
 	openSessionWindow: () => ["openSessionWindow"],
+	windowReady: () => ["windowReady"],
 	createSession: () => ["createSession"],
 	closeSession: () => ["closeSession"],
 	initializeSession: () => ["initializeSession"],

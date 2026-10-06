@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use snafu::ResultExt;
 use tauri::{
@@ -15,6 +15,9 @@ use crate::{commands::dto::CommandError, errors::WindowSnafu};
 
 pub const MAIN_WINDOW: &str = "main";
 const SESSION_PREFIX: &str = "session-";
+/// How long a hidden window waits for its frontend before it is shown anyway,
+/// so a page that fails to load is still visible and debuggable.
+pub const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub fn session_label(id: SessionId) -> String {
     format!("{SESSION_PREFIX}{}", id.0)
@@ -51,6 +54,8 @@ pub fn open<R: Runtime>(
     let built = WebviewWindowBuilder::new(app, &label, url)
         .title(title)
         .inner_size(1200.0, 800.0)
+        // Shown by `ready` once the frontend has rendered, avoiding a blank flash.
+        .visible(false)
         // Match the main window so bridge requests keep the same Origin.
         .use_https_scheme(false)
         .build();
@@ -70,6 +75,7 @@ pub fn open<R: Runtime>(
             })?;
         }
     }
+    reveal_after(app, &label, READY_TIMEOUT);
     let app = app.clone();
     let receiver = session.subscribe();
     tauri::async_runtime::spawn(async move {
@@ -80,15 +86,61 @@ pub fn open<R: Runtime>(
 }
 
 fn focus<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), CommandError> {
+    let visible = window.is_visible().context(WindowSnafu {
+        action: "inspect",
+        label: window.label(),
+    })?;
+    // A window still waiting for its frontend is shown by `ready` or the
+    // fallback; showing it here would bring back the blank flash.
+    if !visible {
+        return Ok(());
+    }
     window
         .unminimize()
-        .and_then(|()| window.show())
         .and_then(|()| window.set_focus())
         .context(WindowSnafu {
             action: "focus",
             label: window.label(),
         })?;
     Ok(())
+}
+
+/// Shows a window whose frontend reports that it has rendered.
+///
+/// Repeated reports, such as after a reload, leave a visible window alone so
+/// they do not steal focus.
+pub fn ready<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), CommandError> {
+    reveal(window).context(WindowSnafu {
+        action: "show",
+        label: window.label(),
+    })?;
+    Ok(())
+}
+
+fn reveal<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<bool> {
+    if window.is_visible()? {
+        return Ok(false);
+    }
+    window.show()?;
+    window.set_focus()?;
+    Ok(true)
+}
+
+/// Shows the window after `delay` unless its frontend has done so already.
+pub fn reveal_after<R: Runtime>(app: &AppHandle<R>, label: &str, delay: Duration) {
+    let app = app.clone();
+    let label = label.to_owned();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(delay).await;
+        let Some(window) = app.get_webview_window(&label) else {
+            return;
+        };
+        match reveal(&window) {
+            Ok(true) => tracing::warn!(label, "Window frontend did not report ready in time"),
+            Ok(false) => {}
+            Err(error) => tracing::warn!(label, "Could not show window: {error}"),
+        }
+    });
 }
 
 /// Resolves once the session is closed, including when it already was.

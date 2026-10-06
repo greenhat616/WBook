@@ -239,6 +239,12 @@ async fn rejected_requests_and_failed_operations_preserve_their_contract() {
             "platform_unsupported",
         ),
         (
+            "window_ready",
+            json!({}),
+            StatusCode::BAD_REQUEST,
+            "platform_unsupported",
+        ),
+        (
             "missing",
             json!({}),
             StatusCode::NOT_FOUND,
@@ -450,6 +456,10 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
             h.ipc("open_session_window", args.clone()).await.unwrap(),
             Value::Null
         );
+    }
+    // Reports are idempotent, e.g. after a reload of an already shown window.
+    for _ in 0..2 {
+        assert_eq!(h.ipc("window_ready", json!({})).await.unwrap(), Value::Null);
     }
     let windows = h._app.webview_windows();
     assert_eq!(windows.len(), 2);

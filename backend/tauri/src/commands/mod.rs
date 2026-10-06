@@ -36,6 +36,13 @@ mod api {
         crate::windows::open(&app, &core, session_id)
     }
 
+    #[desktop_only]
+    pub fn window_ready<R: tauri::Runtime>(
+        window: tauri::WebviewWindow<R>,
+    ) -> Result<(), CommandError> {
+        crate::windows::ready(&window)
+    }
+
     pub async fn create_session(
         app: &Wbook,
         source: Utf8PathBuf,
