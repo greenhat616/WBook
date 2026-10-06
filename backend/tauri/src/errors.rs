@@ -38,6 +38,12 @@ pub(crate) enum BridgeError {
         path: PathBuf,
         source: io::Error,
     },
+    #[snafu(display("Could not {action} window {label}: {source}"))]
+    Window {
+        action: &'static str,
+        label: String,
+        source: tauri::Error,
+    },
 }
 
 impl From<BridgeError> for CommandError {
@@ -51,7 +57,8 @@ impl From<BridgeError> for CommandError {
             }
             BridgeError::EncodeResponse { .. }
             | BridgeError::ReceiveReceipt { .. }
-            | BridgeError::PreviewFile { .. } => ErrorKind::InternalError,
+            | BridgeError::PreviewFile { .. }
+            | BridgeError::Window { .. } => ErrorKind::InternalError,
         };
         Self::new(kind, error.to_string())
     }

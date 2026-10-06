@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { isTauri } from '@tauri-apps/api/core'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -9,6 +10,7 @@ import {
   Plus,
   RefreshCw
 } from 'lucide-react'
+import { commands } from '@/bindings'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +21,7 @@ import {
   CardTitle
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { errorMessage } from '@/features/sessions/api'
 import { useSessions } from '@/features/sessions/use-sessions'
 
 export function HomePage() {
@@ -28,6 +31,23 @@ export function HomePage() {
   const [source, setSource] = useState('')
   const [parts, setParts] = useState('1')
   const [formError, setFormError] = useState<string | null>(null)
+  // Desktop sessions each live in their own window; browsers have only this page.
+  const windowed = isTauri()
+
+  async function open(sessionId: number) {
+    try {
+      if (windowed) {
+        await commands.openSessionWindow(sessionId)
+      } else {
+        await navigate({
+          to: '/sessions/$sessionId',
+          params: { sessionId: String(sessionId) }
+        })
+      }
+    } catch (error) {
+      setFormError(errorMessage(error))
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -38,12 +58,7 @@ export function HomePage() {
     }
     setFormError(null)
     const session = await create(source.trim(), count)
-    if (session) {
-      await navigate({
-        to: '/sessions/$sessionId',
-        params: { sessionId: String(session.session) }
-      })
-    }
+    if (session) await open(session.session)
   }
 
   return (
@@ -237,6 +252,11 @@ export function HomePage() {
                   <Link
                     to="/sessions/$sessionId"
                     params={{ sessionId: String(session.session) }}
+                    onClick={(event) => {
+                      if (!windowed) return
+                      event.preventDefault()
+                      void open(session.session)
+                    }}
                     className="group flex h-full items-start gap-4 rounded-3xl border bg-card p-5 transition-colors hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
                   >
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">

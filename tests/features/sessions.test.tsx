@@ -28,9 +28,10 @@ import type {
   WorkspaceResults
 } from '../../src/bindings'
 
-const { commands, subscribe } = vi.hoisted(() => ({
+const { commands, subscribe, isTauri } = vi.hoisted(() => ({
   commands: {
     listSessions: vi.fn(),
+    openSessionWindow: vi.fn(),
     createSession: vi.fn(),
     getSession: vi.fn(),
     readResults: vi.fn(),
@@ -40,7 +41,8 @@ const { commands, subscribe } = vi.hoisted(() => ({
     cancelOperation: vi.fn(),
     closeSession: vi.fn()
   },
-  subscribe: vi.fn()
+  subscribe: vi.fn(),
+  isTauri: vi.fn()
 }))
 
 vi.mock('../../src/transport', () => ({
@@ -52,10 +54,12 @@ vi.mock('../../src/transport', () => ({
     ](...Object.values(params))
 }))
 vi.mock('../../src/bridge', () => ({ subscribeSession: subscribe }))
+vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
 
 import { exportOptions } from '../../src/features/sessions/api'
 import { useSession } from '../../src/features/sessions/use-session'
 import { useSessions } from '../../src/features/sessions/use-sessions'
+import { HomePage } from '../../src/pages/home-page'
 import { SessionPage } from '../../src/pages/session-page'
 
 const ok = <T,>(data: T): Outcome<T> => ({ status: 'ok', data })
@@ -569,5 +573,83 @@ describe('session page close feedback', () => {
     await screen.findByRole('heading', { name: '工作台首页' })
     expect(router.state.location.pathname).toBe('/')
     expect(commands.closeSession).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('home page session entry', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    commands.createSession.mockResolvedValue(snapshot())
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  function renderHome() {
+    const root = createRootRoute()
+    const home = createRoute({
+      getParentRoute: () => root,
+      path: '/',
+      component: HomePage
+    })
+    const session = createRoute({
+      getParentRoute: () => root,
+      path: '/sessions/$sessionId',
+      component: () => <h1>工作区页面</h1>
+    })
+    const router = createRouter({
+      routeTree: root.addChildren([home, session]),
+      history: createMemoryHistory({ initialEntries: ['/'] })
+    })
+    const Wrapper = queryWrapper()
+    render(
+      <Wrapper>
+        <RouterProvider router={router} />
+      </Wrapper>
+    )
+    return router
+  }
+
+  async function createFromForm() {
+    fireEvent.change(await screen.findByLabelText('文本文件路径'), {
+      target: { value: 'C:/book-1.txt' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '创建工作会话' }))
+  }
+
+  it('opens created and listed sessions in their own desktop windows', async () => {
+    isTauri.mockReturnValue(true)
+    commands.openSessionWindow.mockResolvedValue(null)
+    const router = renderHome()
+    await createFromForm()
+    await waitFor(() =>
+      expect(commands.openSessionWindow).toHaveBeenCalledWith(1)
+    )
+
+    fireEvent.click(await screen.findByRole('link', { name: /book-1\.txt/ }))
+    await waitFor(() =>
+      expect(commands.openSessionWindow).toHaveBeenCalledTimes(2)
+    )
+    expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('reports a window that cannot be opened', async () => {
+    isTauri.mockReturnValue(true)
+    commands.openSessionWindow.mockRejectedValue({
+      kind: 'closed',
+      message: 'Session is closed'
+    })
+    renderHome()
+    await createFromForm()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Session is closed'
+    )
+  })
+
+  it('navigates within the page in the browser', async () => {
+    isTauri.mockReturnValue(false)
+    const router = renderHome()
+    await createFromForm()
+    await screen.findByRole('heading', { name: '工作区页面' })
+    expect(router.state.location.pathname).toBe('/sessions/1')
+    expect(commands.openSessionWindow).not.toHaveBeenCalled()
   })
 })
