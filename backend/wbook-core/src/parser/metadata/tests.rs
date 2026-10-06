@@ -55,6 +55,40 @@ fn falls_back_to_file_stem() {
 }
 
 #[test]
+fn extracts_title_and_author_from_decorated_file_name() {
+    let metadata = parse(&content(
+        "简介：……
+经过一个多月的熬夜苦战，《沧源》这款游戏也终于通关。
+",
+        Some("/books/soushu2025.com@《望长天》(原名：仙子请听我解释)（完美校正版）作者：弥天大厦[搜书吧].txt"),
+    ));
+    assert_eq!(metadata.title.as_deref(), Some("望长天"));
+    assert_eq!(metadata.author.as_deref(), Some("弥天大厦"));
+}
+
+#[test]
+fn inline_book_brackets_are_not_a_title() {
+    let metadata = parse(&content(
+        "他玩的是《沧源》这款游戏。
+",
+        None,
+    ));
+    assert_eq!(metadata.title, None);
+}
+
+#[test]
+fn text_metadata_wins_over_file_name() {
+    let metadata = parse(&content(
+        "《正文书名》
+作者：正文作者
+",
+        Some("/books/《文件书名》作者：文件作者.txt"),
+    ));
+    assert_eq!(metadata.title.as_deref(), Some("正文书名"));
+    assert_eq!(metadata.author.as_deref(), Some("正文作者"));
+}
+
+#[test]
 fn ignores_metadata_beyond_head_limit() {
     let text = format!("正文\n{}《太晚了》", "水".repeat(2000));
     let metadata = parse(&content(&text, None));

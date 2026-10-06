@@ -14,11 +14,19 @@ mod tests;
 /// Only the head of the text is scanned for metadata.
 const HEAD_CHARS: usize = 1000;
 
+/// Inline `《…》` in prose usually cites another work, so only a line holding
+/// nothing but the brackets counts as the title.
+static TITLE_LINE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^\s*《([^》]+)》\s*$").unwrap());
 static BOOK_TITLE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"《([^》]+)》").unwrap());
 static AUTHOR_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^\s*作者\s*[:：]\s*(.+?)\s*$").unwrap());
 static TITLE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^\s*书名\s*[:：]\s*(.+?)\s*$").unwrap());
+/// Download sites decorate file names with tags such as `[搜书吧]`, so the
+/// author name ends at the first bracket or separator.
+static STEM_AUTHOR_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"作者\s*[:：]\s*([^\s\[\]【】()（）《》<>_]+)").unwrap());
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct Metadata {
@@ -26,9 +34,9 @@ pub struct Metadata {
     pub author: Option<String>,
 }
 
-/// Heuristic metadata extraction from the head of the text:
-/// `《title》` brackets first, then `书名:`/`作者:` label lines, and finally
-/// the source file name as the title fallback.
+/// Heuristic metadata extraction. The head of the text wins over the file
+/// name; within the file name, `《title》` and `作者：name` are preferred over
+/// the bare stem.
 pub struct SimpleMetadataParser;
 
 impl SimpleMetadataParser {
@@ -62,24 +70,21 @@ impl MetadataParser for SimpleMetadataParser {
         let text = content;
         let head = text.prefix(ct, HEAD_CHARS)?;
 
-        let mut metadata = Metadata::default();
-        if let Some(caps) = BOOK_TITLE_PATTERN.captures(&head) {
-            metadata.title = Some(caps[1].trim().to_string());
-        }
-        if let Some(caps) = AUTHOR_PATTERN.captures(&head) {
-            metadata.author = Some(caps[1].trim().to_string());
-        }
-        if metadata.title.is_none() {
-            if let Some(caps) = TITLE_PATTERN.captures(&head) {
-                metadata.title = Some(caps[1].trim().to_string());
-            }
-        }
-        if metadata.title.is_none() {
-            metadata.title = content
-                .source_path()
-                .and_then(|path| path.file_stem())
-                .map(|stem| stem.to_string());
-        }
+        let stem = content.source_path().and_then(|path| path.file_stem());
+        let capture = |pattern: &Regex, haystack: &str| {
+            pattern
+                .captures(haystack)
+                .map(|caps| caps[1].trim().to_string())
+        };
+
+        let metadata = Metadata {
+            title: capture(&TITLE_LINE_PATTERN, &head)
+                .or_else(|| capture(&TITLE_PATTERN, &head))
+                .or_else(|| stem.and_then(|stem| capture(&BOOK_TITLE_PATTERN, stem)))
+                .or_else(|| stem.map(str::to_string)),
+            author: capture(&AUTHOR_PATTERN, &head)
+                .or_else(|| stem.and_then(|stem| capture(&STEM_AUTHOR_PATTERN, stem))),
+        };
         check_cancelled(ct)?;
         Ok(metadata)
     }
