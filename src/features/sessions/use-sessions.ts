@@ -4,7 +4,6 @@ import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { events, mutations, queries } from '../../bindings'
 import { errorMessage } from './api'
-import { defaultParserConfig } from './parser-config'
 
 export function useSessions() {
   const queryClient = useQueryClient()
@@ -54,11 +53,8 @@ export function useSessions() {
       setCreateError(null)
       try {
         if (!source.trim()) throw new Error('请输入本机文本文件路径')
-        const session = await creation.mutateAsync({
-          source: source.trim(),
-          // Chapters can be re-parsed with other rules from the session page.
-          options: { filters: [], toc: defaultParserConfig }
-        })
+        // The backend starts the session from the global settings.
+        const session = await creation.mutateAsync({ source: source.trim() })
         const { queryKey } = queries.listSessions()
         // Drop a list request started before creation so it cannot hide the new session.
         await queryClient.cancelQueries({ queryKey })

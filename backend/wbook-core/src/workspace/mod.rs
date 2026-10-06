@@ -14,11 +14,12 @@ use crate::export::{
     self, CleanupFailure, ExportError, ExportFailure, ExportOptions, RenderedBook,
 };
 use crate::extractor::{Extractor, ExtractorError, ParsedContent, ProcessOptions, SimpleExtractor};
-use crate::parser::toc::{TocConfigError, TocParserConfig};
+use crate::parser::toc::TocParserConfig;
 use crate::parser::{
     AdFilterParser, FilterParser, Metadata, MetadataParser, ParserError, SimpleMetadataParser,
     TocParser,
 };
+use crate::settings::{Settings, SettingsError};
 use crate::types::TextRange;
 
 const READ_LIMIT: u64 = 1024 * 1024;
@@ -30,12 +31,6 @@ pub struct WorkspaceId([u8; 16]);
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Type,
 )]
 pub struct Revision(pub u64);
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-pub struct ProcessingOptions {
-    pub filters: Vec<FilterConfig>,
-    pub toc: TocParserConfig,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum FilterConfig {
@@ -53,7 +48,7 @@ struct WorkspaceState {
     id: WorkspaceId,
     revision: Revision,
     source: Utf8PathBuf,
-    options: ProcessingOptions,
+    settings: Settings,
     document: Option<ProcessingDocument>,
     filters_applied: usize,
 }
@@ -131,7 +126,7 @@ pub enum Phase {
 #[derive(Debug, snafu::Snafu)]
 pub enum WorkspaceError {
     #[snafu(context(false), display("{source}"))]
-    InvalidConfig { source: TocConfigError },
+    InvalidConfig { source: SettingsError },
     #[snafu(display("stale workspace revision: expected {expected:?}, actual {actual:?}"))]
     StaleRevision {
         expected: Revision,
@@ -189,14 +184,14 @@ impl WorkspaceError {
 }
 
 impl Workspace {
-    pub fn new(source: Utf8PathBuf, options: ProcessingOptions) -> Result<Self, WorkspaceError> {
-        options.toc.build()?;
+    pub fn new(source: Utf8PathBuf, settings: Settings) -> Result<Self, WorkspaceError> {
+        settings.validate()?;
         Ok(Self {
             state: WorkspaceState {
                 id: WorkspaceId(*Uuid::new_v4().as_bytes()),
                 revision: Revision::default(),
                 source,
-                options,
+                settings,
                 document: None,
                 filters_applied: 0,
             },
@@ -234,7 +229,7 @@ impl Workspace {
             document_version: document.map(|doc| doc.view().version()),
             filters: FilterProgress {
                 applied: self.state.filters_applied,
-                total: self.state.options.filters.len(),
+                total: self.state.settings.filters.len(),
             },
             has_overrides: document
                 .is_some_and(|doc| doc.metadata_overrides != Metadata::default()),
@@ -325,11 +320,17 @@ impl Workspace {
     }
 
     pub fn initialize(&mut self, cx: &OpContext<'_>) -> Result<Revision, WorkspaceError> {
-        let toc = self.state.options.toc.build()?;
+        let toc = self
+            .state
+            .settings
+            .toc
+            .to_config()
+            .and_then(|config| config.build())
+            .map_err(SettingsError::from)?;
         let ad = AdFilterParser;
         let filters: Vec<&dyn FilterParser> = self
             .state
-            .options
+            .settings
             .filters
             .iter()
             .map(|config| match config {
@@ -348,7 +349,7 @@ impl Workspace {
         toc: &dyn TocParser,
         metadata: &dyn MetadataParser,
     ) -> Result<Revision, WorkspaceError> {
-        assert_eq!(filters.len(), self.state.options.filters.len());
+        assert_eq!(filters.len(), self.state.settings.filters.len());
         self.extract(cx)?;
         self.initialize_parsers(cx, filters, toc, metadata)
     }
@@ -392,7 +393,7 @@ impl Workspace {
         config: TocParserConfig,
     ) -> Result<ParsedResults, WorkspaceError> {
         let document = self.document()?;
-        let toc = config.build()?;
+        let toc = config.build().map_err(SettingsError::from)?;
         (cx.report)(Phase::Parsing);
         Ok(document.parse(cx.ct, toc.as_ref(), &SimpleMetadataParser)?)
     }
@@ -456,6 +457,32 @@ impl Workspace {
         Ok(self.revision())
     }
 
+    pub fn settings(&self) -> &Settings {
+        &self.state.settings
+    }
+
+    /// Filters already ran during initialization, so a filter change only
+    /// updates the recorded settings.
+    pub fn set_settings(
+        &mut self,
+        cx: &OpContext<'_>,
+        expected: Revision,
+        settings: Settings,
+    ) -> Result<Revision, WorkspaceError> {
+        self.check_revision(expected)?;
+        (cx.report)(Phase::Editing);
+        settings.validate()?;
+        check_cancelled(cx.ct)?;
+        self.commit(|state| {
+            let changed = state.settings != settings;
+            if changed {
+                state.settings = settings;
+            }
+            Ok(((), changed))
+        })?;
+        Ok(self.revision())
+    }
+
     pub fn read_text(
         &self,
         cx: &OpContext<'_>,
@@ -500,7 +527,9 @@ impl Workspace {
     }
 
     pub fn current_preview(&self) -> Option<PreviewInfo> {
-        self.preview.as_ref().map(|preview| self.preview_info(preview))
+        self.preview
+            .as_ref()
+            .map(|preview| self.preview_info(preview))
     }
 
     pub fn render_preview(

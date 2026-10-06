@@ -85,9 +85,8 @@ mod tests {
     use tokio::time::timeout;
     use tower::ServiceExt;
     use wbook_core::{
-        parser::toc::TocParserConfig,
         session::{Activity, SessionHandle},
-        workspace::ProcessingOptions,
+        settings::Settings,
         Params,
     };
 
@@ -112,13 +111,7 @@ mod tests {
             std::fs::write(&source, "Chapter one\nText to preview.\n").unwrap();
             let session = core
                 .session_manager()
-                .create(
-                    source,
-                    ProcessingOptions {
-                        filters: vec![],
-                        toc: TocParserConfig::SplitEvenly { parts: 1 },
-                    },
-                )
+                .create(source, Settings::default())
                 .unwrap();
             let router = server::local_router(
                 super::router(core.clone()),
@@ -319,13 +312,7 @@ mod tests {
         let session = runtime
             .core
             .session_manager()
-            .create(
-                path.join("input.txt"),
-                ProcessingOptions {
-                    filters: vec![],
-                    toc: TocParserConfig::SplitEvenly { parts: 1 },
-                },
-            )
+            .create(path.join("input.txt"), Settings::default())
             .unwrap();
         let mut connection =
             tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, runtime.port))

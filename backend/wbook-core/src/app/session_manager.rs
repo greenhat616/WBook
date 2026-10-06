@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use camino::Utf8PathBuf;
 use tokio::runtime::Handle;
 
-use crate::parser::toc::TocConfigError;
 use crate::session::{CloseReport, SessionHandle, SessionId, SessionSnapshot};
-use crate::workspace::{ProcessingOptions, Workspace, WorkspaceError};
+use crate::settings::{Settings, SettingsError};
+use crate::workspace::{Workspace, WorkspaceError};
 
 pub struct SessionManager(Arc<ManagerShared>);
 
@@ -28,7 +28,7 @@ pub enum ManagerError {
     #[snafu(display("session manager is shutting down"))]
     ShuttingDown,
     #[snafu(context(false), display("{source}"))]
-    InvalidConfig { source: TocConfigError },
+    InvalidConfig { source: SettingsError },
 }
 
 impl SessionManager {
@@ -69,9 +69,9 @@ impl SessionManager {
     pub fn create(
         &self,
         source: Utf8PathBuf,
-        options: ProcessingOptions,
+        settings: Settings,
     ) -> Result<SessionHandle, ManagerError> {
-        let workspace = Workspace::new(source, options).map_err(|error| match error {
+        let workspace = Workspace::new(source, settings).map_err(|error| match error {
             WorkspaceError::InvalidConfig { source: error } => {
                 ManagerError::InvalidConfig { source: error }
             }

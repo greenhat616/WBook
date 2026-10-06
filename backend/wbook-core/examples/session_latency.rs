@@ -3,12 +3,12 @@ use std::io::{BufWriter, Write};
 use std::time::{Duration, Instant};
 
 use camino::Utf8PathBuf;
-use wbook_core::export::{ExportOptions, OutputFormat, RenderLayout, RenderOptions};
-use wbook_core::parser::toc::{chapter_only_config, TocParserConfig};
+use wbook_core::parser::toc::TocMode;
 use wbook_core::session::{
     Activity, OpError, OperationId, OperationResult, Receipt, SessionHandle,
 };
-use wbook_core::workspace::{Phase, ProcessingOptions};
+use wbook_core::settings::Settings;
+use wbook_core::workspace::Phase;
 use wbook_core::{Params, Wbook};
 
 const HANG_GUARD: Duration = Duration::from_secs(120);
@@ -30,25 +30,10 @@ fn generate(path: &Utf8PathBuf, bytes: usize) -> anyhow::Result<()> {
 }
 
 fn create(app: &Wbook, source: Utf8PathBuf) -> anyhow::Result<SessionHandle> {
-    Ok(app.session_manager().create(
-        source,
-        ProcessingOptions {
-            filters: vec![],
-            toc: TocParserConfig::Levels(chapter_only_config()),
-        },
-    )?)
-}
-
-fn options() -> ExportOptions {
-    ExportOptions {
-        render: RenderOptions {
-            layout: RenderLayout::SingleHtml,
-            ..Default::default()
-        },
-        format: OutputFormat::Epub,
-        language: "zh-Hant".into(),
-        identifier: Some("urn:wbook:latency".into()),
-    }
+    let mut settings = Settings::default();
+    settings.toc.mode = TocMode::Chapters;
+    settings.render.language = "zh-Hant".into();
+    Ok(app.session_manager().create(source, settings)?)
 }
 
 async fn finish<T>(receipt: Receipt<T>) -> anyhow::Result<OperationResult<T>> {
@@ -129,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
         let revision = finish(prepared.initialize()?).await?.outcome?;
         cancel(
             &prepared,
-            prepared.render_preview(revision, options())?,
+            prepared.render_preview(revision)?,
             Phase::Rendering,
             mib,
             "preview",
@@ -139,7 +124,6 @@ async fn main() -> anyhow::Result<()> {
             &prepared,
             prepared.export_epub(
                 revision,
-                options(),
                 directory.path().join(format!("cancel-{mib}.epub")),
             )?,
             Phase::Exporting,
@@ -147,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
             "export",
         )
         .await?;
-        let closing_receipt = prepared.render_preview(revision, options())?;
+        let closing_receipt = prepared.render_preview(revision)?;
         let phase = observed_phase(&prepared, closing_receipt.op, Phase::Rendering).await?;
         let start = Instant::now();
         let report = prepared.close().await;

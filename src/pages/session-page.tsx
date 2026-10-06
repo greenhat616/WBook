@@ -36,6 +36,7 @@ const operationLabels: Record<OpKind, string> = {
   Install: '应用目录',
   Edit: '更新文本',
   SetMetadataOverrides: '更新书籍信息',
+  SetSettings: '更新本书设置',
   ReadText: '读取文本',
   ReadResults: '读取整理结果',
   RenderPreview: '生成预览',
@@ -400,12 +401,15 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                 }
               />
             ) : (
-              <ParserPanel
-                disabled={blocked}
-                ready={!!status && status.document !== 'Absent'}
-                stale={status?.document === 'Stale'}
-                onParse={(config) => void session.parse(config)}
-              />
+              session.settings && (
+                <ParserPanel
+                  settings={session.settings.toc}
+                  disabled={blocked}
+                  ready={!!status && status.document !== 'Absent'}
+                  stale={status?.document === 'Stale'}
+                  onParse={(toc) => void session.parse(toc)}
+                />
+              )
             )}
           </div>
         </section>

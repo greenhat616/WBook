@@ -14,9 +14,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::app::session_manager::ManagerShared;
 use crate::document::{DocumentVersion, EditBatch, ParsedResults};
-use crate::export::{CleanupFailure, ExportOptions};
-use crate::parser::toc::TocParserConfig;
+use crate::export::CleanupFailure;
 use crate::parser::Metadata;
+use crate::settings::{Settings, SettingsError};
 use crate::types::TextRange;
 use crate::workspace::{
     ExportArtifact, OpContext, Phase, PreviewInfo, Revision, Workspace, WorkspaceError,
@@ -41,6 +41,7 @@ pub enum OpKind {
     Install,
     Edit,
     SetMetadataOverrides,
+    SetSettings,
     ReadText,
     ReadResults,
     RenderPreview,
@@ -190,6 +191,9 @@ struct Shared {
 struct Inner {
     lifecycle: Lifecycle,
     slot: Slot,
+    // Mirrors the workspace settings after every operation, so they stay
+    // readable while an operation holds the workspace.
+    settings: Settings,
     next_op: u64,
     last: Option<OperationSummary>,
 }
@@ -241,6 +245,7 @@ impl SessionHandle {
             runtime,
             inner: Mutex::new(Inner {
                 lifecycle: Lifecycle::Open,
+                settings: workspace.settings().clone(),
                 slot: Slot::Idle(Box::new(workspace)),
                 next_op: 1,
                 last: None,
@@ -282,12 +287,28 @@ impl SessionHandle {
         }
     }
 
+    pub fn settings(&self) -> Result<Settings, Rejected> {
+        let inner = self.0.inner.lock().unwrap();
+        match inner.lifecycle {
+            Lifecycle::Closing => return Err(Rejected::Closing),
+            Lifecycle::Closed(_) => return Err(Rejected::Closed),
+            Lifecycle::Open => {}
+        }
+        match inner.slot {
+            Slot::Lost => Err(Rejected::Unavailable),
+            _ => Ok(inner.settings.clone()),
+        }
+    }
+
     pub fn initialize(&self) -> Result<Receipt<Revision>, Rejected> {
         self.run(OpKind::Initialize, |ws, cx| ws.initialize(cx))
     }
 
-    pub fn parse(&self, config: TocParserConfig) -> Result<Receipt<ParsedResults>, Rejected> {
-        self.run(OpKind::Parse, move |ws, cx| ws.parse(cx, config))
+    pub fn parse(&self) -> Result<Receipt<ParsedResults>, Rejected> {
+        self.run(OpKind::Parse, |ws, cx| {
+            let config = ws.settings().toc.to_config().map_err(SettingsError::from)?;
+            ws.parse(cx, config)
+        })
     }
 
     pub fn install(
@@ -321,6 +342,16 @@ impl SessionHandle {
         })
     }
 
+    pub fn set_settings(
+        &self,
+        expected: Revision,
+        settings: Settings,
+    ) -> Result<Receipt<Revision>, Rejected> {
+        self.run(OpKind::SetSettings, move |ws, cx| {
+            ws.set_settings(cx, expected, settings)
+        })
+    }
+
     pub fn read_text(
         &self,
         version: DocumentVersion,
@@ -335,12 +366,9 @@ impl SessionHandle {
         self.run(OpKind::ReadResults, |ws, cx| ws.results(cx))
     }
 
-    pub fn render_preview(
-        &self,
-        expected: Revision,
-        options: ExportOptions,
-    ) -> Result<Receipt<PreviewInfo>, Rejected> {
+    pub fn render_preview(&self, expected: Revision) -> Result<Receipt<PreviewInfo>, Rejected> {
         self.run(OpKind::RenderPreview, move |ws, cx| {
+            let options = ws.settings().export_options();
             ws.render_preview(cx, expected, options)
         })
     }
@@ -348,10 +376,10 @@ impl SessionHandle {
     pub fn export_epub(
         &self,
         expected: Revision,
-        options: ExportOptions,
         destination: PathBuf,
     ) -> Result<Receipt<ExportArtifact>, Rejected> {
         self.run(OpKind::ExportEpub, move |ws, cx| {
+            let options = ws.settings().export_options();
             ws.export_epub(cx, expected, options, destination)
         })
     }

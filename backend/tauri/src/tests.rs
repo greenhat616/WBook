@@ -117,7 +117,7 @@ impl Harness {
     }
 
     fn create_params(&self) -> Value {
-        json!({ "source": self.source(), "options": { "filters": [], "toc": { "SplitEvenly": { "parts": 1 } } } })
+        json!({ "source": self.source() })
     }
 }
 
@@ -132,8 +132,29 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
     let text = "第一章 开始\n正文 café\n第二段正文\n";
     std::fs::write(h.source(), text).unwrap();
     assert_eq!(h.ipc("get_port", json!({})).await.unwrap(), 1421);
+    let builtin = h.ipc("builtin_templates", json!({})).await.unwrap();
+    assert!(builtin["stylesheet"]
+        .as_str()
+        .unwrap()
+        .contains("text-indent"));
+    let mut stored = h.rpc_ok("get_settings", json!({})).await;
+    assert_eq!(stored["problem"], Value::Null);
+    stored["settings"]["toc"]["mode"] = json!("Split");
+    stored["settings"]["toc"]["parts"] = json!(1);
+    let saved = h
+        .ipc("save_settings", json!({ "settings": stored["settings"] }))
+        .await
+        .unwrap();
+    assert_eq!(saved, stored);
+    assert_eq!(h.rpc_ok("get_settings", json!({})).await, stored);
     let created = h.ipc("create_session", h.create_params()).await.unwrap();
     let id = created["session"].clone();
+    // The session keeps its own copy of the global settings.
+    assert_eq!(
+        h.rpc_ok("get_session_settings", json!({ "sessionId": id }))
+            .await,
+        stored["settings"]
+    );
     assert_eq!(h.rpc_ok("list_sessions", json!({})).await, json!([created]));
     let args = json!({ "sessionId": id });
     assert_eq!(
@@ -169,13 +190,7 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
     assert_eq!(stale["revision"], edited_revision);
     assert!(ipc_stale["op"].as_u64().unwrap() > stale["op"].as_u64().unwrap());
 
-    let parsed = data(
-        &h.rpc_ok(
-            "parse_session",
-            json!({ "sessionId": id, "config": { "SplitEvenly": { "parts": 1 } } }),
-        )
-        .await,
-    );
+    let parsed = data(&h.rpc_ok("parse_session", json!({ "sessionId": id })).await);
     let installed = h
         .ipc(
             "install_results",
@@ -184,20 +199,39 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
         .await
         .unwrap();
     let updated = h.rpc_ok("set_metadata_overrides", json!({ "sessionId": id, "expected": data(&installed), "overrides": { "title": "RPC Book", "author": "Test Author" } })).await;
-    let revision = data(&updated);
-    let options = json!({ "render": { "layout": "SingleHtml", "templates": {} }, "format": "Epub", "language": "zh-CN", "identifier": "urn:wbook:rpc-test" });
+    let mut settings = stored["settings"].clone();
+    settings["render"]["language"] = json!("en");
+    let changed = h
+        .rpc_ok(
+            "set_session_settings",
+            json!({ "sessionId": id, "expected": data(&updated), "settings": settings }),
+        )
+        .await;
+    let revision = data(&changed);
+    assert_eq!(
+        h.ipc("get_session_settings", json!({ "sessionId": id }))
+            .await
+            .unwrap(),
+        settings
+    );
     let preview = data(
         &h.ipc(
             "render_preview",
-            json!({ "sessionId": id, "expected": revision, "options": options }),
+            json!({ "sessionId": id, "expected": revision }),
         )
         .await
         .unwrap(),
     );
+    assert_eq!(preview["options"]["language"], "en");
     let preview_dir = PathBuf::from(preview["directory"].as_str().unwrap());
     assert!(preview_dir.is_dir());
     let destination = h.directory.path().join("book.epub");
-    let exported = h.rpc_ok("export_epub", json!({ "sessionId": id, "expected": revision, "options": options, "destination": destination })).await;
+    let exported = h
+        .rpc_ok(
+            "export_epub",
+            json!({ "sessionId": id, "expected": revision, "destination": destination }),
+        )
+        .await;
     assert_eq!(data(&exported)["revision"], revision);
     assert!(destination.is_file());
 
@@ -221,12 +255,15 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
 #[tokio::test]
 async fn rejected_requests_and_failed_operations_preserve_their_contract() {
     let h = Harness::new();
-    let mut invalid = h.create_params();
-    invalid["options"]["toc"]["SplitEvenly"]["parts"] = json!(0);
-    let (status, error) = h.rpc("create_session", invalid.clone()).await;
+    let stored = h.rpc_ok("get_settings", json!({})).await;
+    let mut invalid = stored["settings"].clone();
+    invalid["toc"]["chapter_marks"] = json!([]);
+    let invalid = json!({ "settings": invalid });
+    let (status, error) = h.rpc("save_settings", invalid.clone()).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(error["kind"], "invalid_config");
-    assert_eq!(h.ipc("create_session", invalid).await.unwrap_err(), error);
+    assert_eq!(h.ipc("save_settings", invalid).await.unwrap_err(), error);
+    assert_eq!(h.rpc_ok("get_settings", json!({})).await, stored);
     assert_eq!(h.rpc_ok("list_sessions", json!({})).await, json!([]));
 
     for (method, params, status, kind) in [
@@ -419,10 +456,7 @@ async fn runtime_publishes_the_bound_port_and_shuts_down_sessions_and_http() {
         .session_manager()
         .create(
             path.join("missing.txt"),
-            wbook_core::workspace::ProcessingOptions {
-                filters: vec![],
-                toc: wbook_core::parser::toc::TocParserConfig::SplitEvenly { parts: 1 },
-            },
+            wbook_core::settings::Settings::default(),
         )
         .unwrap();
     let mut stream = tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, runtime.port))

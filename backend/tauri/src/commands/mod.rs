@@ -3,11 +3,12 @@ use std::{path::PathBuf, sync::Arc};
 use camino::Utf8PathBuf;
 use wbook_core::{
     document::{DocumentVersion, EditBatch, ParsedResults},
-    export::ExportOptions,
-    parser::{toc::TocParserConfig, Metadata},
+    export::TemplateOverrides,
+    parser::Metadata,
     session::{CancelReply, OperationId, SessionId, SessionSnapshot},
+    settings::{Settings, StoredSettings},
     types::{Port, TextRange},
-    workspace::{PreviewInfo, ProcessingOptions, Revision, WorkspaceResults},
+    workspace::{PreviewInfo, Revision, WorkspaceResults},
     Wbook,
 };
 
@@ -51,12 +52,31 @@ mod api {
         crate::windows::ready(&window)
     }
 
+    #[query]
+    pub async fn get_settings(app: &Wbook) -> Result<StoredSettings, CommandError> {
+        Ok(app.settings().get())
+    }
+
+    pub async fn save_settings(
+        app: &Wbook,
+        settings: Settings,
+    ) -> Result<StoredSettings, CommandError> {
+        app.settings().save(settings)?;
+        Ok(app.settings().get())
+    }
+
+    #[query]
+    pub async fn builtin_templates(_app: &Wbook) -> Result<TemplateOverrides, CommandError> {
+        Ok(TemplateOverrides::builtin())
+    }
+
+    /// The session starts from a copy of the current global settings.
     pub async fn create_session(
         app: &Wbook,
         source: Utf8PathBuf,
-        options: ProcessingOptions,
     ) -> Result<SessionSnapshot, CommandError> {
-        Ok(app.session_manager().create(source, options)?.snapshot())
+        let settings = app.settings().current();
+        Ok(app.session_manager().create(source, settings)?.snapshot())
     }
 
     #[query]
@@ -91,12 +111,33 @@ mod api {
         complete(app.session_manager().get(session_id)?.initialize()).await
     }
 
+    #[query]
+    pub async fn get_session_settings(
+        app: &Wbook,
+        session_id: SessionId,
+    ) -> Result<Settings, CommandError> {
+        Ok(app.session_manager().get(session_id)?.settings()?)
+    }
+
+    pub async fn set_session_settings(
+        app: &Wbook,
+        session_id: SessionId,
+        expected: Revision,
+        settings: Settings,
+    ) -> Result<OperationResponse<Revision>, CommandError> {
+        complete(
+            app.session_manager()
+                .get(session_id)?
+                .set_settings(expected, settings),
+        )
+        .await
+    }
+
     pub async fn parse_session(
         app: &Wbook,
         session_id: SessionId,
-        config: TocParserConfig,
     ) -> Result<OperationResponse<ParsedResults>, CommandError> {
-        complete(app.session_manager().get(session_id)?.parse(config)).await
+        complete(app.session_manager().get(session_id)?.parse()).await
     }
 
     pub async fn install_results(
@@ -168,12 +209,11 @@ mod api {
         app: &Wbook,
         session_id: SessionId,
         expected: Revision,
-        options: ExportOptions,
     ) -> Result<OperationResponse<PreviewInfo>, CommandError> {
         complete(
             app.session_manager()
                 .get(session_id)?
-                .render_preview(expected, options),
+                .render_preview(expected),
         )
         .await
     }
@@ -182,13 +222,12 @@ mod api {
         app: &Wbook,
         session_id: SessionId,
         expected: Revision,
-        options: ExportOptions,
         destination: PathBuf,
     ) -> Result<OperationResponse<ExportedBook>, CommandError> {
         complete(
             app.session_manager()
                 .get(session_id)?
-                .export_epub(expected, options, destination),
+                .export_epub(expected, destination),
         )
         .await
     }

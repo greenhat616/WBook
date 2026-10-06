@@ -209,9 +209,7 @@ mod tests {
     use std::time::Duration;
 
     use tokio::time::timeout;
-    use wbook_core::{
-        parser::toc::TocParserConfig, session::SessionHandle, workspace::ProcessingOptions, Params,
-    };
+    use wbook_core::{session::SessionHandle, settings::Settings, Params};
 
     use super::*;
 
@@ -224,13 +222,7 @@ mod tests {
         });
         let session = core
             .session_manager()
-            .create(
-                path.join("input.txt"),
-                ProcessingOptions {
-                    filters: vec![],
-                    toc: TocParserConfig::SplitEvenly { parts: 1 },
-                },
-            )
+            .create(path.join("input.txt"), Settings::default())
             .unwrap();
         (directory, core, session)
     }

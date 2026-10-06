@@ -2,13 +2,13 @@ use std::fs;
 
 use camino::Utf8PathBuf;
 use wbook_core::document::{EditBatch, TextEdit};
-use wbook_core::export::{ExportOptions, OutputFormat, RenderLayout, RenderOptions};
-use wbook_core::parser::toc::{chapter_only_config, TocParserConfig};
+use wbook_core::parser::toc::TocMode;
 use wbook_core::parser::Metadata;
 use wbook_core::session::{Availability, LifecycleState, Receipt};
+use wbook_core::settings::Settings;
 use wbook_core::toc::{Toc, TocSnapshot};
 use wbook_core::types::TextRange;
-use wbook_core::workspace::{DocumentStatus, FilterConfig, ProcessingOptions};
+use wbook_core::workspace::{DocumentStatus, FilterConfig};
 use wbook_core::{Params, Wbook};
 
 async fn completed<T>(receipt: Receipt<T>) -> anyhow::Result<T> {
@@ -31,14 +31,11 @@ async fn main() -> anyhow::Result<()> {
         data_dir: Utf8PathBuf::from_path_buf(directory.path().join("unused-data")).unwrap(),
         config_dir: Utf8PathBuf::from_path_buf(directory.path().join("unused-config")).unwrap(),
     });
-    let config = TocParserConfig::Levels(chapter_only_config());
-    let handle = app.session_manager().create(
-        source.clone(),
-        ProcessingOptions {
-            filters: vec![FilterConfig::Ad],
-            toc: config.clone(),
-        },
-    )?;
+    let mut settings = Settings::default();
+    settings.toc.mode = TocMode::Chapters;
+    settings.filters = vec![FilterConfig::Ad];
+    settings.render.language = "en".into();
+    let handle = app.session_manager().create(source.clone(), settings)?;
     let mut revision = completed(handle.initialize()?).await?;
     let initial = completed(handle.read_results()?).await?.results.unwrap();
     let start = text.find("Original").unwrap() as u64;
@@ -56,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
         },
     )?)
     .await?;
-    let parsed = completed(handle.parse(config)?).await?;
+    let parsed = completed(handle.parse()?).await?;
     revision = completed(handle.install(revision, parsed)?).await?;
     let mut adjusted = completed(handle.read_results()?).await?.results.unwrap();
     let id = TocSnapshot::from(&adjusted.toc)[0].id;
@@ -71,18 +68,9 @@ async fn main() -> anyhow::Result<()> {
         },
     )?)
     .await?;
-    let options = ExportOptions {
-        render: RenderOptions {
-            layout: RenderLayout::SingleHtml,
-            ..Default::default()
-        },
-        format: OutputFormat::Epub,
-        language: "en".into(),
-        identifier: Some("urn:wbook:session-example".into()),
-    };
-    let preview = completed(handle.render_preview(revision, options.clone())?).await?;
+    let preview = completed(handle.render_preview(revision)?).await?;
     let destination = directory.path().join("book.epub");
-    let artifact = completed(handle.export_epub(revision, options, destination.clone())?).await?;
+    let artifact = completed(handle.export_epub(revision, destination.clone())?).await?;
     anyhow::ensure!(
         artifact.artifact.cleanup_failures.is_empty(),
         "export cleanup failed"

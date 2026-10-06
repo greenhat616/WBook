@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::session::{CloseReport, SessionId};
+use crate::settings::SettingsStore;
 
 pub mod session_manager;
 
@@ -20,11 +21,13 @@ pub struct Params {
 pub struct Wbook {
     pub start_params: Params,
     session_manager: SessionManager,
+    settings: SettingsStore,
 }
 
 impl Wbook {
     pub fn new(start_params: Params) -> Self {
         Self {
+            settings: SettingsStore::load(&start_params.config_dir),
             start_params,
             session_manager: SessionManager::new(tokio::runtime::Handle::current()),
         }
@@ -32,6 +35,10 @@ impl Wbook {
 
     pub fn session_manager(&self) -> &SessionManager {
         &self.session_manager
+    }
+
+    pub fn settings(&self) -> &SettingsStore {
+        &self.settings
     }
 
     pub async fn shutdown(&self) -> Vec<(SessionId, Arc<CloseReport>)> {

@@ -9,6 +9,7 @@ use wbook_core::{
     document::DocumentVersion,
     export::{self, OutputFormat},
     session::{self, OpError, OpKind, OperationId, OperationSummary, Receipt, Rejected},
+    settings::SaveError,
     workspace::{self, Revision, WorkspaceError},
 };
 
@@ -70,6 +71,16 @@ impl From<ManagerError> for CommandError {
             ManagerError::NotFound => ErrorKind::NotFound,
             ManagerError::ShuttingDown => ErrorKind::ShuttingDown,
             ManagerError::InvalidConfig { .. } => ErrorKind::InvalidConfig,
+        };
+        Self::new(kind, error.to_string())
+    }
+}
+
+impl From<SaveError> for CommandError {
+    fn from(error: SaveError) -> Self {
+        let kind = match error {
+            SaveError::Invalid { .. } => ErrorKind::InvalidConfig,
+            SaveError::Encode { .. } | SaveError::Write { .. } => ErrorKind::InternalError,
         };
         Self::new(kind, error.to_string())
     }

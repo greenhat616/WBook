@@ -6,11 +6,10 @@ use std::time::Duration;
 use super::*;
 use crate::app::{ManagerError, Params, SessionManager, Wbook};
 use crate::document::{DocumentError, TextEdit};
-use crate::export::{OutputFormat, RenderLayout, RenderOptions};
 use crate::extractor::ExtractorError;
-use crate::parser::toc::chapter_only_config;
+use crate::parser::toc::TocMode;
 use crate::toc::{Toc, TocSnapshot};
-use crate::workspace::{DocumentStatus, ProcessingOptions};
+use crate::workspace::DocumentStatus;
 
 const HANG_GUARD: Duration = Duration::from_secs(30);
 
@@ -24,27 +23,11 @@ async fn finish<T>(receipt: Receipt<T>) -> OperationResult<T> {
     guard(receipt).await.expect("receipt sender disappeared")
 }
 
-fn config() -> TocParserConfig {
-    TocParserConfig::Levels(chapter_only_config())
-}
-
-fn options() -> ProcessingOptions {
-    ProcessingOptions {
-        filters: vec![],
-        toc: config(),
-    }
-}
-
-fn export_options() -> ExportOptions {
-    ExportOptions {
-        render: RenderOptions {
-            layout: RenderLayout::SingleHtml,
-            ..Default::default()
-        },
-        format: OutputFormat::Epub,
-        language: "en".into(),
-        identifier: Some("urn:session-test".into()),
-    }
+fn settings() -> Settings {
+    let mut settings = Settings::default();
+    settings.toc.mode = TocMode::Chapters;
+    settings.render.language = "en".into();
+    settings
 }
 
 fn source(directory: &tempfile::TempDir) -> Utf8PathBuf {
@@ -53,7 +36,7 @@ fn source(directory: &tempfile::TempDir) -> Utf8PathBuf {
 
 fn session(manager: &SessionManager) -> SessionHandle {
     manager
-        .create("missing-session-test.txt".into(), options())
+        .create("missing-session-test.txt".into(), settings())
         .unwrap()
 }
 
@@ -83,10 +66,10 @@ async fn current_preview_is_read_only_and_obeys_session_admission() {
     let directory = tempfile::tempdir().unwrap();
     let path = source(&directory);
     fs::write(&path, "第一章 Start\nBody").unwrap();
-    let handle = manager.create(path, options()).unwrap();
+    let handle = manager.create(path, settings()).unwrap();
     assert_eq!(handle.current_preview().unwrap(), None);
     let revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
-    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+    let preview = finish(handle.render_preview(revision).unwrap())
         .await
         .outcome
         .unwrap();
@@ -118,21 +101,20 @@ async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     let manager = SessionManager::new(Handle::current());
     let directory = tempfile::tempdir().unwrap();
     let path = source(&directory);
-    let invalid = ProcessingOptions {
-        filters: vec![],
-        toc: TocParserConfig::SplitEvenly { parts: 0 },
-    };
+    let mut invalid = settings();
+    invalid.toc.mode = TocMode::Split;
+    invalid.toc.parts = 0;
     assert!(matches!(
         manager.create(path.clone(), invalid),
         Err(ManagerError::InvalidConfig { source: _ })
     ));
     assert!(manager.list().is_empty());
-    let handle = manager.create(path.clone(), options()).unwrap();
+    let handle = manager.create(path.clone(), settings()).unwrap();
     assert!(!path.exists());
     assert_eq!(
         handle.snapshot().workspace_status,
         Availability::Available(Box::new(
-            Workspace::new(path.clone(), options()).unwrap().status()
+            Workspace::new(path.clone(), settings()).unwrap().status()
         ))
     );
     let result = finish(handle.initialize().unwrap()).await;
@@ -157,7 +139,7 @@ async fn creation_is_lazy_config_is_validated_and_ids_are_not_reused() {
     let first = handle.id();
     guard(manager.close(first)).await.unwrap();
     assert!(matches!(manager.get(first), Err(ManagerError::NotFound)));
-    let workspace = Workspace::new(path, options()).unwrap();
+    let workspace = Workspace::new(path, settings()).unwrap();
     let workspace_id = workspace.id();
     let reopened = manager.open(workspace).unwrap();
     assert!(reopened.id().0 > first.0);
@@ -292,7 +274,7 @@ async fn committed_status_is_recomputed_outside_the_worker_and_snapshot_precedes
     let directory = tempfile::tempdir().unwrap();
     let path = source(&directory);
     fs::write(&path, "Body").unwrap();
-    let handle = manager.create(path, options()).unwrap();
+    let handle = manager.create(path, settings()).unwrap();
     let initial = handle.snapshot();
     let (started, observed, release, blocked) = gate();
     let receipt = handle
@@ -571,9 +553,9 @@ async fn publication_completed_during_a_running_operation_is_preserved_by_close(
     let directory = tempfile::tempdir().unwrap();
     let path = source(&directory);
     fs::write(&path, "第一章 Start\nBody").unwrap();
-    let handle = manager.create(path.clone(), options()).unwrap();
+    let handle = manager.create(path.clone(), settings()).unwrap();
     let revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
-    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+    let preview = finish(handle.render_preview(revision).unwrap())
         .await
         .outcome
         .unwrap();
@@ -582,7 +564,7 @@ async fn publication_completed_during_a_running_operation_is_preserved_by_close(
     let (started, observed, release, blocked) = gate();
     let receipt = handle
         .run(OpKind::ExportEpub, move |ws, cx| {
-            let artifact = ws.export_epub(cx, revision, export_options(), output)?;
+            let artifact = ws.export_epub(cx, revision, settings().export_options(), output)?;
             started.send(()).unwrap();
             blocked.recv_timeout(HANG_GUARD).unwrap();
             assert!(cx.ct.is_cancelled());
@@ -644,7 +626,7 @@ async fn shutdown_requests_every_close_before_waiting_for_any_worker() {
     .await;
     assert!(!shutdown.is_finished());
     assert!(matches!(
-        manager.create("unused.txt".into(), options()),
+        manager.create("unused.txt".into(), settings()),
         Err(ManagerError::ShuttingDown)
     ));
     release_a.send(()).unwrap();
@@ -667,7 +649,7 @@ async fn create_racing_shutdown_never_leaves_an_accepted_session_open() {
         let creator_barrier = barrier.clone();
         let creator = tokio::task::spawn_blocking(move || {
             creator_barrier.wait();
-            creating.create("unread-racing-source.txt".into(), options())
+            creating.create("unread-racing-source.txt".into(), settings())
         });
         let stopping = manager.clone();
         let shutdown = tokio::spawn(async move {
@@ -735,7 +717,7 @@ async fn typed_forwarders_return_workspace_results_and_wbook_shuts_down() {
         data_dir: "unused-data".into(),
         config_dir: "unused-config".into(),
     });
-    let handle = app.session_manager().create(path, options()).unwrap();
+    let handle = app.session_manager().create(path, settings()).unwrap();
     let mut revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
     let results = finish(handle.read_results().unwrap())
         .await
@@ -785,27 +767,20 @@ async fn typed_forwarders_return_workspace_results_and_wbook_shuts_down() {
     .await
     .outcome
     .unwrap();
-    let parsed = finish(handle.parse(config()).unwrap())
-        .await
-        .outcome
-        .unwrap();
+    let parsed = finish(handle.parse().unwrap()).await.outcome.unwrap();
     revision = finish(handle.install(revision, parsed).unwrap())
         .await
         .outcome
         .unwrap();
-    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+    let preview = finish(handle.render_preview(revision).unwrap())
         .await
         .outcome
         .unwrap();
     let output = directory.path().join("typed.epub");
-    let artifact = finish(
-        handle
-            .export_epub(revision, export_options(), output.clone())
-            .unwrap(),
-    )
-    .await
-    .outcome
-    .unwrap();
+    let artifact = finish(handle.export_epub(revision, output.clone()).unwrap())
+        .await
+        .outcome
+        .unwrap();
     assert_eq!(artifact.artifact.path, output);
     assert_eq!(artifact.revision, revision);
     assert_eq!(guard(app.shutdown()).await.len(), 1);
@@ -825,7 +800,7 @@ async fn public_session_flow_keeps_manual_results_and_overrides_after_export() {
     });
     let handle = app
         .session_manager()
-        .create(path.clone(), options())
+        .create(path.clone(), settings())
         .unwrap();
     let mut revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
     let installed = finish(handle.read_results().unwrap())
@@ -851,10 +826,7 @@ async fn public_session_flow_keeps_manual_results_and_overrides_after_export() {
     .await
     .outcome
     .unwrap();
-    let mut parsed = finish(handle.parse(config()).unwrap())
-        .await
-        .outcome
-        .unwrap();
+    let mut parsed = finish(handle.parse().unwrap()).await.outcome.unwrap();
     let id = TocSnapshot::from(&parsed.toc)[0].id;
     parsed.toc.get_mut(id).unwrap().title = "Manual TOC".into();
     parsed.metadata.title = Some("Automatic adjusted title".into());
@@ -876,19 +848,15 @@ async fn public_session_flow_keeps_manual_results_and_overrides_after_export() {
     .await
     .outcome
     .unwrap();
-    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+    let preview = finish(handle.render_preview(revision).unwrap())
         .await
         .outcome
         .unwrap();
     let output = directory.path().join("public-flow.epub");
-    let artifact = finish(
-        handle
-            .export_epub(revision, export_options(), output.clone())
-            .unwrap(),
-    )
-    .await
-    .outcome
-    .unwrap();
+    let artifact = finish(handle.export_epub(revision, output.clone()).unwrap())
+        .await
+        .outcome
+        .unwrap();
     assert_eq!(artifact.revision, revision);
     let results = finish(handle.read_results().unwrap())
         .await
@@ -902,7 +870,7 @@ async fn public_session_flow_keeps_manual_results_and_overrides_after_export() {
     );
     assert_eq!(results.overrides.title.as_deref(), Some("Override title"));
     assert_eq!(
-        finish(handle.render_preview(revision, export_options()).unwrap())
+        finish(handle.render_preview(revision).unwrap())
             .await
             .outcome
             .unwrap(),
@@ -946,7 +914,7 @@ async fn workspace_allocation_is_moved_and_snapshots_contain_no_body_toc_or_hist
     let path = source(&directory);
     let marker = "UNIQUE_BODY_MARKER";
     fs::write(&path, format!("第一章 Heading\n{}", marker.repeat(10000))).unwrap();
-    let handle = manager.create(path, options()).unwrap();
+    let handle = manager.create(path, settings()).unwrap();
     finish(handle.initialize().unwrap()).await.outcome.unwrap();
     let mut allocations = Vec::new();
     for _ in 0..3 {
@@ -1020,9 +988,9 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
     let directory = tempfile::tempdir().unwrap();
     let path = source(&directory);
     fs::write(&path, "Body").unwrap();
-    let handle = manager.create(path, options()).unwrap();
+    let handle = manager.create(path, settings()).unwrap();
     let revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
-    let preview = finish(handle.render_preview(revision, export_options()).unwrap())
+    let preview = finish(handle.render_preview(revision).unwrap())
         .await
         .outcome
         .unwrap();
@@ -1066,14 +1034,10 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
         .is_empty());
     drop(held);
     fs::remove_dir_all(preview.directory).unwrap();
-    let preview = finish(
-        handle
-            .render_preview(result.revision, export_options())
-            .unwrap(),
-    )
-    .await
-    .outcome
-    .unwrap();
+    let preview = finish(handle.render_preview(result.revision).unwrap())
+        .await
+        .outcome
+        .unwrap();
     let held = fs::OpenOptions::new()
         .read(true)
         .share_mode(1 | 2)
@@ -1087,4 +1051,53 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
     assert_eq!(handle.snapshot().lifecycle, LifecycleState::Closed);
     drop(held);
     fs::remove_dir_all(preview.directory).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn session_settings_stay_readable_and_drive_parsing_and_rendering() {
+    let manager = SessionManager::new(Handle::current());
+    let directory = tempfile::tempdir().unwrap();
+    let path = source(&directory);
+    fs::write(&path, "第一卷 Opening\n第一章 Start\nBody").unwrap();
+    let handle = manager.create(path, settings()).unwrap();
+    let revision = finish(handle.initialize().unwrap()).await.outcome.unwrap();
+    let titles = |results: &ParsedResults| {
+        TocSnapshot::from(&results.toc)
+            .iter()
+            .map(|entry| entry.title.clone())
+            .collect::<Vec<_>>()
+    };
+    let parsed = finish(handle.parse().unwrap()).await.outcome.unwrap();
+    assert_eq!(titles(&parsed), ["第一章 Start"]);
+
+    let mut changed = handle.settings().unwrap();
+    changed.toc.mode = TocMode::Volumes;
+    changed.render.layout = crate::export::RenderLayout::Paged;
+    let result = finish(handle.set_settings(revision, changed.clone()).unwrap()).await;
+    assert_eq!(result.kind, OpKind::SetSettings);
+    let revision = result.outcome.unwrap();
+    assert_eq!(handle.settings().unwrap(), changed);
+
+    let parsed = finish(handle.parse().unwrap()).await.outcome.unwrap();
+    assert_eq!(titles(&parsed), ["第一卷 Opening"]);
+    let preview = finish(handle.render_preview(revision).unwrap())
+        .await
+        .outcome
+        .unwrap();
+    assert_eq!(preview.options, changed.export_options());
+
+    let (started, observed, release, blocked) = gate();
+    let receipt = handle
+        .run(OpKind::ReadResults, move |_, _| {
+            started.send(()).unwrap();
+            blocked.recv_timeout(HANG_GUARD).unwrap();
+            Ok(())
+        })
+        .unwrap();
+    guard(observed).await.unwrap();
+    assert_eq!(handle.settings().unwrap(), changed);
+    release.send(()).unwrap();
+    finish(receipt).await.outcome.unwrap();
+    guard(handle.close()).await;
+    assert_eq!(handle.settings(), Err(Rejected::Closed));
 }

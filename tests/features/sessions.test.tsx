@@ -22,9 +22,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   OperationResponse,
   ClosedSession,
+  ExportOptions,
   Outcome,
   PreviewInfo,
   SessionSnapshot,
+  Settings,
   TocEntry_Serialize,
   WorkspaceResults
 } from '../../src/bindings'
@@ -50,6 +52,8 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
       initializeSession: vi.fn(),
       renderPreview: vi.fn(),
       parseSession: vi.fn(),
+      getSessionSettings: vi.fn(),
+      setSessionSettings: vi.fn(),
       installResults: vi.fn(),
       setMetadataOverrides: vi.fn(),
       readText: vi.fn(),
@@ -96,13 +100,42 @@ vi.mock('@tauri-apps/api/webview', () => ({
   })
 }))
 
-import { exportOptions } from '../../src/features/sessions/api'
-import { defaultParserConfig } from '../../src/features/sessions/parser-config'
 import { useSession } from '../../src/features/sessions/use-session'
 import { useSessions } from '../../src/features/sessions/use-sessions'
 import { HomePage } from '../../src/pages/home-page'
 import { SessionPage } from '../../src/pages/session-page'
 
+const settings: Settings = {
+  toc: {
+    mode: 'VBook',
+    chapter_marks: ['章', '回', '节', '集'],
+    volume_marks: ['部', '卷'],
+    max_title_len: 25,
+    volume_split: 'Titles',
+    chapters_per_volume: 50,
+    parts: 10
+  },
+  filters: [],
+  render: {
+    layout: 'SingleHtml',
+    language: 'zh-CN',
+    templates: {
+      stylesheet: null,
+      document: null,
+      section: null,
+      paragraph: null
+    }
+  }
+}
+const exportOptions: ExportOptions = {
+  render: {
+    layout: settings.render.layout,
+    templates: settings.render.templates
+  },
+  format: 'Epub',
+  language: settings.render.language,
+  identifier: null
+}
 const ok = <T,>(data: T): Outcome<T> => ({ status: 'ok', data })
 const receipt = <T,>(data: T, revision = 1): OperationResponse<T> => ({
   op: 1,
@@ -177,6 +210,7 @@ beforeEach(() => {
   subscriptions = []
   commands.getSession.mockImplementation(async () => backend)
   commands.listSessions.mockResolvedValue([])
+  commands.getSessionSettings.mockResolvedValue(settings)
   commands.readResults.mockImplementation(async () =>
     receipt(results, backend.workspace_status.Available!.revision)
   )
@@ -201,10 +235,7 @@ describe('session list', () => {
     await act(async () => {
       await result.current.create(' C:/book.txt ')
     })
-    expect(commands.createSession).toHaveBeenCalledWith('C:/book.txt', {
-      filters: [],
-      toc: defaultParserConfig
-    })
+    expect(commands.createSession).toHaveBeenCalledWith('C:/book.txt')
     await act(async () => {
       listing.resolve([])
     })
@@ -674,17 +705,20 @@ describe('session page', () => {
   it('previews a trial parse and installs it only when applied', async () => {
     await openPage(book)
     const reparsed = parsed([entry(5, '第1章 新开始', 10)])
+    commands.setSessionSettings.mockResolvedValue(receipt(1, 1))
     commands.parseSession.mockResolvedValue(receipt(reparsed.results, 1))
     commands.installResults.mockResolvedValue(receipt(2, 1))
 
     fireEvent.click(screen.getByRole('tab', { name: '解析规则' }))
-    fireEvent.click(screen.getByRole('radio', { name: '仅章节' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '仅章节' }))
     fireEvent.click(screen.getByRole('button', { name: '试解析' }))
     await screen.findByRole('heading', { name: '试解析目录' })
-    expect(commands.parseSession).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ Levels: expect.anything() })
-    )
+    // Changed rules become the session's settings before parsing with them.
+    expect(commands.setSessionSettings).toHaveBeenCalledWith(1, 1, {
+      ...settings,
+      toc: { ...settings.toc, mode: 'Chapters' }
+    })
+    expect(commands.parseSession).toHaveBeenCalledWith(1)
     expect(screen.getByText(/新目录 1 章，当前 1 卷 · 2 章/)).toBeTruthy()
     expect(commands.installResults).not.toHaveBeenCalled()
 
@@ -763,10 +797,7 @@ describe('home page session entry', () => {
       (await screen.findByText('选择文件')).closest('m3e-button')!
     )
     await screen.findByText('C:/book-1.txt')
-    expect(commands.createSession).toHaveBeenCalledWith('C:/book-1.txt', {
-      filters: [],
-      toc: defaultParserConfig
-    })
+    expect(commands.createSession).toHaveBeenCalledWith('C:/book-1.txt')
     expect(commands.openSessionWindow).not.toHaveBeenCalled()
 
     fireEvent.click(sessionItem(/^book-1\.txt$/))

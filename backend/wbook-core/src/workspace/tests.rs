@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::*;
 use crate::document::{TextEdit, TextView};
 use crate::export::{ExportStage, OutputFormat, RenderLayout, RenderOptions};
-use crate::parser::toc::{chapter_only, chapter_only_config};
+use crate::parser::toc::{chapter_only, chapter_only_config, TocMode, TocSettings};
 use crate::parser::MatchConfidence;
 use crate::toc::{Toc, TocRoot, TocSnapshot};
 
@@ -21,15 +21,21 @@ fn config() -> TocParserConfig {
     TocParserConfig::Levels(chapter_only_config())
 }
 
+fn settings() -> Settings {
+    let mut settings = Settings::default();
+    settings.toc.mode = TocMode::Chapters;
+    settings
+}
+
 fn fixture(text: &str, filters: usize) -> (tempfile::TempDir, Workspace) {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("book.txt");
     fs::write(&path, text).unwrap();
     let workspace = Workspace::new(
         Utf8PathBuf::from_path_buf(path).unwrap(),
-        ProcessingOptions {
+        Settings {
             filters: vec![FilterConfig::Ad; filters],
-            toc: config(),
+            ..settings()
         },
     )
     .unwrap();
@@ -68,7 +74,7 @@ fn saved_state(ws: &Workspace) -> serde_json::Value {
         "id": ws.id(),
         "revision": ws.revision(),
         "source": ws.source(),
-        "options": ws.state.options,
+        "settings": ws.state.settings,
         "filters_applied": ws.state.filters_applied,
         "document": ws.state.document.as_ref().map(|doc| serde_json::json!({
             "version": doc.view().version(),
@@ -84,16 +90,21 @@ fn creation_validates_config_without_reading_and_extraction_can_retry() {
     let (directory, mut ws) = fixture("body", 0);
     let source = ws.source().to_owned();
     fs::remove_file(&source).unwrap();
-    let other = Workspace::new(source.clone(), ws.state.options.clone()).unwrap();
+    let other = Workspace::new(source.clone(), ws.state.settings.clone()).unwrap();
     assert_ne!(ws.id(), other.id());
     assert_eq!(Uuid::from_bytes(ws.id().0).get_version_num(), 4);
     assert_eq!(other.status().document, DocumentStatus::Absent);
     assert!(matches!(
         Workspace::new(
             source.clone(),
-            ProcessingOptions {
+            Settings {
                 filters: vec![],
-                toc: TocParserConfig::SplitEvenly { parts: 0 },
+                toc: TocSettings {
+                    mode: TocMode::Split,
+                    parts: 0,
+                    ..TocSettings::default()
+                },
+                ..settings()
             }
         ),
         Err(WorkspaceError::InvalidConfig { source: _ })
@@ -1137,4 +1148,42 @@ fn close_returns_pending_and_new_cleanup_warnings() {
     drop(second_handle);
     fs::remove_dir_all(first.directory).unwrap();
     fs::remove_dir_all(second.directory).unwrap();
+}
+
+#[test]
+fn settings_changes_commit_close_the_preview_and_reject_invalid_values() {
+    let (_directory, mut ws) = fixture("第一章 Start\nBody", 0);
+    let ct = CancellationToken::new();
+    let cx = context(&ct);
+    let revision = ws.initialize(&cx).unwrap();
+    let preview = ws
+        .render_preview(&cx, revision, ws.settings().export_options())
+        .unwrap();
+
+    let unchanged = ws.settings().clone();
+    assert_eq!(ws.set_settings(&cx, revision, unchanged).unwrap(), revision);
+    assert!(preview.directory.exists());
+
+    let mut invalid = ws.settings().clone();
+    invalid.toc.chapter_marks.clear();
+    assert!(matches!(
+        ws.set_settings(&cx, revision, invalid),
+        Err(WorkspaceError::InvalidConfig { source: _ })
+    ));
+    assert!(matches!(
+        ws.set_settings(&cx, Revision(0), settings()),
+        Err(WorkspaceError::StaleRevision { .. })
+    ));
+    assert_eq!(ws.revision(), revision);
+    assert!(preview.directory.exists());
+
+    let mut changed = ws.settings().clone();
+    changed.render.layout = RenderLayout::SplitChapters;
+    let next = ws.set_settings(&cx, revision, changed.clone()).unwrap();
+    assert_eq!(next, Revision(revision.0 + 1));
+    assert_eq!(ws.settings(), &changed);
+    assert!(!preview.directory.exists());
+    assert!(ws.status().preview.is_none());
+    // Settings do not touch the installed results.
+    assert_eq!(ws.status().document, DocumentStatus::Current);
 }

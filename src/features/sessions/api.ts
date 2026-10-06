@@ -1,19 +1,4 @@
-import type { CommandError, ExportOptions, Outcome } from '../../bindings'
-
-export const exportOptions: ExportOptions = {
-  render: {
-    layout: 'SingleHtml',
-    templates: {
-      stylesheet: null,
-      document: null,
-      section: null,
-      paragraph: null
-    }
-  },
-  format: 'Epub',
-  language: 'zh-CN',
-  identifier: null
-}
+import type { CommandError, Outcome } from '../../bindings'
 
 export function unwrap<T>(result: Outcome<T>, stage = '命令'): T {
   if (result.status === 'error') {

@@ -120,11 +120,11 @@ mod tests {
     use tower::ServiceExt;
     use wbook_core::{
         document::{EditBatch, TextEdit},
-        export::{ExportOptions, OutputFormat, RenderLayout, RenderOptions},
-        parser::toc::TocParserConfig,
-        session::SessionHandle,
+        parser::toc::TocMode,
+        session::{OpError, SessionHandle},
+        settings::Settings,
         types::TextRange,
-        workspace::{PreviewInfo, ProcessingOptions, Revision},
+        workspace::{PreviewInfo, Revision},
         Params,
     };
 
@@ -148,16 +148,11 @@ mod tests {
                 data_dir: path.clone(),
                 config_dir: path,
             }));
-            let handle = core
-                .session_manager()
-                .create(
-                    source,
-                    ProcessingOptions {
-                        filters: vec![],
-                        toc: TocParserConfig::SplitEvenly { parts: 1 },
-                    },
-                )
-                .unwrap();
+            let mut settings = Settings::default();
+            settings.toc.mode = TocMode::Split;
+            settings.toc.parts = 1;
+            settings.render.language = "en".into();
+            let handle = core.session_manager().create(source, settings).unwrap();
             let revision = handle.initialize().unwrap().await.unwrap().outcome.unwrap();
             let router =
                 server::local_router(router(core.clone()), "127.0.0.1:1421".parse().unwrap());
@@ -170,9 +165,22 @@ mod tests {
             }
         }
 
-        async fn preview(&self, language: &str) -> PreviewInfo {
+        async fn set_language(&mut self, language: &str) -> Result<(), OpError> {
+            let mut settings = self.handle.settings().unwrap();
+            settings.render.language = language.into();
+            self.revision = self
+                .handle
+                .set_settings(self.revision, settings)
+                .unwrap()
+                .await
+                .unwrap()
+                .outcome?;
+            Ok(())
+        }
+
+        async fn preview(&self) -> PreviewInfo {
             self.handle
-                .render_preview(self.revision, options(language))
+                .render_preview(self.revision)
                 .unwrap()
                 .await
                 .unwrap()
@@ -207,22 +215,10 @@ mod tests {
         }
     }
 
-    fn options(language: &str) -> ExportOptions {
-        ExportOptions {
-            render: RenderOptions {
-                layout: RenderLayout::SingleHtml,
-                ..Default::default()
-            },
-            format: OutputFormat::Epub,
-            language: language.into(),
-            identifier: Some("urn:wbook:preview-route".into()),
-        }
-    }
-
     #[tokio::test]
     async fn serves_only_generated_resources_with_restrictive_headers() {
         let f = Fixture::new().await;
-        let preview = f.preview("en").await;
+        let preview = f.preview().await;
         for resource in [&preview.files[0], "nav.xhtml", "styles/book.css"] {
             let (status, headers, bytes) = f.get(&f.path(&preview, resource)).await;
             assert_eq!(status, StatusCode::OK);
@@ -286,29 +282,23 @@ mod tests {
 
     #[tokio::test]
     async fn replacement_edit_and_close_invalidate_urls_without_reviving_old_ids() {
-        let f = Fixture::new().await;
-        let first = f.preview("en").await;
+        let mut f = Fixture::new().await;
+        let first = f.preview().await;
         let first_url = f.path(&first, &first.files[0]);
-        assert_eq!(f.preview("en").await.id, first.id);
-        let second = f.preview("fr").await;
-        assert_eq!(second.revision, first.revision);
-        assert_ne!(second.id, first.id);
+        assert_eq!(f.preview().await.id, first.id);
+        f.set_language("fr").await.unwrap();
         assert_eq!(f.get(&first_url).await.0, StatusCode::NOT_FOUND);
-        let third = f.preview("en").await;
+        let second = f.preview().await;
+        assert_ne!(second.id, first.id);
+        f.set_language("en").await.unwrap();
+        let third = f.preview().await;
         assert_ne!(third.id, first.id);
         assert_eq!(f.get(&first_url).await.0, StatusCode::NOT_FOUND);
         assert_eq!(
             f.get(&f.path(&second, &second.files[0])).await.0,
             StatusCode::NOT_FOUND
         );
-        assert!(f
-            .handle
-            .render_preview(f.revision, options("bad_language"))
-            .unwrap()
-            .await
-            .unwrap()
-            .outcome
-            .is_err());
+        assert!(f.set_language("bad_language").await.is_err());
         let third_url = f.path(&third, &third.files[0]);
         assert_eq!(f.get(&third_url).await.0, StatusCode::OK);
         let version = match f.handle.snapshot().workspace_status {
@@ -343,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn closing_a_session_revokes_its_active_preview() {
         let f = Fixture::new().await;
-        let preview = f.preview("en").await;
+        let preview = f.preview().await;
         let url = f.path(&preview, &preview.files[0]);
         assert_eq!(f.get(&url).await.0, StatusCode::OK);
         f.handle.close().await;
@@ -356,7 +346,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_an_allowed_resource_symlinked_outside_the_preview() {
         let f = Fixture::new().await;
-        let preview = f.preview("en").await;
+        let preview = f.preview().await;
         let resource = &preview.files[0];
         let target = f._directory.path().join("outside.xhtml");
         std::fs::write(&target, "outside").unwrap();

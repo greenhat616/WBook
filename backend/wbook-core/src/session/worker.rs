@@ -60,13 +60,15 @@ impl SessionHandle {
             let completed = joined.map(|(mut workspace, outcome)| {
                 let status = workspace.status();
                 let warnings = workspace.take_warnings();
-                (workspace, status, warnings, outcome)
+                let settings = workspace.settings().clone();
+                (workspace, status, warnings, settings, outcome)
             });
             let mut inner = shared.inner.lock().unwrap();
             let (revision, outcome, warnings, availability) = match completed {
-                Ok((workspace, status, warnings, outcome)) => {
+                Ok((workspace, status, warnings, settings, outcome)) => {
                     let revision = status.revision;
                     inner.slot = Slot::Idle(workspace);
+                    inner.settings = settings;
                     (
                         revision,
                         outcome.map_err(OpError::from),

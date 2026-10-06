@@ -4,25 +4,22 @@ use tokio_util::sync::CancellationToken;
 use wbook_core::{
     extractor::ExtractorError,
     parser::{
-        toc::{HeadingRuleConfig, LineRule, PatternRuleConfig, TocConfigError, TocParserConfig},
+        toc::{HeadingRuleConfig, LineRule, PatternRuleConfig, TocConfigError, TocMode},
         ParserError,
     },
     session::OpError,
-    workspace::{OpContext, ProcessingOptions, Workspace, WorkspaceError},
+    settings::{Settings, SettingsError},
+    workspace::{OpContext, Workspace, WorkspaceError},
 };
 
 #[test]
 fn missing_input_keeps_io_source_through_workspace_and_operation_errors() {
     let directory = tempfile::tempdir().unwrap();
     let source = camino::Utf8PathBuf::from_path_buf(directory.path().join("missing.txt")).unwrap();
-    let mut workspace = Workspace::new(
-        source,
-        ProcessingOptions {
-            filters: vec![],
-            toc: TocParserConfig::SplitEvenly { parts: 1 },
-        },
-    )
-    .unwrap();
+    let mut settings = Settings::default();
+    settings.toc.mode = TocMode::Split;
+    settings.toc.parts = 1;
+    let mut workspace = Workspace::new(source, settings).unwrap();
     let error = OpError::from(
         workspace
             .initialize(&OpContext {
@@ -66,9 +63,11 @@ fn invalid_toc_pattern_keeps_its_pattern_context_and_regex_source() {
     assert!(matches!(&error, TocConfigError::Regex { pattern: actual, .. } if actual == pattern));
     assert!(error.to_string().contains("invalid TOC pattern \"[\""));
     assert!(error.source().unwrap().is::<regex::Error>());
-    let workspace = WorkspaceError::from(error);
-    assert!(workspace.source().unwrap().is::<TocConfigError>());
-    assert!(workspace
+    let workspace = WorkspaceError::from(SettingsError::from(error));
+    let settings = workspace.source().unwrap();
+    assert!(settings.is::<SettingsError>());
+    assert!(settings.source().unwrap().is::<TocConfigError>());
+    assert!(settings
         .source()
         .unwrap()
         .source()

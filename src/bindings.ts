@@ -6,21 +6,27 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	getPort: () => __TAURI_INVOKE<number>("get_port"),
+	getSettings: () => __TAURI_INVOKE<StoredSettings>("get_settings"),
+	builtinTemplates: () => __TAURI_INVOKE<TemplateOverrides>("builtin_templates"),
 	listSessions: () => __TAURI_INVOKE<SessionSnapshot[]>("list_sessions"),
 	getSession: (sessionId: SessionId) => __TAURI_INVOKE<SessionSnapshot>("get_session", { sessionId }),
+	getSessionSettings: (sessionId: SessionId) => __TAURI_INVOKE<Settings>("get_session_settings", { sessionId }),
 	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => __TAURI_INVOKE<OperationResponse<string>>("read_text", { sessionId, version, range }),
 	readResults: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<WorkspaceResults_Serialize>>("read_results", { sessionId }),
 	openSessionWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_window", { sessionId }),
 	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
-	createSession: (source: string, options: ProcessingOptions) => __TAURI_INVOKE<SessionSnapshot>("create_session", { source, options }),
+	saveSettings: (settings: Settings) => __TAURI_INVOKE<StoredSettings>("save_settings", { settings }),
+	/**  The session starts from a copy of the current global settings. */
+	createSession: (source: string) => __TAURI_INVOKE<SessionSnapshot>("create_session", { source }),
 	closeSession: (sessionId: SessionId) => __TAURI_INVOKE<ClosedSession>("close_session", { sessionId }),
 	initializeSession: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<Revision>>("initialize_session", { sessionId }),
-	parseSession: (sessionId: SessionId, config: TocParserConfig) => __TAURI_INVOKE<OperationResponse<ParsedResults_Serialize>>("parse_session", { sessionId, config }),
+	setSessionSettings: (sessionId: SessionId, expected: Revision, settings: Settings) => __TAURI_INVOKE<OperationResponse<Revision>>("set_session_settings", { sessionId, expected, settings }),
+	parseSession: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<ParsedResults_Serialize>>("parse_session", { sessionId }),
 	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults_Deserialize) => __TAURI_INVOKE<OperationResponse<Revision>>("install_results", { sessionId, expected, results }),
 	applyEdits: (sessionId: SessionId, expected: Revision, batch: EditBatch) => __TAURI_INVOKE<OperationResponse<Revision>>("apply_edits", { sessionId, expected, batch }),
 	setMetadataOverrides: (sessionId: SessionId, expected: Revision, overrides: Metadata) => __TAURI_INVOKE<OperationResponse<Revision>>("set_metadata_overrides", { sessionId, expected, overrides }),
-	renderPreview: (sessionId: SessionId, expected: Revision, options: ExportOptions) => __TAURI_INVOKE<OperationResponse<PreviewInfo>>("render_preview", { sessionId, expected, options }),
-	exportEpub: (sessionId: SessionId, expected: Revision, options: ExportOptions, destination: string) => __TAURI_INVOKE<OperationResponse<ExportedBook>>("export_epub", { sessionId, expected, options, destination }),
+	renderPreview: (sessionId: SessionId, expected: Revision) => __TAURI_INVOKE<OperationResponse<PreviewInfo>>("render_preview", { sessionId, expected }),
+	exportEpub: (sessionId: SessionId, expected: Revision, destination: string) => __TAURI_INVOKE<OperationResponse<ExportedBook>>("export_epub", { sessionId, expected, destination }),
 	cancelOperation: (sessionId: SessionId, operationId: OperationId) => __TAURI_INVOKE<CancelReply>("cancel_operation", { sessionId, operationId }),
 };
 
@@ -45,10 +51,6 @@ export type Availability = ({ Available: WorkspaceStatus }) & { Lost?: never } |
 } }) & { Available?: never };
 
 export type CancelReply = "Requested" | "NotActive";
-
-export type ChapterMode = ({ Rules: HeadingRuleConfig[] }) & { EndMarker?: never } | ({ EndMarker: {
-	marker: string,
-} }) & { Rules?: never };
 
 export type CleanupWarning = {
 	path: string,
@@ -103,13 +105,6 @@ export type FilterProgress = {
 	total: number,
 };
 
-export type HeadingRuleConfig = ({ Simple: SimpleRuleConfig }) & { Regex?: never } | ({ Regex: PatternRuleConfig }) & { Simple?: never };
-
-export type LevelRulesConfig = {
-	level: number,
-	rules: HeadingRuleConfig[],
-};
-
 export type LifecycleState = "Open" | "Closing" | "Closed";
 
 export type Metadata = {
@@ -127,9 +122,7 @@ export type Metadata = {
  */
 export type NodeId = number;
 
-export type NumeralStyle = "Arabic" | "Chinese" | "Mixed";
-
-export type OpKind = "Initialize" | "Parse" | "Install" | "Edit" | "SetMetadataOverrides" | "ReadText" | "ReadResults" | "RenderPreview" | "ExportEpub";
+export type OpKind = "Initialize" | "Parse" | "Install" | "Edit" | "SetMetadataOverrides" | "SetSettings" | "ReadText" | "ReadResults" | "RenderPreview" | "ExportEpub";
 
 export type OperationId = number;
 
@@ -166,11 +159,6 @@ export type ParsedResults_Serialize = {
 	metadata: Metadata,
 };
 
-export type PatternRuleConfig = {
-	pattern: string,
-	title_group: number | null,
-};
-
 export type Phase = "Extracting" | { Filtering: {
 	index: number,
 	total: number,
@@ -184,15 +172,16 @@ export type PreviewInfo = {
 	files: string[],
 };
 
-export type ProcessingOptions = {
-	filters: FilterConfig[],
-	toc: TocParserConfig,
-};
-
 export type RenderLayout = "SplitChapters" | "Paged" | "SingleHtml";
 
 export type RenderOptions = {
 	layout: RenderLayout,
+	templates: TemplateOverrides,
+};
+
+export type RenderSettings = {
+	layout: RenderLayout,
+	language: string,
 	templates: TemplateOverrides,
 };
 
@@ -221,14 +210,20 @@ export type SessionSnapshot = {
 	last: OperationSummary | null,
 };
 
-export type SimpleRuleConfig = {
-	allow_leading_space: boolean,
-	prefixes: string[],
-	numeral: NumeralStyle,
-	suffixes: string[],
-	min_numeral_len: number,
-	max_numeral_len: number | null,
-	max_title_len: number,
+export type Settings = {
+	toc: TocSettings,
+	/**  Filters run once, when the session is initialized. */
+	filters: FilterConfig[],
+	render: RenderSettings,
+};
+
+export type StoredSettings = {
+	settings: Settings,
+	/**
+	 *  Why the settings file could not be used. The defaults stand in until
+	 *  the next save replaces the file.
+	 */
+	problem: string | null,
 };
 
 /**
@@ -273,9 +268,13 @@ export type TocEntry_Serialize = {
 	children: TocEntry_Serialize[],
 };
 
-export type TocParserConfig = ({ Levels: TocRulesConfig }) & { SplitEvenly?: never; VBook?: never } | ({ VBook: VBookConfig }) & { Levels?: never; SplitEvenly?: never } | ({ SplitEvenly: {
-	parts: number,
-} }) & { Levels?: never; VBook?: never };
+export type TocMode =
+/**  Chapters grouped into volumes by volume headings or by count. */
+"VBook" | "Chapters" |
+/**  Two levels: volume headings above chapter headings. */
+"Volumes" |
+/**  No headings; split the text evenly. */
+"Split";
 
 export type TocRangeKind = "Heading" | "Body" | "Container" | "Unknown";
 
@@ -285,8 +284,22 @@ export type TocRoot_Deserialize = TocEntry_Deserialize[];
 
 export type TocRoot_Serialize = TocEntry_Serialize[];
 
-export type TocRulesConfig = {
-	levels: LevelRulesConfig[],
+/**
+ *  The user-facing parser options; [`TocSettings::to_config`] expands them
+ *  into the general rule configuration.
+ */
+export type TocSettings = {
+	mode: TocMode,
+	chapter_marks: string[],
+	volume_marks: string[],
+	max_title_len: number,
+	volume_split: VolumeSplit,
+	/**
+	 *  In VBook mode, also sizes the volumes for chapters before the first
+	 *  volume heading.
+	 */
+	chapters_per_volume: number,
+	parts: number,
 };
 
 export type TreeNodeMeta = TreeNodeMeta_Serialize | TreeNodeMeta_Deserialize;
@@ -311,19 +324,7 @@ export type TreeNodeMeta_Serialize = {
 	range: TextRange | null,
 };
 
-export type VBookConfig = {
-	chapters: ChapterMode,
-	volumes: VolumeMode,
-};
-
-export type VolumeMode = "None" | ({ Normal: {
-	rules: HeadingRuleConfig[],
-	fallback_chapters_per_volume: number | null,
-} }) & { Forced?: never; FromChapterTitles?: never } | ({ FromChapterTitles: {
-	rules: HeadingRuleConfig[],
-} }) & { Forced?: never; Normal?: never } | ({ Forced: {
-	chapters_per_volume: number,
-} }) & { FromChapterTitles?: never; Normal?: never };
+export type VolumeSplit = "Titles" | "Forced" | "None";
 
 export type WorkspaceId = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 
@@ -378,38 +379,48 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 
 export const queries = {
 	getPort: (...args: Parameters<typeof commands.getPort>) => queryOptions({ queryKey: ["getPort", ...args], queryFn: () => commands.getPort(...args) }),
+	getSettings: (...args: Parameters<typeof commands.getSettings>) => queryOptions({ queryKey: ["getSettings", ...args], queryFn: () => commands.getSettings(...args) }),
+	builtinTemplates: (...args: Parameters<typeof commands.builtinTemplates>) => queryOptions({ queryKey: ["builtinTemplates", ...args], queryFn: () => commands.builtinTemplates(...args) }),
 	listSessions: (...args: Parameters<typeof commands.listSessions>) => queryOptions({ queryKey: ["listSessions", ...args], queryFn: () => commands.listSessions(...args) }),
 	getSession: (...args: Parameters<typeof commands.getSession>) => queryOptions({ queryKey: ["getSession", ...args], queryFn: () => commands.getSession(...args) }),
+	getSessionSettings: (...args: Parameters<typeof commands.getSessionSettings>) => queryOptions({ queryKey: ["getSessionSettings", ...args], queryFn: () => commands.getSessionSettings(...args) }),
 	readText: (...args: Parameters<typeof commands.readText>) => queryOptions({ queryKey: ["readText", ...args], queryFn: () => commands.readText(...args) }),
 	readResults: (...args: Parameters<typeof commands.readResults>) => queryOptions({ queryKey: ["readResults", ...args], queryFn: () => commands.readResults(...args) }),
 };
 export const queryKeys = {
 	getPort: (...args: Partial<Parameters<typeof commands.getPort>>) => ["getPort", ...args],
+	getSettings: (...args: Partial<Parameters<typeof commands.getSettings>>) => ["getSettings", ...args],
+	builtinTemplates: (...args: Partial<Parameters<typeof commands.builtinTemplates>>) => ["builtinTemplates", ...args],
 	listSessions: (...args: Partial<Parameters<typeof commands.listSessions>>) => ["listSessions", ...args],
 	getSession: (...args: Partial<Parameters<typeof commands.getSession>>) => ["getSession", ...args],
+	getSessionSettings: (...args: Partial<Parameters<typeof commands.getSessionSettings>>) => ["getSessionSettings", ...args],
 	readText: (...args: Partial<Parameters<typeof commands.readText>>) => ["readText", ...args],
 	readResults: (...args: Partial<Parameters<typeof commands.readResults>>) => ["readResults", ...args],
 };
 export const mutations = {
 	openSessionWindow: () => mutationOptions({ mutationKey: ["openSessionWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionWindow>[0] }) => commands.openSessionWindow(input.sessionId) }),
 	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
-	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0]; options: Parameters<typeof commands.createSession>[1] }) => commands.createSession(input.source, input.options) }),
+	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { settings: Parameters<typeof commands.saveSettings>[0] }) => commands.saveSettings(input.settings) }),
+	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0] }) => commands.createSession(input.source) }),
 	closeSession: () => mutationOptions({ mutationKey: ["closeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.closeSession>[0] }) => commands.closeSession(input.sessionId) }),
 	initializeSession: () => mutationOptions({ mutationKey: ["initializeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.initializeSession>[0] }) => commands.initializeSession(input.sessionId) }),
-	parseSession: () => mutationOptions({ mutationKey: ["parseSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.parseSession>[0]; config: Parameters<typeof commands.parseSession>[1] }) => commands.parseSession(input.sessionId, input.config) }),
+	setSessionSettings: () => mutationOptions({ mutationKey: ["setSessionSettings"], mutationFn: (input: { sessionId: Parameters<typeof commands.setSessionSettings>[0]; expected: Parameters<typeof commands.setSessionSettings>[1]; settings: Parameters<typeof commands.setSessionSettings>[2] }) => commands.setSessionSettings(input.sessionId, input.expected, input.settings) }),
+	parseSession: () => mutationOptions({ mutationKey: ["parseSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.parseSession>[0] }) => commands.parseSession(input.sessionId) }),
 	installResults: () => mutationOptions({ mutationKey: ["installResults"], mutationFn: (input: { sessionId: Parameters<typeof commands.installResults>[0]; expected: Parameters<typeof commands.installResults>[1]; results: Parameters<typeof commands.installResults>[2] }) => commands.installResults(input.sessionId, input.expected, input.results) }),
 	applyEdits: () => mutationOptions({ mutationKey: ["applyEdits"], mutationFn: (input: { sessionId: Parameters<typeof commands.applyEdits>[0]; expected: Parameters<typeof commands.applyEdits>[1]; batch: Parameters<typeof commands.applyEdits>[2] }) => commands.applyEdits(input.sessionId, input.expected, input.batch) }),
 	setMetadataOverrides: () => mutationOptions({ mutationKey: ["setMetadataOverrides"], mutationFn: (input: { sessionId: Parameters<typeof commands.setMetadataOverrides>[0]; expected: Parameters<typeof commands.setMetadataOverrides>[1]; overrides: Parameters<typeof commands.setMetadataOverrides>[2] }) => commands.setMetadataOverrides(input.sessionId, input.expected, input.overrides) }),
-	renderPreview: () => mutationOptions({ mutationKey: ["renderPreview"], mutationFn: (input: { sessionId: Parameters<typeof commands.renderPreview>[0]; expected: Parameters<typeof commands.renderPreview>[1]; options: Parameters<typeof commands.renderPreview>[2] }) => commands.renderPreview(input.sessionId, input.expected, input.options) }),
-	exportEpub: () => mutationOptions({ mutationKey: ["exportEpub"], mutationFn: (input: { sessionId: Parameters<typeof commands.exportEpub>[0]; expected: Parameters<typeof commands.exportEpub>[1]; options: Parameters<typeof commands.exportEpub>[2]; destination: Parameters<typeof commands.exportEpub>[3] }) => commands.exportEpub(input.sessionId, input.expected, input.options, input.destination) }),
+	renderPreview: () => mutationOptions({ mutationKey: ["renderPreview"], mutationFn: (input: { sessionId: Parameters<typeof commands.renderPreview>[0]; expected: Parameters<typeof commands.renderPreview>[1] }) => commands.renderPreview(input.sessionId, input.expected) }),
+	exportEpub: () => mutationOptions({ mutationKey: ["exportEpub"], mutationFn: (input: { sessionId: Parameters<typeof commands.exportEpub>[0]; expected: Parameters<typeof commands.exportEpub>[1]; destination: Parameters<typeof commands.exportEpub>[2] }) => commands.exportEpub(input.sessionId, input.expected, input.destination) }),
 	cancelOperation: () => mutationOptions({ mutationKey: ["cancelOperation"], mutationFn: (input: { sessionId: Parameters<typeof commands.cancelOperation>[0]; operationId: Parameters<typeof commands.cancelOperation>[1] }) => commands.cancelOperation(input.sessionId, input.operationId) }),
 };
 export const mutationKeys = {
 	openSessionWindow: () => ["openSessionWindow"],
 	windowReady: () => ["windowReady"],
+	saveSettings: () => ["saveSettings"],
 	createSession: () => ["createSession"],
 	closeSession: () => ["closeSession"],
 	initializeSession: () => ["initializeSession"],
+	setSessionSettings: () => ["setSessionSettings"],
 	parseSession: () => ["parseSession"],
 	installResults: () => ["installResults"],
 	applyEdits: () => ["applyEdits"],

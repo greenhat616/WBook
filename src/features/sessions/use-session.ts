@@ -9,16 +9,19 @@ import {
   type ParsedResults_Serialize,
   type PreviewInfo,
   type SessionSnapshot,
+  type Settings,
   type TextRange,
-  type TocParserConfig,
+  type TocSettings,
   type WorkspaceResults
 } from '../../bindings'
 import { subscribeSession } from '../../bridge'
-import { errorMessage, exportOptions, unwrap } from './api'
+import { errorMessage, unwrap } from './api'
+import { sameToc } from './parser-config'
 
 type State = {
   snapshot: SessionSnapshot | null
   results: WorkspaceResults | null
+  settings: Settings | null
   preview: PreviewInfo | null
   // A parse result awaiting review; installing it replaces the current TOC.
   draft: ParsedResults_Serialize | null
@@ -39,6 +42,9 @@ type Context = {
   closed: boolean
   snapshot: SessionSnapshot | null
   resultsRevision: number | null
+  settings: Settings | null
+  // The revision whose settings were last requested.
+  settingsRevision: number | null
   controller: AbortController
 }
 
@@ -54,6 +60,7 @@ const sameVersion = (
 const initialState = (): State => ({
   snapshot: null,
   results: null,
+  settings: null,
   preview: null,
   draft: null,
   error: null,
@@ -85,6 +92,24 @@ export function useSession(sessionId: number) {
     []
   )
 
+  // Settings stay readable while an operation runs, so they are fetched
+  // whenever the revision moves instead of waiting for the session to idle.
+  const loadSettings = useCallback(
+    async (current: Context, revision: number) => {
+      current.settingsRevision = revision
+      try {
+        const settings = await commands.getSessionSettings(current.id)
+        if (current.alive && current.settingsRevision === revision) {
+          current.settings = settings
+          patch(current, { settings })
+        }
+      } catch {
+        // A closing or lost session rejects the read; its snapshot says so.
+      }
+    },
+    [patch]
+  )
+
   const applySnapshot = useCallback(
     (current: Context, snapshot: SessionSnapshot) => {
       if (
@@ -99,6 +124,8 @@ export function useSession(sessionId: number) {
           ? snapshot.workspace_status.Available
           : undefined
       if (snapshot.lifecycle === 'Closed') current.closed = true
+      if (available && available.revision !== current.settingsRevision)
+        void loadSettings(current, available.revision)
       setState((state) => ({
         ...state,
         snapshot,
@@ -124,7 +151,7 @@ export function useSession(sessionId: number) {
           snapshot.lifecycle === 'Closed' ? 'closed' : state.connection
       }))
     },
-    []
+    [loadSettings]
   )
 
   const read = useCallback(
@@ -226,6 +253,8 @@ export function useSession(sessionId: number) {
       closed: false,
       snapshot: null,
       resultsRevision: null,
+      settings: null,
+      settingsRevision: null,
       controller: new AbortController()
     }
     context.current = current
@@ -295,8 +324,7 @@ export function useSession(sessionId: number) {
         (current) =>
           commands.renderPreview(
             current.id,
-            current.snapshot!.workspace_status.Available!.revision,
-            exportOptions
+            current.snapshot!.workspace_status.Available!.revision
           ),
         (current, preview) => {
           const available = current.snapshot?.workspace_status.Available
@@ -319,7 +347,6 @@ export function useSession(sessionId: number) {
           return commands.exportEpub(
             current.id,
             current.snapshot!.workspace_status.Available!.revision,
-            exportOptions,
             destination.trim()
           )
         },
@@ -331,10 +358,25 @@ export function useSession(sessionId: number) {
     [operate, patch, warnings]
   )
 
+  // Parsing always uses the session's saved rules, so changed rules are
+  // saved first.
   const parse = useCallback(
-    (config: TocParserConfig) =>
+    (toc: TocSettings) =>
       operate(
-        (current) => commands.parseSession(current.id, config),
+        async (current) => {
+          const settings = current.settings
+          if (!settings) throw new Error('本书设置尚未加载，请稍后重试')
+          if (!sameToc(settings.toc, toc)) {
+            const saved = await commands.setSessionSettings(
+              current.id,
+              current.snapshot!.workspace_status.Available!.revision,
+              { ...settings, toc }
+            )
+            warnings(current, saved.warnings)
+            unwrap(saved.outcome, '保存解析规则')
+          }
+          return commands.parseSession(current.id)
+        },
         (current, draft) => {
           const available = current.snapshot?.workspace_status.Available
           if (sameVersion(available?.document_version, draft.version)) {
@@ -342,7 +384,7 @@ export function useSession(sessionId: number) {
           }
         }
       ),
-    [operate, patch]
+    [operate, patch, warnings]
   )
 
   const install = useCallback(
