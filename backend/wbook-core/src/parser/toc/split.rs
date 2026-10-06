@@ -14,9 +14,9 @@ pub struct SplitEvenlyParser {
 impl SplitEvenlyParser {
     pub fn new(parts: usize) -> Result<Self, TocConfigError> {
         if parts == 0 {
-            return Err(TocConfigError::Invalid(
-                "split parts must be positive".into(),
-            ));
+            return Err(TocConfigError::Invalid {
+                message: "split parts must be positive".into(),
+            });
         }
         Ok(Self { parts })
     }

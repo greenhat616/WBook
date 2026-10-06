@@ -44,33 +44,33 @@ pub struct EditBatch {
     pub edits: Vec<TextEdit>,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum DocumentError {
-    #[error("document operation cancelled")]
+    #[snafu(display("document operation cancelled"))]
     Cancelled,
-    #[error("the version belongs to another document")]
+    #[snafu(display("the version belongs to another document"))]
     WrongDocument,
-    #[error("stale document revision: expected {expected}, got {actual}")]
+    #[snafu(display("stale document revision: expected {expected}, got {actual}"))]
     StaleVersion { expected: u64, actual: u64 },
-    #[error("inverted range {range:?} at edit {index:?}")]
+    #[snafu(display("inverted range {range:?} at edit {index:?}"))]
     Inverted {
         index: Option<usize>,
         range: TextRange,
     },
-    #[error("range {range:?} exceeds document length {len} at edit {index:?}")]
+    #[snafu(display("range {range:?} exceeds document length {len} at edit {index:?}"))]
     OutOfBounds {
         index: Option<usize>,
         range: TextRange,
         len: u64,
     },
-    #[error("offset {offset} is not a UTF-8 boundary at edit {index:?}")]
+    #[snafu(display("offset {offset} is not a UTF-8 boundary at edit {index:?}"))]
     InvalidBoundary { index: Option<usize>, offset: u64 },
-    #[error("edits {first} and {second} conflict")]
+    #[snafu(display("edits {first} and {second} conflict"))]
     Conflict { first: usize, second: usize },
-    #[error("document length or revision cannot be represented")]
+    #[snafu(display("document length or revision cannot be represented"))]
     Overflow,
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
+    #[snafu(context(false), display("{source}"))]
+    Io { source: std::io::Error },
 }
 
 pub(crate) fn check_cancelled(ct: &CancellationToken) -> Result<(), DocumentError> {

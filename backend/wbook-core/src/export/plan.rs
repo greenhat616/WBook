@@ -34,7 +34,9 @@ pub(super) struct BookPlan {
 }
 
 pub(super) fn invalid(message: impl Into<String>) -> ExportFailure {
-    ExportFailure::InvalidInput(message.into())
+    ExportFailure::InvalidInput {
+        message: message.into(),
+    }
 }
 
 pub(super) fn xml_text(ct: &CancellationToken, text: &str, location: &str) -> Result<()> {

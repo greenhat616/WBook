@@ -18,13 +18,13 @@ pub struct ParsedResults {
     pub metadata: Metadata,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum PipelineError {
-    #[error(transparent)]
-    Document(#[from] DocumentError),
-    #[error(transparent)]
-    Parser(#[from] ParserError),
-    #[error("no parsed results have been installed")]
+    #[snafu(context(false), display("{source}"))]
+    Document { source: DocumentError },
+    #[snafu(context(false), display("{source}"))]
+    Parser { source: ParserError },
+    #[snafu(display("no parsed results have been installed"))]
     MissingResults,
 }
 

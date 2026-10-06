@@ -1,18 +1,18 @@
+use snafu::Snafu;
 use specta::Type;
-use thiserror::Error;
 
 use super::NodeId;
 
-#[derive(Error, Debug, Type)]
+#[derive(Snafu, Debug, Type)]
 pub enum TocError {
-    #[error("the parent id: `{0}` is not exist in container")]
-    NodeParentNotFound(NodeId),
+    #[snafu(display("the parent id: `{node_id}` is not exist in container"))]
+    NodeParentNotFound { node_id: NodeId },
 
-    #[error("invalid toc snapshot: {0}")]
-    InvalidSnapshot(String),
+    #[snafu(display("invalid toc snapshot: {message}"))]
+    InvalidSnapshot { message: String },
 
-    #[error(transparent)]
+    #[snafu(context(false), display("{source}"))]
     // anyhow::Error is internal-only and has no specta/serde representation.
     #[specta(skip)]
-    Other(#[from] anyhow::Error),
+    Other { source: anyhow::Error },
 }

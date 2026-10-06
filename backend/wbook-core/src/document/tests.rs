@@ -338,7 +338,7 @@ fn empty_and_long_reads_honor_cancellation_and_writer_failure() {
             &mut writer,
         );
         if fail {
-            assert!(matches!(result, Err(DocumentError::Io(_))));
+            assert!(matches!(result, Err(DocumentError::Io { source: _ })));
         } else {
             assert!(matches!(result, Err(DocumentError::Cancelled)));
         }

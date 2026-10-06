@@ -9,14 +9,14 @@ mod simple;
 
 pub use simple::SimpleExtractor;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, snafu::Snafu)]
 pub enum ExtractorError {
-    #[error("The task is shutting down")]
+    #[snafu(display("The task is shutting down"))]
     Shutdown,
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    #[snafu(context(false), display("{source}"))]
+    Io { source: std::io::Error },
+    #[snafu(context(false), display("{source}"))]
+    Other { source: anyhow::Error },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]

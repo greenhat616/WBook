@@ -69,7 +69,7 @@ impl SessionHandle {
                     inner.slot = Slot::Idle(workspace);
                     (
                         revision,
-                        outcome.map_err(OpError::Workspace),
+                        outcome.map_err(OpError::from),
                         warnings,
                         Availability::Available(status),
                     )
@@ -95,8 +95,10 @@ impl SessionHandle {
             };
             let category = match &outcome {
                 Ok(_) => ResultCategory::Succeeded,
-                Err(OpError::Workspace(error)) if error.is_cancelled() => ResultCategory::Cancelled,
-                Err(OpError::Workspace(_)) => ResultCategory::Failed,
+                Err(OpError::Workspace { source: error }) if error.is_cancelled() => {
+                    ResultCategory::Cancelled
+                }
+                Err(OpError::Workspace { source: _ }) => ResultCategory::Failed,
                 Err(OpError::Panicked) => ResultCategory::Panicked,
             };
             inner.last = Some(OperationSummary {

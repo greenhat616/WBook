@@ -9,12 +9,14 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use snafu::ResultExt;
 use wbook_core::Wbook;
 
 use crate::commands::{
     self,
     dto::{CommandError, ErrorKind},
 };
+use crate::errors::DecodeRequestSnafu;
 
 #[derive(Deserialize)]
 struct Request {
@@ -39,8 +41,7 @@ async fn invoke(
     State(app): State<Arc<Wbook>>,
     request: Result<Json<Request>, JsonRejection>,
 ) -> Result<Json<Value>, CommandError> {
-    let Json(request) =
-        request.map_err(|error| CommandError::new(ErrorKind::InvalidParams, error.body_text()))?;
+    let Json(request) = request.context(DecodeRequestSnafu)?;
     if !request.params.is_object() {
         return Err(CommandError::new(
             ErrorKind::InvalidParams,
