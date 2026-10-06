@@ -166,6 +166,28 @@ fn generated_names_do_not_shadow_input_types_or_arguments() {
 }
 
 #[test]
+fn desktop_commands_may_be_generic_over_the_runtime() {
+    let module = expanded(
+        r#"
+        mod commands {
+            #[desktop_only]
+            pub async fn show<T: tauri::Runtime>(window: tauri::WebviewWindow<T>) -> Result<(), CommandError> {
+                Ok(())
+            }
+        }
+    "#,
+    );
+    let wrapper = function(nested(&module, "__wbook_tauri_commands"), "show");
+    let generics = &wrapper.sig.generics;
+    assert_eq!(quote!(#generics).to_string(), "< T : tauri :: Runtime >");
+    let builder = function(&module, "builder");
+    let body = &builder.block;
+    assert!(quote!(#body)
+        .to_string()
+        .contains("collect_commands ! [__wbook_tauri_commands :: show :: < :: tauri :: Wry >]"));
+}
+
+#[test]
 fn unsupported_signatures_produce_targeted_diagnostics() {
     for (function, message) in [
         (
@@ -186,6 +208,30 @@ fn unsupported_signatures_produce_targeted_diagnostics() {
         ),
         (
             "fn read<T>(app: &Wbook, text: T) -> Result<(), CommandError> { Ok(()) }",
+            "generic commands",
+        ),
+        (
+            "fn read<R: tauri::Runtime>(app: &Wbook) -> Result<(), CommandError> { Ok(()) }",
+            "generic commands",
+        ),
+        (
+            "#[desktop_only] fn show<T>(value: T) {}",
+            "generic commands",
+        ),
+        (
+            "#[desktop_only] fn show<R: Runtime, S: Runtime>(app: AppHandle<R>) {}",
+            "generic commands",
+        ),
+        (
+            "#[desktop_only] fn show<R: Runtime + Send>(app: AppHandle<R>) {}",
+            "generic commands",
+        ),
+        (
+            "#[desktop_only] fn show<R>(app: AppHandle<R>) where R: Runtime {}",
+            "generic commands",
+        ),
+        (
+            "#[desktop_only] fn show<'a>(window: &'a str) {}",
             "generic commands",
         ),
         (

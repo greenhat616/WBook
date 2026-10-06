@@ -50,7 +50,6 @@ pub fn run() {
             app.manage(runtime.core.clone());
             app.manage(Port(runtime.port));
             app.manage(runtime);
-            app.manage(windows::SessionWindows::new(app.handle().clone()));
             Ok(())
         })
         .plugin(tauri_plugin_sentry::init(&client))

@@ -2,8 +2,8 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenTree};
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, visit::Visit, FnArg, GenericArgument, Item, ItemFn, ItemMod, Pat,
-    PathArguments, ReturnType, Type,
+    parse_macro_input, visit::Visit, FnArg, GenericArgument, GenericParam, Generics, Item, ItemFn,
+    ItemMod, Pat, PathArguments, ReturnType, Type, TypeParamBound,
 };
 
 #[proc_macro_attribute]
@@ -37,16 +37,26 @@ fn expand(mut module: ItemMod) -> syn::Result<TokenStream2> {
         match item {
             Item::Use(item) => declarations.push(quote!(#item)),
             Item::Fn(mut function) => {
-                validate_function(&function)?;
+                let desktop_only = take_marker(&mut function, "desktop_only")?;
+                let query = take_marker(&mut function, "query")?;
+                let generic = validate_function(&function, desktop_only)?;
                 let name = function.sig.ident.clone();
                 if commands.contains(&name) {
                     return Err(syn::Error::new_spanned(name, "duplicate command name"));
                 }
-                let desktop_only = take_marker(&mut function, "desktop_only")?;
-                if take_marker(&mut function, "query")? {
-                    queries.push(name.clone());
+                // tauri_specta strips the turbofish for the invoke handler, which then
+                // infers the runtime; only Specta's type export sees this concrete
+                // runtime. It cannot name the builder's `R`, which is out of scope in
+                // the items the macro generates.
+                let path = if generic {
+                    quote!(#wrapper_module::#name::<::tauri::Wry>)
                 } else {
-                    mutations.push(name.clone());
+                    quote!(#wrapper_module::#name)
+                };
+                if query {
+                    queries.push(path);
+                } else {
+                    mutations.push(path);
                 }
                 if desktop_only {
                     desktop.push(name.clone());
@@ -95,8 +105,8 @@ fn expand(mut module: ItemMod) -> syn::Result<TokenStream2> {
             /// together with the builder that owns the invoke handler.
             pub fn builder<R: ::tauri::Runtime>() -> (String, ::tauri_specta::Builder<R>) {
                 let (queries, builder) = ::tauri_specta_query::CommandSet::new(
-                    ::tauri_specta::collect_commands![#(#wrapper_module::#queries),*],
-                    ::tauri_specta::collect_commands![#(#wrapper_module::#mutations),*],
+                    ::tauri_specta::collect_commands![#(#queries),*],
+                    ::tauri_specta::collect_commands![#(#mutations),*],
                 )
                 .constant("DESKTOP_ONLY_COMMANDS", DESKTOP_ONLY_COMMANDS)
                 .build(::tauri_specta_query::TanstackQueryFramework::React);
@@ -191,7 +201,8 @@ fn expand_desktop(function: &ItemFn) -> TokenStream2 {
     }
 }
 
-fn validate_function(function: &ItemFn) -> syn::Result<()> {
+/// Returns whether the command is generic over the Tauri runtime.
+fn validate_function(function: &ItemFn, desktop_only: bool) -> syn::Result<bool> {
     let signature = &function.sig;
     if signature.constness.is_some()
         || signature.unsafety.is_some()
@@ -203,10 +214,13 @@ fn validate_function(function: &ItemFn) -> syn::Result<()> {
             "commands cannot be const, unsafe, extern, or variadic",
         ));
     }
-    if !signature.generics.params.is_empty() || signature.generics.where_clause.is_some() {
+    let generic = !signature.generics.params.is_empty();
+    if (generic || signature.generics.where_clause.is_some())
+        && !(desktop_only && runtime_generic(&signature.generics))
+    {
         return Err(syn::Error::new_spanned(
             &signature.generics,
-            "generic commands are not supported",
+            "generic commands are not supported, except desktop-only commands generic over one tauri::Runtime",
         ));
     }
     if ["builder", "dispatch", "DESKTOP_ONLY_COMMANDS"]
@@ -246,7 +260,19 @@ fn validate_function(function: &ItemFn) -> syn::Result<()> {
             ));
         }
     }
-    Ok(())
+    Ok(generic)
+}
+
+/// Shared commands are dispatched by RPC without a Tauri runtime, so only
+/// desktop commands may take runtime-bound arguments such as `AppHandle<R>`.
+fn runtime_generic(generics: &Generics) -> bool {
+    let [GenericParam::Type(parameter)] = generics.params.iter().collect::<Vec<_>>()[..] else {
+        return false;
+    };
+    let bounds: Vec<_> = parameter.bounds.iter().collect();
+    generics.where_clause.is_none()
+        && parameter.default.is_none()
+        && matches!(bounds[..], [TypeParamBound::Trait(bound)] if bound.path.segments.last().is_some_and(|segment| segment.ident == "Runtime" && segment.arguments.is_none()))
 }
 
 fn expand_shared(function: &ItemFn) -> syn::Result<(TokenStream2, TokenStream2)> {

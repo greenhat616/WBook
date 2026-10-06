@@ -16,22 +16,6 @@ use crate::{commands::dto::CommandError, errors::WindowSnafu};
 pub const MAIN_WINDOW: &str = "main";
 const SESSION_PREFIX: &str = "session-";
 
-type Opener = dyn Fn(&Wbook, SessionId) -> Result<(), CommandError> + Send + Sync;
-
-/// Commands cannot be generic over the Tauri runtime, so the runtime-specific
-/// handle is erased here and managed as ordinary state.
-pub struct SessionWindows(Box<Opener>);
-
-impl SessionWindows {
-    pub fn new<R: Runtime>(app: AppHandle<R>) -> Self {
-        Self(Box::new(move |core, id| open(&app, core, id)))
-    }
-
-    pub fn open(&self, core: &Wbook, id: SessionId) -> Result<(), CommandError> {
-        (self.0)(core, id)
-    }
-}
-
 pub fn session_label(id: SessionId) -> String {
     format!("{SESSION_PREFIX}{}", id.0)
 }
