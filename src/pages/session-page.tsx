@@ -1,33 +1,39 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { isTauri } from '@tauri-apps/api/core'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'framer-motion'
 import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
-import BookOpenIcon from '~icons/material-symbols/menu-book-outline-rounded'
-import CheckIcon from '~icons/material-symbols/check-circle-outline-rounded'
+import CheckIcon from '~icons/material-symbols/check-rounded'
+import CloseIcon from '~icons/material-symbols/close-rounded'
 import DownloadIcon from '~icons/material-symbols/download-rounded'
 import EyeIcon from '~icons/material-symbols/visibility-outline-rounded'
 import FileTextIcon from '~icons/material-symbols/description-outline-rounded'
-import RefreshCwIcon from '~icons/material-symbols/refresh-rounded'
-import SquareIcon from '~icons/material-symbols/stop-rounded'
-import XIcon from '~icons/material-symbols/close-rounded'
-import type { OpKind, Phase, TocEntry } from '@/bindings'
-import { previewUrl } from '@/bridge'
-import { Badge } from '@/components/ui/badge'
+import FolderIcon from '~icons/material-symbols/folder-open-outline-rounded'
+import RefreshIcon from '~icons/material-symbols/refresh-rounded'
+import StopIcon from '~icons/material-symbols/stop-rounded'
+import WarningIcon from '~icons/material-symbols/warning-outline-rounded'
+import type {
+  Activity,
+  Metadata,
+  OpKind,
+  Phase,
+  WorkspaceStatus
+} from '@/bindings'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { errorMessage } from '@/features/sessions/api'
+import { ParserPanel } from '@/features/sessions/components/parser-panel'
+import { PreviewPanel } from '@/features/sessions/components/preview-panel'
+import { TextPanel } from '@/features/sessions/components/text-panel'
+import { TocPanel } from '@/features/sessions/components/toc-panel'
+import { flattenToc } from '@/features/sessions/toc'
 import { useSession } from '@/features/sessions/use-session'
+import { cn } from '@/utils/ui'
 
 const operationLabels: Record<OpKind, string> = {
   Initialize: '整理文本',
-  Parse: '识别内容',
-  Install: '应用整理结果',
+  Parse: '解析目录',
+  Install: '应用目录',
   Edit: '更新文本',
   SetMetadataOverrides: '更新书籍信息',
   ReadText: '读取文本',
@@ -39,7 +45,7 @@ const operationLabels: Record<OpKind, string> = {
 function phaseLabel(phase: Phase | null): string | null {
   if (phase === null) return null
   if (typeof phase === 'object') {
-    return `清理内容 · 第 ${phase.Filtering.index + 1} / ${phase.Filtering.total} 步`
+    return `清理内容 ${phase.Filtering.index + 1}/${phase.Filtering.total}`
   }
   const labels: Record<Exclude<Phase, object>, string> = {
     Extracting: '读取原始文本',
@@ -53,95 +59,53 @@ function phaseLabel(phase: Phase | null): string | null {
   return labels[phase]
 }
 
-function TocList({ entries }: { entries: TocEntry[] }) {
-  return (
-    <ol className="space-y-2">
-      {entries.map((entry) => (
-        <li key={entry.id}>
-          <p className="break-words rounded-xl bg-muted/60 px-3 py-2 text-sm leading-relaxed">
-            {entry.title || '未命名章节'}
-          </p>
-          {entry.children.length > 0 && (
-            <div className="mt-2 border-l pl-3">
-              <TocList entries={entry.children} />
-            </div>
-          )}
-        </li>
-      ))}
-    </ol>
-  )
-}
+type Tab = 'text' | 'preview' | 'parser'
+const tabs: Array<{ value: Tab; label: string }> = [
+  { value: 'text', label: '正文' },
+  { value: 'preview', label: '预览' },
+  { value: 'parser', label: '解析规则' }
+]
 
 export function SessionPage({ sessionId }: { sessionId: number }) {
+  const session = useSession(sessionId)
   const {
     snapshot,
     results,
     preview,
+    draft,
     error,
     warnings,
     loading,
     pending,
     connection,
     notice,
-    exportPath,
-    refresh,
-    reconnect,
-    initialize,
-    renderPreview,
-    exportBook,
-    cancel,
-    close
-  } = useSession(sessionId)
+    exportPath
+  } = session
   const navigate = useNavigate()
-  const reducedMotion = useReducedMotion()
+  const windowed = isTauri()
+  const [tab, setTab] = useState<Tab>('text')
+  // Node IDs are reused across parses, so a selection also matches its title.
+  const [selection, setSelection] = useState<{
+    id: number
+    title: string
+  } | null>(null)
   const [destination, setDestination] = useState('')
-  const [resource, setResource] = useState('')
-  const [frame, setFrame] = useState<{
-    id: string
-    resource: string
-    url: string
-  } | null>(null)
-  const [frameError, setFrameError] = useState<{
-    id: string
-    resource: string
-    message: string
-  } | null>(null)
   const [closing, setClosing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
-  const selectedResource =
-    preview && (preview.files.includes(resource) || resource === 'nav.xhtml')
-      ? resource
-      : preview?.files[0] || ''
-
-  useEffect(() => {
-    let active = true
-    if (preview && selectedResource) {
-      void previewUrl(sessionId, preview, selectedResource).then(
-        (url) => {
-          if (active) {
-            setFrame({ id: preview.id, resource: selectedResource, url })
-            setFrameError(null)
-          }
-        },
-        (cause: unknown) => {
-          if (active) {
-            setFrameError({
-              id: preview.id,
-              resource: selectedResource,
-              message: cause instanceof Error ? cause.message : String(cause)
-            })
-          }
-        }
-      )
-    }
-    return () => {
-      active = false
-    }
-  }, [preview, selectedResource, sessionId])
+  const [localError, setLocalError] = useState<string | null>(null)
+  const shownToc = draft?.toc ?? results?.results?.toc ?? null
+  const rows = useMemo(() => (shownToc ? flattenToc(shownToc) : []), [shownToc])
+  const selected =
+    rows.find(
+      (row) => row.id === selection?.id && row.title === selection.title
+    ) ?? null
+  const name = snapshot
+    ? snapshot.source.split(/[\\/]/).pop() || snapshot.source
+    : ''
 
   async function closeSession() {
     setClosing(true)
-    const report = await close()
+    const report = await session.close()
     setClosing(false)
     if (report && report.cleanup_failures.length === 0)
       await navigate({ to: '/' })
@@ -149,62 +113,69 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
 
   async function cancelOperation() {
     setCancelling(true)
-    await cancel()
+    await session.cancel()
     setCancelling(false)
   }
 
-  function submitExport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (destination.trim()) void exportBook(destination.trim())
+  async function chooseDestination(): Promise<string | null> {
+    setLocalError(null)
+    try {
+      const path = await saveDialog({
+        defaultPath: `${(results?.overrides.title ?? results?.results?.metadata.title) || name}.epub`,
+        filters: [{ name: 'EPUB', extensions: ['epub'] }]
+      })
+      if (path) setDestination(path)
+      return path
+    } catch (cause) {
+      setLocalError(errorMessage(cause))
+      return null
+    }
   }
 
-  const backLink = (
-    <Link
-      to="/"
-      className="inline-flex items-center gap-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-    >
-      <ArrowLeftIcon className="size-4" aria-hidden="true" />
-      返回工作台
-    </Link>
+  async function exportBook(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    const target =
+      destination.trim() || (windowed ? await chooseDestination() : null)
+    if (target) void session.exportBook(target)
+  }
+
+  const backLink = !windowed && (
+    <Button asChild variant="ghost" size="icon-sm" className="shrink-0">
+      <Link to="/" aria-label="返回工作台" title="返回工作台">
+        <ArrowLeftIcon aria-hidden="true" />
+      </Link>
+    </Button>
   )
 
   if (!snapshot) {
     return (
-      <div className="space-y-6">
-        {backLink}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {loading ? '正在打开工作会话…' : '暂时无法打开这份内容'}
-            </CardTitle>
-            <CardDescription>
-              工作会话只在本次应用运行期间保留。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading && (
-              <p role="status" className="text-sm text-muted-foreground">
-                正在读取内容状态。
-              </p>
-            )}
-            {error && (
-              <p role="alert" className="break-words text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            {!loading && (
-              <Button variant="outline" onClick={() => void refresh()}>
-                <RefreshCwIcon className="size-4" aria-hidden="true" />
-                重新尝试
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex items-center gap-2">
+          {backLink}
+          <h1 className="text-base font-semibold">
+            {loading ? '正在打开工作会话…' : '暂时无法打开这份内容'}
+          </h1>
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {!loading && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => void session.refresh()}
+          >
+            <RefreshIcon aria-hidden="true" />
+            重新尝试
+          </Button>
+        )}
       </div>
     )
   }
 
-  const name = snapshot.source.split(/[\\/]/).pop() || snapshot.source
   const status = snapshot.workspace_status.Available
   const closed = connection === 'closed' || snapshot.lifecycle === 'Closed'
   const open = snapshot.lifecycle === 'Open' && !closed
@@ -214,78 +185,341 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
   const current = status?.document === 'Current'
   const canInitialize =
     status?.document === 'Absent' || status?.document === 'Unparsed'
-  const metadata = results?.results?.metadata
-  const title = results?.overrides.title ?? metadata?.title
-  const author = results?.overrides.author ?? metadata?.author
-  const frameUrl =
-    preview && frame?.id === preview.id && frame.resource === selectedResource
-      ? frame.url
-      : null
-  const previewError =
-    preview &&
-    frameError?.id === preview.id &&
-    frameError.resource === selectedResource
-      ? frameError.message
-      : null
+  const parsed = results?.results ?? null
+  const metadata = parsed?.metadata
   const documentLabel = !status
-    ? '内容暂不可用'
+    ? '内容不可用'
     : {
-        Absent: '等待整理',
-        Unparsed: '等待整理',
-        Current: '内容已就绪',
-        Stale: '内容有更新'
+        Absent: '待整理',
+        Unparsed: '待解析',
+        Current: '目录最新',
+        Stale: '目录待更新'
       }[status.document]
-  const connectionLabel = {
-    connecting: '正在连接',
-    live: '实时连接',
-    disconnected: '连接已中断',
-    closed: '会话已关闭'
-  }[connection]
 
   return (
-    <motion.div
-      className="space-y-6"
-      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      {backLink}
-      <header className="flex flex-wrap items-start justify-between gap-5">
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{documentLabel}</Badge>
-            <Badge
-              variant={connection === 'disconnected' ? 'outline' : 'secondary'}
-            >
-              {connectionLabel}
-            </Badge>
-          </div>
-          <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
+        {backLink}
+        <div className="flex min-w-[min(100%,14rem)] flex-1 items-center gap-2">
+          <h1
+            className="min-w-0 truncate text-base font-semibold"
+            title={snapshot.source}
+          >
             {name}
           </h1>
-          <p className="break-all text-xs leading-relaxed text-muted-foreground sm:text-sm">
-            {snapshot.source}
-          </p>
+          <span
+            className={cn(
+              'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+              status?.document === 'Stale'
+                ? 'bg-tertiary text-tertiary-foreground'
+                : 'bg-secondary text-secondary-foreground'
+            )}
+          >
+            {documentLabel}
+          </span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void closeSession()}
-          disabled={closing || !open}
-        >
-          <XIcon className="size-4" aria-hidden="true" />
-          {closing || snapshot.lifecycle === 'Closing'
-            ? '正在关闭…'
-            : '关闭会话'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {canInitialize && (
+            <Button
+              size="sm"
+              onClick={() => void session.initialize()}
+              disabled={blocked}
+            >
+              <FileTextIcon aria-hidden="true" />
+              整理文本
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="刷新状态"
+            title="刷新状态"
+            onClick={() => void session.refresh()}
+            disabled={pending || loading || !open}
+          >
+            <RefreshIcon aria-hidden="true" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setTab('preview')
+              void session.renderPreview()
+            }}
+            disabled={blocked || !current}
+          >
+            <EyeIcon aria-hidden="true" />
+            生成预览
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void closeSession()}
+            disabled={closing || !open}
+          >
+            <CloseIcon aria-hidden="true" />
+            {closing || snapshot.lifecycle === 'Closing'
+              ? '正在关闭…'
+              : '关闭会话'}
+          </Button>
+        </div>
       </header>
 
+      <MetadataBar
+        key={`${status?.revision}-${!!results}`}
+        parsed={metadata ?? null}
+        overrides={results?.overrides ?? null}
+        disabled={blocked || !results}
+        onSave={(overrides) => void session.setOverrides(overrides)}
+      >
+        <form
+          onSubmit={(event) => void exportBook(event)}
+          className="flex min-w-0 flex-[2_1_18rem] items-center gap-1.5"
+        >
+          <label
+            htmlFor="export-destination"
+            className="shrink-0 text-xs text-muted-foreground"
+          >
+            保存到
+          </label>
+          <Input
+            id="export-destination"
+            value={destination}
+            onChange={(event) => setDestination(event.target.value)}
+            placeholder={windowed ? '导出时选择位置' : 'C:\\Books\\书名.epub'}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={blocked || !current}
+            className="h-8 min-w-0 flex-1 rounded-lg px-2.5"
+          />
+          {windowed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="选择保存位置"
+              title="选择保存位置"
+              onClick={() => void chooseDestination()}
+              disabled={blocked || !current}
+            >
+              <FolderIcon aria-hidden="true" />
+            </Button>
+          )}
+          <Button
+            type="submit"
+            size="sm"
+            disabled={blocked || !current || (!windowed && !destination.trim())}
+          >
+            <DownloadIcon aria-hidden="true" />
+            导出 EPUB
+          </Button>
+        </form>
+      </MetadataBar>
+
+      <Messages
+        closed={closed}
+        backLink={backLink}
+        connection={connection}
+        onReconnect={session.reconnect}
+        error={localError ?? error}
+        notice={notice}
+        exportPath={exportPath}
+        warnings={warnings}
+      />
+
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,40%)_1fr] gap-2 px-2 pb-2 md:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)] md:grid-rows-1">
+        <TocPanel
+          toc={parsed?.toc ?? null}
+          draft={draft?.toc ?? null}
+          selected={selected?.id ?? null}
+          onSelect={(row) => {
+            setSelection({ id: row.id, title: row.title })
+            setTab('text')
+          }}
+          onApplyDraft={() => draft && void session.install(draft)}
+          onDiscardDraft={session.discardDraft}
+          disabled={blocked}
+          emptyHint={
+            closed
+              ? '会话已关闭。'
+              : canInitialize
+                ? '整理文本后显示目录。'
+                : '这份内容暂无目录条目。'
+          }
+        />
+
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card">
+          <div
+            role="tablist"
+            aria-label="工作区"
+            className="flex h-10 shrink-0 items-end gap-1 border-b px-2"
+          >
+            {tabs.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="tab"
+                id={`tab-${item.value}`}
+                aria-selected={tab === item.value}
+                aria-controls="workspace-panel"
+                onClick={() => setTab(item.value)}
+                className={cn(
+                  'relative h-10 px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+                  tab === item.value &&
+                    'text-primary after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full after:bg-primary'
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div
+            id="workspace-panel"
+            role="tabpanel"
+            aria-labelledby={`tab-${tab}`}
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          >
+            {tab === 'text' ? (
+              <TextPanel
+                row={selected}
+                version={status?.document_version ?? null}
+                readText={session.readText}
+              />
+            ) : tab === 'preview' ? (
+              <PreviewPanel
+                sessionId={sessionId}
+                preview={preview}
+                name={name}
+                disabled={blocked}
+                emptyHint={
+                  closed
+                    ? '本次会话已关闭，预览已失效。'
+                    : current
+                      ? '点击「生成预览」查看排版后的正文与目录。'
+                      : '目录就绪后才能生成预览。'
+                }
+              />
+            ) : (
+              <ParserPanel
+                disabled={blocked}
+                ready={!!status && status.document !== 'Absent'}
+                stale={status?.document === 'Stale'}
+                onParse={(config) => void session.parse(config)}
+              />
+            )}
+          </div>
+        </section>
+      </div>
+
+      <StatusBar
+        status={status ?? null}
+        running={running}
+        open={open}
+        closed={closed}
+        connection={connection}
+        source={snapshot.source}
+        cancelling={cancelling}
+        onCancel={() => void cancelOperation()}
+      />
+    </div>
+  )
+}
+
+function MetadataBar({
+  parsed,
+  overrides,
+  disabled,
+  onSave,
+  children
+}: {
+  parsed: Metadata | null
+  overrides: Metadata | null
+  disabled: boolean
+  onSave: (overrides: Metadata) => void
+  children: ReactNode
+}) {
+  const [title, setTitle] = useState(overrides?.title ?? '')
+  const [author, setAuthor] = useState(overrides?.author ?? '')
+
+  // Empty fields fall back to the parsed values, which show as placeholders.
+  function commit() {
+    const next = { title: title.trim() || null, author: author.trim() || null }
+    if (
+      next.title !== (overrides?.title ?? null) ||
+      next.author !== (overrides?.author ?? null)
+    ) {
+      onSave(next)
+    }
+  }
+
+  const field = (
+    id: string,
+    label: string,
+    value: string,
+    set: (value: string) => void,
+    fallback: string | null | undefined
+  ) => (
+    <div className="flex min-w-0 flex-[1_1_10rem] items-center gap-1.5">
+      <label htmlFor={id} className="shrink-0 text-xs text-muted-foreground">
+        {label}
+      </label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(event) => set(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
+        placeholder={fallback || (parsed ? '未识别' : '整理后识别')}
+        disabled={disabled}
+        autoComplete="off"
+        className="h-8 min-w-0 flex-1 rounded-lg px-2.5"
+      />
+    </div>
+  )
+
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-3 pb-2">
+      {field('book-title', '书名', title, setTitle, parsed?.title)}
+      {field('book-author', '作者', author, setAuthor, parsed?.author)}
+      {children}
+    </div>
+  )
+}
+
+function Messages({
+  closed,
+  backLink,
+  connection,
+  onReconnect,
+  error,
+  notice,
+  exportPath,
+  warnings
+}: {
+  closed: boolean
+  backLink: ReactNode
+  connection: string
+  onReconnect: () => void
+  error: string | null
+  notice: string | null
+  exportPath: string | null
+  warnings: Array<{ path: string; message: string }>
+}) {
+  const strip = 'mx-2 mb-2 flex items-start gap-2 rounded-xl px-3 py-2 text-xs'
+  return (
+    <>
+      {closed && (
+        <div role="status" className={cn(strip, 'items-center bg-muted')}>
+          <p className="flex-1">本次会话已结束，已导出的文件不受影响。</p>
+          {backLink}
+        </div>
+      )}
       {connection === 'disconnected' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-secondary/50 p-4">
-          <p role="status" className="text-sm">
-            实时连接已中断，显示的状态可能尚未更新。
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void reconnect()}>
+        <div role="status" className={cn(strip, 'items-center bg-muted')}>
+          <p className="flex-1">实时连接已中断，显示的状态可能尚未更新。</p>
+          <Button variant="outline" size="xs" onClick={onReconnect}>
             重新连接
           </Button>
         </div>
@@ -293,15 +527,27 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
       {error && (
         <p
           role="alert"
-          className="break-words rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive"
+          className={cn(
+            strip,
+            'break-words bg-destructive/10 text-destructive'
+          )}
         >
           {error}
         </p>
       )}
-      {notice && (
+      {exportPath && (
         <p
           role="status"
-          className="rounded-2xl bg-secondary px-4 py-3 text-sm text-secondary-foreground"
+          className={cn(strip, 'bg-secondary text-secondary-foreground')}
+        >
+          <CheckIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span className="break-all">EPUB 已保存到 {exportPath}</span>
+        </p>
+      )}
+      {notice && !exportPath && (
+        <p
+          role="status"
+          className={cn(strip, 'bg-secondary text-secondary-foreground')}
         >
           {notice}
         </p>
@@ -309,285 +555,134 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
       {warnings.length > 0 && (
         <div
           role="status"
-          className="space-y-2 rounded-2xl bg-tertiary p-4 text-sm text-tertiary-foreground"
+          className={cn(strip, 'bg-tertiary text-tertiary-foreground')}
         >
-          <p className="font-medium">部分临时文件未能清理</p>
-          <ul className="space-y-2">
-            {warnings.map((warning, index) => (
-              <li key={`${warning.path}-${index}`} className="break-all">
-                <p>{warning.message}</p>
-                <p className="mt-1 text-xs">{warning.path}</p>
-              </li>
-            ))}
-          </ul>
+          <WarningIcon className="size-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 space-y-1">
+            <p className="font-medium">部分临时文件未能清理</p>
+            <ul className="space-y-1">
+              {warnings.map((warning, index) => (
+                <li key={`${warning.path}-${index}`} className="break-all">
+                  <p>{warning.message}</p>
+                  <p className="opacity-80">{warning.path}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
+    </>
+  )
+}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-secondary/70 p-5">
-        <div role="status" aria-live="polite" className="min-w-0">
-          <p className="font-medium">
-            {closed
-              ? '会话已关闭'
-              : !open
-                ? '正在关闭会话'
-                : running
-                  ? operationLabels[running.kind]
-                  : documentLabel}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {closed
-              ? '本次会话已结束，查看清理提示后可返回工作台。'
-              : !open
-                ? '正在结束当前操作并清理临时文件。'
-                : running
-                  ? running.cancel_requested
-                    ? '正在等待当前操作取消。'
-                    : phaseLabel(running.phase) || '正在处理，请稍候。'
-                  : canInitialize
-                    ? '先整理文本，生成目录和书籍信息。'
-                    : current
-                      ? '可以检查阅读预览，也可以直接导出 EPUB。'
-                      : '刷新内容状态，或返回工作台重新导入文本。'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {running ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void cancelOperation()}
-              disabled={cancelling || running.cancel_requested || !open}
-            >
-              <SquareIcon className="size-3" aria-hidden="true" />
-              {cancelling || running.cancel_requested
-                ? '正在取消…'
-                : '取消操作'}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void refresh()}
-              disabled={pending || loading || !open}
-            >
-              <RefreshCwIcon className="size-4" aria-hidden="true" />
-              刷新状态
-            </Button>
-          )}
-          {canInitialize && (
-            <Button onClick={() => void initialize()} disabled={blocked}>
-              <FileTextIcon className="size-4" aria-hidden="true" />
-              整理文本
-            </Button>
-          )}
-        </div>
-      </div>
+type Running = Exclude<Activity, 'Idle'>['Running']
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.7fr)]">
-        <div className="min-w-0 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>书籍信息</CardTitle>
-              <CardDescription>从文本中读取的标题与作者。</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-4 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">书名</dt>
-                  <dd className="mt-1 break-words font-medium">
-                    {title || (results ? '未识别' : '整理后显示')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">作者</dt>
-                  <dd className="mt-1 break-words font-medium">
-                    {author || (results ? '未识别' : '整理后显示')}
-                  </dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>内容目录</CardTitle>
-              <CardDescription>
-                {results?.current
-                  ? '已整理的阅读顺序。'
-                  : '完成整理后，在这里查看内容结构。'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {results?.results?.toc.length ? (
-                <div className="max-h-96 overflow-y-auto pr-1">
-                  <TocList entries={results.results.toc} />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {results ? '这份内容暂无目录条目。' : '目录还没有生成。'}
-                </p>
+function StatusBar({
+  status,
+  running,
+  open,
+  closed,
+  connection,
+  source,
+  cancelling,
+  onCancel
+}: {
+  status: WorkspaceStatus | null
+  running: Running | null
+  open: boolean
+  closed: boolean
+  connection: string
+  source: string
+  cancelling: boolean
+  onCancel: () => void
+}) {
+  const document = status?.document
+  // Stages mirror the backend pipeline so a rerun of any stage shows here.
+  const stages = [
+    { label: '提取', done: !!document && document !== 'Absent' },
+    ...(status && status.filters.total > 0
+      ? [
+          {
+            label: `清理 ${status.filters.applied}/${status.filters.total}`,
+            done: status.filters.applied === status.filters.total
+          }
+        ]
+      : []),
+    {
+      label: document === 'Stale' ? '解析（已过期）' : '解析',
+      done: document === 'Current'
+    }
+  ]
+  const connectionLabel = {
+    connecting: '连接中',
+    live: '实时',
+    disconnected: '已断开',
+    closed: '已关闭'
+  }[connection]
+
+  return (
+    <footer className="flex h-8 shrink-0 items-center gap-3 border-t px-3 text-[11px] text-muted-foreground">
+      <ol aria-label="处理阶段" className="flex shrink-0 items-center gap-2">
+        {stages.map((stage) => (
+          <li key={stage.label} className="flex items-center gap-1">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'size-1.5 rounded-full',
+                stage.done ? 'bg-primary' : 'bg-muted-foreground/40'
               )}
-            </CardContent>
-          </Card>
-        </div>
+            />
+            <span className={stage.done ? 'text-foreground' : undefined}>
+              {stage.label}
+            </span>
+          </li>
+        ))}
+      </ol>
 
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-wrap flex-row items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <CardTitle>阅读预览</CardTitle>
-              <CardDescription>看看文字在书页中的样子。</CardDescription>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void renderPreview()}
-              disabled={blocked || !current}
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex shrink-0 items-center gap-2"
+      >
+        {closed ? (
+          <span>会话已关闭</span>
+        ) : !open ? (
+          <span>正在关闭会话…</span>
+        ) : running ? (
+          <>
+            <span
+              className="size-2 animate-pulse rounded-full bg-primary"
+              aria-hidden="true"
+            />
+            <span className="text-foreground">
+              {operationLabels[running.kind]}
+              {running.cancel_requested
+                ? ' · 正在取消'
+                : phaseLabel(running.phase) &&
+                  ` · ${phaseLabel(running.phase)}`}
+            </span>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={cancelling || running.cancel_requested}
+              className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-foreground hover:bg-muted disabled:opacity-50"
             >
-              <EyeIcon className="size-4" aria-hidden="true" />
-              {preview ? '重新生成预览' : '生成预览'}
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {preview ? (
-              <>
-                <div className="space-y-2">
-                  <label
-                    htmlFor="preview-section"
-                    className="text-sm font-medium"
-                  >
-                    预览内容
-                  </label>
-                  <select
-                    id="preview-section"
-                    value={selectedResource}
-                    disabled={blocked}
-                    onChange={(event) => setResource(event.target.value)}
-                    className="flex min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {preview.files.map((file, index) => (
-                      <option key={file} value={file}>
-                        {preview.files.length === 1
-                          ? '完整正文'
-                          : `正文 ${index + 1}`}
-                      </option>
-                    ))}
-                    <option value="nav.xhtml">目录页</option>
-                  </select>
-                </div>
-                {previewError ? (
-                  <p
-                    role="alert"
-                    className="break-words rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
-                  >
-                    无法打开预览：{previewError}
-                  </p>
-                ) : frameUrl ? (
-                  <iframe
-                    key={frameUrl}
-                    src={frameUrl}
-                    title={`${name} — ${selectedResource === 'nav.xhtml' ? '目录' : '正文'}预览`}
-                    sandbox="allow-same-origin"
-                    referrerPolicy="no-referrer"
-                    className="h-[34rem] w-full rounded-2xl border bg-white sm:h-[40rem]"
-                    onError={() =>
-                      setFrameError({
-                        id: preview.id,
-                        resource: selectedResource,
-                        message: '请稍后重新生成预览。'
-                      })
-                    }
-                  />
-                ) : (
-                  <p
-                    role="status"
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    正在打开预览…
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="flex min-h-72 flex-col items-center justify-center gap-4 rounded-2xl border border-dashed bg-muted/30 px-6 py-10 text-center">
-                <div className="flex size-16 items-center justify-center rounded-3xl bg-secondary">
-                  <BookOpenIcon
-                    className="size-7 text-primary"
-                    aria-hidden="true"
-                  />
-                </div>
-                <p className="font-medium">留一页，看看成书的样子</p>
-                <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                  {closed
-                    ? '本次会话已关闭，预览已失效。'
-                    : current
-                      ? '点击「生成预览」，检查整理后的正文与目录。'
-                      : '先完成文本整理，再生成阅读预览。'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <StopIcon className="size-3.5" aria-hidden="true" />
+              取消操作
+            </button>
+          </>
+        ) : (
+          <span>空闲</span>
+        )}
       </div>
 
-      <Card className="border-0 bg-secondary/50">
-        <CardHeader>
-          <CardTitle>把这本书带走</CardTitle>
-          <CardDescription>
-            {closed
-              ? '本次会话已结束，已导出的文件不受影响。'
-              : '导出为 EPUB，可以在支持的阅读器中打开。'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submitExport} className="space-y-3">
-            <label htmlFor="export-destination" className="text-sm font-medium">
-              保存路径
-            </label>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                id="export-destination"
-                value={destination}
-                onChange={(event) => setDestination(event.target.value)}
-                placeholder="例如 C:\Books\我的书.epub"
-                required
-                autoComplete="off"
-                spellCheck={false}
-                disabled={blocked || !current}
-                aria-describedby="export-help"
-                className="min-w-0 flex-1"
-              />
-              <Button
-                type="submit"
-                disabled={blocked || !current || !destination.trim()}
-              >
-                <DownloadIcon className="size-4" aria-hidden="true" />
-                导出 EPUB
-              </Button>
-            </div>
-            <p
-              id="export-help"
-              className="text-xs leading-relaxed text-muted-foreground"
-            >
-              输入完整文件路径；文件夹需要已存在，请使用一个新的文件名。
-            </p>
-          </form>
-          {exportPath && (
-            <div
-              role="status"
-              className="mt-5 flex items-start gap-3 rounded-2xl bg-background/70 p-4"
-            >
-              <CheckIcon
-                className="mt-0.5 size-5 shrink-0 text-primary"
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">EPUB 已保存</p>
-                <p className="mt-1 break-all text-sm text-muted-foreground">
-                  {exportPath}
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
+      <span className="min-w-0 flex-1 truncate text-right" title={source}>
+        {source}
+      </span>
+      {status && (
+        <span className="shrink-0 tabular-nums">r{status.revision}</span>
+      )}
+      <span className="shrink-0">{connectionLabel}</span>
+    </footer>
   )
 }

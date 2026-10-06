@@ -25,6 +25,7 @@ import type {
   Outcome,
   PreviewInfo,
   SessionSnapshot,
+  TocEntry_Serialize,
   WorkspaceResults
 } from '../../src/bindings'
 
@@ -48,6 +49,10 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
       readResults: vi.fn(),
       initializeSession: vi.fn(),
       renderPreview: vi.fn(),
+      parseSession: vi.fn(),
+      installResults: vi.fn(),
+      setMetadataOverrides: vi.fn(),
+      readText: vi.fn(),
       exportEpub: vi.fn(),
       cancelOperation: vi.fn(),
       closeSession: vi.fn()
@@ -71,7 +76,10 @@ vi.mock('../../src/transport', () => ({
 }))
 vi.mock('../../src/bridge', () => ({ subscribeSession: subscribe }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: openDialog }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: openDialog,
+  save: vi.fn()
+}))
 vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({
     onDragDropEvent: (handler: (event: { payload: unknown }) => void) => {
@@ -84,6 +92,7 @@ vi.mock('@tauri-apps/api/webview', () => ({
 }))
 
 import { exportOptions } from '../../src/features/sessions/api'
+import { defaultParserConfig } from '../../src/features/sessions/parser-config'
 import { useSession } from '../../src/features/sessions/use-session'
 import { useSessions } from '../../src/features/sessions/use-sessions'
 import { HomePage } from '../../src/pages/home-page'
@@ -185,11 +194,11 @@ describe('session list', () => {
     commands.createSession.mockResolvedValue(snapshot())
     const { result } = renderHook(useSessions, { wrapper: queryWrapper() })
     await act(async () => {
-      await result.current.create(' C:/book.txt ', 4)
+      await result.current.create(' C:/book.txt ')
     })
     expect(commands.createSession).toHaveBeenCalledWith('C:/book.txt', {
       filters: [],
-      toc: { SplitEvenly: { parts: 4 } }
+      toc: defaultParserConfig
     })
     await act(async () => {
       listing.resolve([])
@@ -202,7 +211,7 @@ describe('session list', () => {
     const { result } = renderHook(useSessions, { wrapper: queryWrapper() })
     await waitFor(() => expect(result.current.loading).toBe(false))
     await act(async () => {
-      expect(await result.current.create('book.txt', 0)).toBeNull()
+      expect(await result.current.create('  ')).toBeNull()
     })
     expect(commands.createSession).not.toHaveBeenCalled()
     commands.createSession.mockRejectedValue({
@@ -210,7 +219,7 @@ describe('session list', () => {
       message: 'Invalid rules'
     })
     await act(async () => {
-      expect(await result.current.create('book.txt', 1)).toBeNull()
+      expect(await result.current.create('book.txt')).toBeNull()
     })
     expect(result.current.error).toContain('invalid_config')
   })
@@ -525,15 +534,50 @@ describe('active session', () => {
   })
 })
 
-describe('session page close feedback', () => {
+describe('session page', () => {
+  const version = { document_id: Array(16).fill(0), revision: 3 }
+  const entry = (
+    id: number,
+    title: string,
+    start: number,
+    children: TocEntry_Serialize[] = []
+  ): TocEntry_Serialize => ({
+    id,
+    title,
+    meta: { words: 0, range_kind: 'Heading', range: { start, end: start + 9 } },
+    children
+  })
+  const parsed = (toc: TocEntry_Serialize[]): WorkspaceResults => ({
+    results: {
+      version: { ...version, document_id: [...version.document_id] },
+      toc,
+      metadata: { title: '原书名', author: '作者甲' }
+    },
+    current: true,
+    overrides: { title: null, author: null }
+  })
+  const book = parsed([
+    entry(1, '第一卷', 0, [
+      entry(2, '第1章 开始', 10),
+      entry(3, '第2章 继续', 2058)
+    ])
+  ])
+
   beforeEach(() => {
     // jsdom cannot scroll; these tests exercise navigation and visible feedback.
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   })
   afterEach(() => vi.restoreAllMocks())
 
-  async function openPage() {
+  async function openPage(shown: WorkspaceResults = results) {
     backend = snapshot(1, 1, 1)
+    backend.workspace_status.Available!.document_version = {
+      ...version,
+      document_id: [...version.document_id]
+    }
+    commands.readResults.mockImplementation(async () =>
+      receipt(shown, backend.workspace_status.Available!.revision)
+    )
     const root = createRootRoute()
     const home = createRoute({
       getParentRoute: () => root,
@@ -578,12 +622,10 @@ describe('session page close feedback', () => {
         (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
       ).toBe(true)
     }
-    expect(
-      screen.queryByText('可以检查阅读预览，也可以直接导出 EPUB。')
-    ).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: '预览' }))
     expect(screen.getByText('本次会话已关闭，预览已失效。')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('link', { name: '返回工作台' }))
+    fireEvent.click(screen.getAllByRole('link', { name: '返回工作台' })[0])
     await screen.findByRole('heading', { name: '工作台首页' })
     expect(router.state.location.pathname).toBe('/')
   })
@@ -600,6 +642,74 @@ describe('session page close feedback', () => {
     await screen.findByRole('heading', { name: '工作台首页' })
     expect(router.state.location.pathname).toBe('/')
     expect(commands.closeSession).toHaveBeenCalledWith(1)
+  })
+
+  it('lists chapters with their sizes and reads the selected chapter', async () => {
+    commands.readText.mockResolvedValue(receipt('第1章 开始\n正文内容', 1))
+    await openPage(book)
+    expect(await screen.findByText('1 卷 · 2 章')).toBeTruthy()
+    // A chapter runs until the next heading; the last one has no known end.
+    expect(screen.getByText('2.0 K')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /第1章 开始/ }))
+    expect(await screen.findByText(/正文内容/)).toBeTruthy()
+    expect(commands.readText).toHaveBeenCalledWith(
+      1,
+      backend.workspace_status.Available!.document_version,
+      { start: 10, end: 2058 }
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /第2章 继续/ }))
+    expect(await screen.findByText(/无法确定这一章的结束位置/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '收起第一卷' }))
+    expect(screen.queryByRole('button', { name: /第1章 开始/ })).toBeNull()
+  })
+
+  it('previews a trial parse and installs it only when applied', async () => {
+    await openPage(book)
+    const reparsed = parsed([entry(5, '第1章 新开始', 10)])
+    commands.parseSession.mockResolvedValue(receipt(reparsed.results, 1))
+    commands.installResults.mockResolvedValue(receipt(2, 1))
+
+    fireEvent.click(screen.getByRole('tab', { name: '解析规则' }))
+    fireEvent.click(screen.getByRole('radio', { name: '仅章节' }))
+    fireEvent.click(screen.getByRole('button', { name: '试解析' }))
+    await screen.findByRole('heading', { name: '试解析目录' })
+    expect(commands.parseSession).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ Levels: expect.anything() })
+    )
+    expect(screen.getByText(/新目录 1 章，当前 1 卷 · 2 章/)).toBeTruthy()
+    expect(commands.installResults).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '放弃' }))
+    await screen.findByRole('heading', { name: '目录' })
+
+    fireEvent.click(screen.getByRole('button', { name: '试解析' }))
+    fireEvent.click(await screen.findByRole('button', { name: '应用新目录' }))
+    await waitFor(() =>
+      expect(commands.installResults).toHaveBeenCalledWith(
+        1,
+        1,
+        reparsed.results
+      )
+    )
+  })
+
+  it('stores edited title and author as overrides', async () => {
+    await openPage(book)
+    commands.setMetadataOverrides.mockResolvedValue(receipt(null, 1))
+    const title = (await screen.findByLabelText('书名')) as HTMLInputElement
+    await waitFor(() => expect(title.placeholder).toBe('原书名'))
+    fireEvent.change(title, { target: { value: ' 新书名 ' } })
+    fireEvent.blur(title)
+    await waitFor(() =>
+      expect(commands.setMetadataOverrides).toHaveBeenCalledWith(1, 1, {
+        title: '新书名',
+        author: null
+      })
+    )
   })
 })
 
@@ -650,7 +760,7 @@ describe('home page session entry', () => {
     await screen.findByText('C:/book-1.txt')
     expect(commands.createSession).toHaveBeenCalledWith('C:/book-1.txt', {
       filters: [],
-      toc: { SplitEvenly: { parts: 1 } }
+      toc: defaultParserConfig
     })
     expect(commands.openSessionWindow).not.toHaveBeenCalled()
 

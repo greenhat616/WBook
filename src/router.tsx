@@ -14,7 +14,7 @@ import { SessionPage } from '@/pages/session-page'
 
 function MissingPage() {
   return (
-    <section className="mx-auto max-w-lg py-20 text-center">
+    <section className="mx-auto max-w-lg px-4 py-20 text-center">
       <p className="mb-3 text-sm text-muted-foreground">找不到这个工作区</p>
       <h1 className="mb-6 text-3xl font-semibold">
         回到工作台，继续整理文字。
@@ -39,7 +39,7 @@ const rootRoute = createRootRoute({
   component: RootLayout,
   notFoundComponent: MissingPage,
   errorComponent: ({ error, reset }) => (
-    <section role="alert" className="mx-auto max-w-lg space-y-4 py-16">
+    <section role="alert" className="mx-auto max-w-lg space-y-4 px-4 py-16">
       <h1 className="text-2xl font-semibold">页面暂时无法显示</h1>
       <p className="break-words text-muted-foreground">
         {error instanceof Error ? error.message : String(error)}

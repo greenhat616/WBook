@@ -3,9 +3,14 @@ import {
   commands,
   type CleanupWarning,
   type ClosedSession,
+  type DocumentVersion,
+  type Metadata,
   type OperationResponse,
+  type ParsedResults_Serialize,
   type PreviewInfo,
   type SessionSnapshot,
+  type TextRange,
+  type TocParserConfig,
   type WorkspaceResults
 } from '../../bindings'
 import { subscribeSession } from '../../bridge'
@@ -15,6 +20,8 @@ type State = {
   snapshot: SessionSnapshot | null
   results: WorkspaceResults | null
   preview: PreviewInfo | null
+  // A parse result awaiting review; installing it replaces the current TOC.
+  draft: ParsedResults_Serialize | null
   error: string | null
   warnings: CleanupWarning[]
   loading: boolean
@@ -35,10 +42,20 @@ type Context = {
   controller: AbortController
 }
 
+const sameVersion = (
+  a: DocumentVersion | null | undefined,
+  b: DocumentVersion | null | undefined
+) =>
+  !!a &&
+  !!b &&
+  a.revision === b.revision &&
+  a.document_id.every((byte, index) => byte === b.document_id[index])
+
 const initialState = (): State => ({
   snapshot: null,
   results: null,
   preview: null,
+  draft: null,
   error: null,
   warnings: [],
   loading: true,
@@ -95,6 +112,13 @@ export function useSession(sessionId: number) {
           available.revision === state.preview.revision &&
           available.preview_id === state.preview.id
             ? state.preview
+            : null,
+        // Parsing reads one document version; any edit makes the draft unusable.
+        draft:
+          available &&
+          state.draft &&
+          sameVersion(available.document_version, state.draft.version)
+            ? state.draft
             : null,
         connection:
           snapshot.lifecycle === 'Closed' ? 'closed' : state.connection
@@ -307,6 +331,66 @@ export function useSession(sessionId: number) {
     [operate, patch, warnings]
   )
 
+  const parse = useCallback(
+    (config: TocParserConfig) =>
+      operate(
+        (current) => commands.parseSession(current.id, config),
+        (current, draft) => {
+          const available = current.snapshot?.workspace_status.Available
+          if (sameVersion(available?.document_version, draft.version)) {
+            patch(current, { draft, notice: '试解析完成，确认后应用' })
+          }
+        }
+      ),
+    [operate, patch]
+  )
+
+  const install = useCallback(
+    (draft: ParsedResults_Serialize) =>
+      operate(
+        (current) =>
+          commands.installResults(
+            current.id,
+            current.snapshot!.workspace_status.Available!.revision,
+            draft
+          ),
+        (current) => patch(current, { draft: null, notice: '已应用新的目录' })
+      ),
+    [operate, patch]
+  )
+
+  const discardDraft = useCallback(() => {
+    const current = context.current
+    if (current) patch(current, { draft: null, notice: null })
+  }, [patch])
+
+  const setOverrides = useCallback(
+    (overrides: Metadata) =>
+      operate(
+        (current) =>
+          commands.setMetadataOverrides(
+            current.id,
+            current.snapshot!.workspace_status.Available!.revision,
+            overrides
+          ),
+        (current) => patch(current, { notice: '书籍信息已更新' })
+      ),
+    [operate, patch]
+  )
+
+  // Reads bypass the pending flag: they never change the session, and the
+  // backend reports `busy` itself if an operation is still running.
+  const readText = useCallback(
+    async (version: DocumentVersion, range: TextRange) => {
+      const current = context.current
+      if (!current?.alive) throw new Error('会话已失效')
+      const response = await commands.readText(current.id, version, range)
+      warnings(current, response.warnings)
+      return unwrap(response.outcome, '读取正文')
+    },
+    [warnings]
+  )
+
   const cancel = useCallback(async () => {
     const current = context.current
     if (!current?.alive || current.closing || current.closed) return
@@ -352,6 +436,7 @@ export function useSession(sessionId: number) {
         pending: false,
         results: null,
         preview: null,
+        draft: null,
         notice: '会话已关闭'
       })
       return report
@@ -375,6 +460,11 @@ export function useSession(sessionId: number) {
     initialize,
     renderPreview,
     exportBook,
+    parse,
+    install,
+    discardDraft,
+    setOverrides,
+    readText,
     cancel,
     close
   }

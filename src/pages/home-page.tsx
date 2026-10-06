@@ -32,7 +32,7 @@ export function HomePage() {
   function addSources(paths: string[]) {
     setNotice(null)
     queue.current = queue.current.then(async () => {
-      for (const path of paths) await create(path, 1)
+      for (const path of paths) await create(path)
     })
   }
 
@@ -83,7 +83,7 @@ export function HomePage() {
 
   return (
     <motion.div
-      className="mx-auto max-w-5xl space-y-8"
+      className="mx-auto w-full max-w-5xl space-y-8 px-4 pb-10 pt-4 sm:px-6"
       initial={reducedMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}

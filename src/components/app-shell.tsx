@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mainRef = useRef<HTMLElement>(null)
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col">
       <a
         href="#main-content"
         onClick={(event) => {
@@ -31,7 +31,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         跳到主要内容
       </a>
 
-      <M3eAppBar className="sticky top-0 z-40 [--m3e-app-bar-container-color:var(--md-sys-color-surface)] [--m3e-app-bar-padding-left:1rem] [--m3e-app-bar-padding-right:1rem]">
+      <M3eAppBar
+        htmlFor="main-content"
+        className="[--m3e-app-bar-container-color:var(--md-sys-color-surface)] [--m3e-app-bar-padding-left:1rem] [--m3e-app-bar-padding-right:1rem] [--m3e-app-bar-small-container-height:3.25rem]"
+      >
         <Link
           slot="leading"
           to="/"
@@ -63,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reducedMotion ? 0 : 0.25 }}
-        className="mx-auto w-full min-w-0 max-w-[1320px] flex-1 px-4 pb-10 pt-4 focus:outline-none sm:px-6"
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto focus:outline-none"
       >
         {children}
       </motion.main>

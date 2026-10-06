@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { mutations, queries } from '../../bindings'
 import { errorMessage } from './api'
+import { defaultParserConfig } from './parser-config'
 
 export function useSessions() {
   const queryClient = useQueryClient()
@@ -16,18 +17,16 @@ export function useSessions() {
   }, [list])
 
   const create = useCallback(
-    async (source: string, parts: number) => {
+    async (source: string) => {
       if (creating.current) return null
       creating.current = true
       setCreateError(null)
       try {
         if (!source.trim()) throw new Error('请输入本机文本文件路径')
-        if (!Number.isSafeInteger(parts) || parts < 1) {
-          throw new Error('分段数必须是正整数')
-        }
         const session = await creation.mutateAsync({
           source: source.trim(),
-          options: { filters: [], toc: { SplitEvenly: { parts } } }
+          // Chapters can be re-parsed with other rules from the session page.
+          options: { filters: [], toc: defaultParserConfig }
         })
         const { queryKey } = queries.listSessions()
         // Drop a list request started before creation so it cannot hide the new session.
