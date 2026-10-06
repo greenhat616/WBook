@@ -9,6 +9,7 @@
   "permissions": [
     "core:default",
     "shell:allow-open",
+    "dialog:allow-open",
     "sentry:default"
   ]
 }

@@ -53,6 +53,7 @@ pub fn run() {
             windows::reveal_after(app.handle(), windows::MAIN_WINDOW, windows::READY_TIMEOUT);
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sentry::init(&client))
         .build(tauri::generate_context!())
         .expect("error while running tauri application");

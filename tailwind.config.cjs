@@ -16,39 +16,51 @@ module.exports = {
       },
     },
     extend: {
+      // Colors follow the M3 dynamic scheme that <m3e-theme> derives at runtime.
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        border: "var(--md-sys-color-outline-variant)",
+        input: "var(--md-sys-color-outline)",
+        ring: "var(--md-sys-color-primary)",
+        background: "var(--md-sys-color-surface)",
+        foreground: "var(--md-sys-color-on-surface)",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "var(--md-sys-color-primary)",
+          foreground: "var(--md-sys-color-on-primary)",
+          container: "var(--md-sys-color-primary-container)",
+          "on-container": "var(--md-sys-color-on-primary-container)",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "var(--md-sys-color-secondary-container)",
+          foreground: "var(--md-sys-color-on-secondary-container)",
+        },
+        tertiary: {
+          DEFAULT: "var(--md-sys-color-tertiary-container)",
+          foreground: "var(--md-sys-color-on-tertiary-container)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: "var(--md-sys-color-error)",
+          foreground: "var(--md-sys-color-on-error)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "var(--md-sys-color-surface-container-high)",
+          foreground: "var(--md-sys-color-on-surface-variant)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "var(--md-sys-color-tertiary-container)",
+          foreground: "var(--md-sys-color-on-tertiary-container)",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "var(--md-sys-color-surface-container)",
+          foreground: "var(--md-sys-color-on-surface)",
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "var(--md-sys-color-surface-container-low)",
+          foreground: "var(--md-sys-color-on-surface)",
+        },
+        surface: {
+          DEFAULT: "var(--md-sys-color-surface)",
+          container: "var(--md-sys-color-surface-container)",
+          "container-high": "var(--md-sys-color-surface-container-high)",
         },
       },
       borderRadius: {

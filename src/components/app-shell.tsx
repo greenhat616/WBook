@@ -1,14 +1,24 @@
 import { Link } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { BookOpenText, Library, Leaf } from 'lucide-react'
+import { M3eAppBar } from '@m3e/react/app-bar'
+import { M3eIconButton } from '@m3e/react/icon-button'
 import { useRef, type ReactNode } from 'react'
+import BookIcon from '~icons/material-symbols/menu-book-outline-rounded'
+import NotificationsIcon from '~icons/material-symbols/notifications-outline-rounded'
+import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
+
+// Notifications and settings have no screens yet; keep them visible but inert.
+const pendingActions = [
+  { label: '通知', Icon: NotificationsIcon },
+  { label: '设置', Icon: SettingsIcon }
+]
 
 export function AppShell({ children }: { children: ReactNode }) {
   const reducedMotion = useReducedMotion()
   const mainRef = useRef<HTMLElement>(null)
 
   return (
-    <div className="mx-auto min-h-dvh max-w-[1600px] lg:grid lg:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="flex min-h-dvh flex-col">
       <a
         href="#main-content"
         onClick={(event) => {
@@ -21,57 +31,30 @@ export function AppShell({ children }: { children: ReactNode }) {
         跳到主要内容
       </a>
 
-      <aside className="flex items-center justify-between gap-4 border-b border-border/60 px-5 py-4 sm:px-8 lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:justify-start lg:border-b-0 lg:border-r lg:px-5 lg:py-8">
+      <M3eAppBar className="sticky top-0 z-40 [--m3e-app-bar-container-color:var(--md-sys-color-surface)] [--m3e-app-bar-padding-left:1rem] [--m3e-app-bar-padding-right:1rem]">
         <Link
+          slot="leading"
           to="/"
           aria-label="WBook 工作台首页"
-          className="flex w-fit items-center gap-3 rounded-xl lg:mb-12 lg:px-2"
+          className="flex size-10 items-center justify-center rounded-xl bg-primary-container text-primary-on-container transition-[border-radius] duration-200 hover:rounded-2xl"
         >
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl rounded-br-md bg-primary text-primary-foreground">
-            <BookOpenText
-              className="size-6"
-              strokeWidth={1.7}
-              aria-hidden="true"
-            />
-          </span>
-          <span>
-            <span className="block text-xl font-bold tracking-tight">
-              WBook
-            </span>
-            <span className="hidden text-[10px] font-medium tracking-[0.16em] text-muted-foreground sm:block">
-              LOCAL BOOK STUDIO
-            </span>
-          </span>
+          <BookIcon className="size-6" aria-hidden="true" />
         </Link>
-
-        <nav aria-label="主导航">
-          <Link
-            to="/"
-            activeOptions={{ exact: true }}
-            className="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-secondary-foreground lg:rounded-2xl"
-            activeProps={{
-              className: 'bg-secondary text-secondary-foreground'
-            }}
+        <span slot="title" className="font-semibold tracking-tight">
+          WBook
+        </span>
+        {pendingActions.map(({ label, Icon }) => (
+          <M3eIconButton
+            key={label}
+            slot="trailing"
+            aria-label={`${label}（即将推出）`}
+            title={`${label}（即将推出）`}
+            disabledInteractive
           >
-            <Library className="size-5" aria-hidden="true" />
-            工作台
-          </Link>
-        </nav>
-
-        <div className="mt-auto hidden px-3 pb-1 lg:block">
-          <Leaf
-            className="mb-3 size-5 text-primary/70"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          />
-          <p className="text-sm font-medium">把文字，整理成书。</p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            文件在本机处理，
-            <br />
-            专注当下的创作。
-          </p>
-        </div>
-      </aside>
+            <Icon className="size-6" aria-hidden="true" />
+          </M3eIconButton>
+        ))}
+      </M3eAppBar>
 
       <motion.main
         ref={mainRef}
@@ -80,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reducedMotion ? 0 : 0.25 }}
-        className="mx-auto w-full min-w-0 max-w-[1320px] px-4 py-7 focus:outline-none sm:px-8 sm:py-10 xl:px-10"
+        className="mx-auto w-full min-w-0 max-w-[1320px] flex-1 px-4 pb-10 pt-4 focus:outline-none sm:px-6"
       >
         {children}
       </motion.main>

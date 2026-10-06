@@ -28,22 +28,38 @@ import type {
   WorkspaceResults
 } from '../../src/bindings'
 
-const { commands, subscribe, isTauri } = vi.hoisted(() => ({
-  commands: {
-    listSessions: vi.fn(),
-    openSessionWindow: vi.fn(),
-    createSession: vi.fn(),
-    getSession: vi.fn(),
-    readResults: vi.fn(),
-    initializeSession: vi.fn(),
-    renderPreview: vi.fn(),
-    exportEpub: vi.fn(),
-    cancelOperation: vi.fn(),
-    closeSession: vi.fn()
-  },
-  subscribe: vi.fn(),
-  isTauri: vi.fn()
-}))
+const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
+  // jsdom lacks custom state sets, which the M3E elements toggle on connect.
+  if (!('states' in ElementInternals.prototype)) {
+    const states = new WeakMap<ElementInternals, Set<string>>()
+    Object.defineProperty(ElementInternals.prototype, 'states', {
+      get(this: ElementInternals) {
+        if (!states.has(this)) states.set(this, new Set())
+        return states.get(this)
+      }
+    })
+  }
+  return {
+    commands: {
+      listSessions: vi.fn(),
+      openSessionWindow: vi.fn(),
+      createSession: vi.fn(),
+      getSession: vi.fn(),
+      readResults: vi.fn(),
+      initializeSession: vi.fn(),
+      renderPreview: vi.fn(),
+      exportEpub: vi.fn(),
+      cancelOperation: vi.fn(),
+      closeSession: vi.fn()
+    },
+    subscribe: vi.fn(),
+    isTauri: vi.fn(),
+    openDialog: vi.fn(),
+    webview: {
+      drop: null as null | ((event: { payload: unknown }) => void)
+    }
+  }
+})
 
 vi.mock('../../src/transport', () => ({
   invoke: (method: string, params: Record<string, unknown> = {}) =>
@@ -55,6 +71,17 @@ vi.mock('../../src/transport', () => ({
 }))
 vi.mock('../../src/bridge', () => ({ subscribeSession: subscribe }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: openDialog }))
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: (handler: (event: { payload: unknown }) => void) => {
+      webview.drop = handler
+      return Promise.resolve(() => {
+        webview.drop = null
+      })
+    }
+  })
+}))
 
 import { exportOptions } from '../../src/features/sessions/api'
 import { useSession } from '../../src/features/sessions/use-session'
@@ -608,48 +635,93 @@ describe('home page session entry', () => {
     return router
   }
 
-  async function createFromForm() {
-    fireEvent.change(await screen.findByLabelText('文本文件路径'), {
-      target: { value: 'C:/book-1.txt' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: '创建工作会话' }))
+  function sessionItem(name: RegExp) {
+    return screen.getByText(name).closest('m3e-list-action')!
   }
 
-  it('opens created and listed sessions in their own desktop windows', async () => {
+  it('adds picked files and opens them in their own desktop windows', async () => {
     isTauri.mockReturnValue(true)
+    openDialog.mockResolvedValue(['C:/book-1.txt'])
     commands.openSessionWindow.mockResolvedValue(null)
     const router = renderHome()
-    await createFromForm()
+    fireEvent.click(
+      (await screen.findByText('选择文件')).closest('m3e-button')!
+    )
+    await screen.findByText('C:/book-1.txt')
+    expect(commands.createSession).toHaveBeenCalledWith('C:/book-1.txt', {
+      filters: [],
+      toc: { SplitEvenly: { parts: 1 } }
+    })
+    expect(commands.openSessionWindow).not.toHaveBeenCalled()
+
+    fireEvent.click(sessionItem(/^book-1\.txt$/))
     await waitFor(() =>
       expect(commands.openSessionWindow).toHaveBeenCalledWith(1)
-    )
-
-    fireEvent.click(await screen.findByRole('link', { name: /book-1\.txt/ }))
-    await waitFor(() =>
-      expect(commands.openSessionWindow).toHaveBeenCalledTimes(2)
     )
     expect(router.state.location.pathname).toBe('/')
   })
 
+  it('adds a session for every file dropped on the window', async () => {
+    isTauri.mockReturnValue(true)
+    commands.createSession.mockImplementation((source: string) =>
+      Promise.resolve(snapshot(Number(source.match(/\d+/)![0])))
+    )
+    renderHome()
+    await waitFor(() => expect(webview.drop).not.toBeNull())
+    act(() =>
+      webview.drop!({ payload: { type: 'enter', paths: ['C:/book-1.txt'] } })
+    )
+    expect(screen.getByText('松开以添加工作会话')).toBeTruthy()
+    act(() =>
+      webview.drop!({
+        payload: { type: 'drop', paths: ['C:/book-1.txt', 'C:/book-2.txt'] }
+      })
+    )
+    await screen.findByText('C:/book-2.txt')
+    expect(screen.getByText('C:/book-1.txt')).toBeTruthy()
+    expect(screen.queryByText('松开以添加工作会话')).toBeNull()
+  })
+
   it('reports a window that cannot be opened', async () => {
     isTauri.mockReturnValue(true)
+    commands.listSessions.mockResolvedValue([snapshot()])
     commands.openSessionWindow.mockRejectedValue({
       kind: 'closed',
       message: 'Session is closed'
     })
     renderHome()
-    await createFromForm()
+    await screen.findByText('C:/book-1.txt')
+    fireEvent.click(sessionItem(/^book-1\.txt$/))
     expect((await screen.findByRole('alert')).textContent).toContain(
       'Session is closed'
     )
   })
 
-  it('navigates within the page in the browser', async () => {
+  it('adds typed paths and navigates within the page in the browser', async () => {
     isTauri.mockReturnValue(false)
     const router = renderHome()
-    await createFromForm()
+    fireEvent.change(await screen.findByLabelText('文本文件路径'), {
+      target: { value: 'C:/book-1.txt' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    await screen.findByText('C:/book-1.txt')
+    fireEvent.click(sessionItem(/^book-1\.txt$/))
     await screen.findByRole('heading', { name: '工作区页面' })
     expect(router.state.location.pathname).toBe('/sessions/1')
     expect(commands.openSessionWindow).not.toHaveBeenCalled()
+  })
+
+  it('explains that browsers cannot add dropped files', async () => {
+    isTauri.mockReturnValue(false)
+    renderHome()
+    await screen.findByRole('heading', { name: '开始一本新书' })
+    const files = { types: ['Files'] }
+    fireEvent.dragEnter(window, { dataTransfer: files })
+    expect(await screen.findByText('松开以添加工作会话')).toBeTruthy()
+    fireEvent.drop(window, { dataTransfer: files })
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      '浏览器无法读取拖入文件的路径'
+    )
+    expect(commands.createSession).not.toHaveBeenCalled()
   })
 })

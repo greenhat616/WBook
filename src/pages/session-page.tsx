@@ -1,17 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import {
-  ArrowLeft,
-  BookOpen,
-  Check,
-  Download,
-  Eye,
-  FileText,
-  RefreshCw,
-  Square,
-  X
-} from 'lucide-react'
+import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
+import BookOpenIcon from '~icons/material-symbols/menu-book-outline-rounded'
+import CheckIcon from '~icons/material-symbols/check-circle-outline-rounded'
+import DownloadIcon from '~icons/material-symbols/download-rounded'
+import EyeIcon from '~icons/material-symbols/visibility-outline-rounded'
+import FileTextIcon from '~icons/material-symbols/description-outline-rounded'
+import RefreshCwIcon from '~icons/material-symbols/refresh-rounded'
+import SquareIcon from '~icons/material-symbols/stop-rounded'
+import XIcon from '~icons/material-symbols/close-rounded'
 import type { OpKind, Phase, TocEntry } from '@/bindings'
 import { previewUrl } from '@/bridge'
 import { Badge } from '@/components/ui/badge'
@@ -165,7 +163,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
       to="/"
       className="inline-flex items-center gap-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
     >
-      <ArrowLeft className="size-4" aria-hidden="true" />
+      <ArrowLeftIcon className="size-4" aria-hidden="true" />
       返回工作台
     </Link>
   )
@@ -196,7 +194,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
             )}
             {!loading && (
               <Button variant="outline" onClick={() => void refresh()}>
-                <RefreshCw className="size-4" aria-hidden="true" />
+                <RefreshCwIcon className="size-4" aria-hidden="true" />
                 重新尝试
               </Button>
             )}
@@ -275,7 +273,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
           onClick={() => void closeSession()}
           disabled={closing || !open}
         >
-          <X className="size-4" aria-hidden="true" />
+          <XIcon className="size-4" aria-hidden="true" />
           {closing || snapshot.lifecycle === 'Closing'
             ? '正在关闭…'
             : '关闭会话'}
@@ -311,7 +309,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
       {warnings.length > 0 && (
         <div
           role="status"
-          className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+          className="space-y-2 rounded-2xl bg-tertiary p-4 text-sm text-tertiary-foreground"
         >
           <p className="font-medium">部分临时文件未能清理</p>
           <ul className="space-y-2">
@@ -360,7 +358,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               onClick={() => void cancelOperation()}
               disabled={cancelling || running.cancel_requested || !open}
             >
-              <Square className="size-3" aria-hidden="true" />
+              <SquareIcon className="size-3" aria-hidden="true" />
               {cancelling || running.cancel_requested
                 ? '正在取消…'
                 : '取消操作'}
@@ -372,13 +370,13 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               onClick={() => void refresh()}
               disabled={pending || loading || !open}
             >
-              <RefreshCw className="size-4" aria-hidden="true" />
+              <RefreshCwIcon className="size-4" aria-hidden="true" />
               刷新状态
             </Button>
           )}
           {canInitialize && (
             <Button onClick={() => void initialize()} disabled={blocked}>
-              <FileText className="size-4" aria-hidden="true" />
+              <FileTextIcon className="size-4" aria-hidden="true" />
               整理文本
             </Button>
           )}
@@ -444,7 +442,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               onClick={() => void renderPreview()}
               disabled={blocked || !current}
             >
-              <Eye className="size-4" aria-hidden="true" />
+              <EyeIcon className="size-4" aria-hidden="true" />
               {preview ? '重新生成预览' : '生成预览'}
             </Button>
           </CardHeader>
@@ -510,7 +508,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
             ) : (
               <div className="flex min-h-72 flex-col items-center justify-center gap-4 rounded-2xl border border-dashed bg-muted/30 px-6 py-10 text-center">
                 <div className="flex size-16 items-center justify-center rounded-3xl bg-secondary">
-                  <BookOpen
+                  <BookOpenIcon
                     className="size-7 text-primary"
                     aria-hidden="true"
                   />
@@ -560,7 +558,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                 type="submit"
                 disabled={blocked || !current || !destination.trim()}
               >
-                <Download className="size-4" aria-hidden="true" />
+                <DownloadIcon className="size-4" aria-hidden="true" />
                 导出 EPUB
               </Button>
             </div>
@@ -576,7 +574,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               role="status"
               className="mt-5 flex items-start gap-3 rounded-2xl bg-background/70 p-4"
             >
-              <Check
+              <CheckIcon
                 className="mt-0.5 size-5 shrink-0 text-primary"
                 aria-hidden="true"
               />
