@@ -420,6 +420,31 @@ export function useSession(sessionId: number) {
     [operate, patch]
   )
 
+  // Unlike operate(), failures are thrown so a settings form can show them
+  // next to its fields.
+  const saveSettings = useCallback(
+    async (settings: Settings) => {
+      const current = context.current
+      const revision = current?.snapshot?.workspace_status.Available?.revision
+      if (
+        !current?.alive ||
+        current.closing ||
+        current.closed ||
+        revision === undefined
+      )
+        throw new Error('会话不可用，无法保存设置')
+      const response = await commands.setSessionSettings(
+        current.id,
+        revision,
+        settings
+      )
+      warnings(current, response.warnings)
+      unwrap(response.outcome, '保存本书设置')
+      applySnapshot(current, await commands.getSession(current.id))
+    },
+    [applySnapshot, warnings]
+  )
+
   // Reads bypass the pending flag: they never change the session, and the
   // backend reports `busy` itself if an operation is still running.
   const readText = useCallback(
@@ -506,6 +531,7 @@ export function useSession(sessionId: number) {
     install,
     discardDraft,
     setOverrides,
+    saveSettings,
     readText,
     cancel,
     close

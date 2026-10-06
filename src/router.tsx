@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useWindowReady } from '@/hooks/use-window-ready'
 import { HomePage } from '@/pages/home-page'
 import { SessionPage } from '@/pages/session-page'
+import { SessionSettingsPage } from '@/pages/session-settings-page'
 import { SettingsPage } from '@/pages/settings-page'
 
 function MissingPage() {
@@ -71,18 +72,36 @@ const sessionRoute = createRoute({
   component: SessionRoute
 })
 
-function SessionRoute() {
-  const { sessionId } = sessionRoute.useParams()
+const sessionSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sessions/$sessionId/settings',
+  component: SessionSettingsRoute
+})
+
+function sessionNumber(sessionId: string): number | null {
   const id = Number(sessionId)
-  return /^\d+$/.test(sessionId) && Number.isSafeInteger(id) && id > 0 ? (
-    <SessionPage key={id} sessionId={id} />
-  ) : (
-    <MissingPage />
-  )
+  return /^\d+$/.test(sessionId) && Number.isSafeInteger(id) && id > 0
+    ? id
+    : null
+}
+
+function SessionRoute() {
+  const id = sessionNumber(sessionRoute.useParams().sessionId)
+  return id ? <SessionPage key={id} sessionId={id} /> : <MissingPage />
+}
+
+function SessionSettingsRoute() {
+  const id = sessionNumber(sessionSettingsRoute.useParams().sessionId)
+  return id ? <SessionSettingsPage key={id} sessionId={id} /> : <MissingPage />
 }
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, settingsRoute, sessionRoute]),
+  routeTree: rootRoute.addChildren([
+    homeRoute,
+    settingsRoute,
+    sessionRoute,
+    sessionSettingsRoute
+  ]),
   history: createHashHistory(),
   scrollRestoration: true
 })

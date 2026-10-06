@@ -10,6 +10,7 @@ import EyeIcon from '~icons/material-symbols/visibility-outline-rounded'
 import FileTextIcon from '~icons/material-symbols/description-outline-rounded'
 import FolderIcon from '~icons/material-symbols/folder-open-outline-rounded'
 import RefreshIcon from '~icons/material-symbols/refresh-rounded'
+import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
 import StopIcon from '~icons/material-symbols/stop-rounded'
 import WarningIcon from '~icons/material-symbols/warning-outline-rounded'
 import type {
@@ -230,6 +231,16 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               整理文本
             </Button>
           )}
+          <Button asChild variant="ghost" size="icon-sm">
+            <Link
+              to="/sessions/$sessionId/settings"
+              params={{ sessionId: String(sessionId) }}
+              aria-label="本书设置"
+              title="本书设置"
+            >
+              <SettingsIcon aria-hidden="true" />
+            </Link>
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"

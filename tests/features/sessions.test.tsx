@@ -54,6 +54,8 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
       parseSession: vi.fn(),
       getSessionSettings: vi.fn(),
       setSessionSettings: vi.fn(),
+      getSettings: vi.fn(),
+      builtinTemplates: vi.fn(),
       installResults: vi.fn(),
       setMetadataOverrides: vi.fn(),
       readText: vi.fn(),
@@ -104,6 +106,7 @@ import { useSession } from '../../src/features/sessions/use-session'
 import { useSessions } from '../../src/features/sessions/use-sessions'
 import { HomePage } from '../../src/pages/home-page'
 import { SessionPage } from '../../src/pages/session-page'
+import { SessionSettingsPage } from '../../src/pages/session-settings-page'
 
 const settings: Settings = {
   toc: {
@@ -883,5 +886,72 @@ describe('home page session entry', () => {
       '浏览器无法读取拖入文件的路径'
     )
     expect(commands.createSession).not.toHaveBeenCalled()
+  })
+})
+
+describe('session settings page', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    commands.builtinTemplates.mockResolvedValue({
+      stylesheet: '',
+      document: '',
+      section: '',
+      paragraph: ''
+    })
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  function openSettings() {
+    backend = snapshot(1, 1, 3)
+    const root = createRootRoute()
+    const page = createRoute({
+      getParentRoute: () => root,
+      path: '/sessions/$sessionId/settings',
+      component: () => <SessionSettingsPage sessionId={1} />
+    })
+    const workbench = createRoute({
+      getParentRoute: () => root,
+      path: '/sessions/$sessionId',
+      component: () => <h1>工作区</h1>
+    })
+    const router = createRouter({
+      routeTree: root.addChildren([page, workbench]),
+      history: createMemoryHistory({
+        initialEntries: ['/sessions/1/settings']
+      })
+    })
+    const Wrapper = queryWrapper()
+    render(
+      <Wrapper>
+        <RouterProvider router={router} />
+      </Wrapper>
+    )
+  }
+
+  it('saves against the current revision and can start from the global settings', async () => {
+    const global: Settings = {
+      ...settings,
+      filters: ['Ad'],
+      render: { ...settings.render, language: 'zh-Hant' }
+    }
+    commands.getSettings.mockResolvedValue({ settings: global, problem: null })
+    commands.setSessionSettings.mockImplementation(
+      async (_id: number, _revision: number, next: Settings) => {
+        commands.getSessionSettings.mockResolvedValue(next)
+        backend = snapshot(1, 2, 4)
+        return receipt(4, 4)
+      }
+    )
+    openSettings()
+    await screen.findByRole('heading', { name: '本书设置 · book-1.txt' })
+    fireEvent.click(
+      await screen.findByRole('button', { name: '恢复为全局设置' })
+    )
+    await screen.findByText('已载入恢复为全局设置，保存后生效')
+    const save = screen.getByRole('button', { name: '保存' })
+    fireEvent.click(save)
+    await screen.findByText('设置已保存')
+    expect(commands.setSessionSettings).toHaveBeenCalledWith(1, 3, global)
+    await waitFor(() => expect(save).toHaveProperty('disabled', true))
   })
 })
