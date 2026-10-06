@@ -28,7 +28,7 @@
 
 ## R3：类型生成与前端传输
 
-- 固定兼容的 Specta / tauri-specta 预发布版本；命令及 DTO 类型来自 Rust。
+- 固定兼容的 Specta / tauri-specta 预发布版本（未发布部分以 git rev 固定）；命令、DTO 类型及 TanStack Query 辅助来自 Rust。
 - 提供可重复执行的生成命令与已生成文件；检测生成物漂移。传输入口替换必须精确匹配一次，否则生成失败。
 - 客户端自动选择 Tauri invoke 或 HTTP fetch；浏览器调用 get_port 明确失败。HTTP 非 JSON、网络失败、入口拒绝和无效错误响应保留为 Error rejection，不伪装为领域错误；不自动重试。没有对所有成功 DTO 做运行时 schema 验证。
 - 生成客户端与独立适配器通过 TypeScript 检查和双传输测试。
