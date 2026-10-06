@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use snafu::ResultExt;
 use tauri::{
-    AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
     WindowEvent,
 };
 use tokio::sync::watch;
@@ -14,6 +14,9 @@ use wbook_core::{
 use crate::{commands::dto::CommandError, errors::WindowSnafu};
 
 pub const MAIN_WINDOW: &str = "main";
+/// Sent to the main window with the session ID once a windowed session has
+/// closed, so its list drops the session without waiting for focus.
+pub const SESSION_CLOSED_EVENT: &str = "session-closed";
 const SESSION_PREFIX: &str = "session-";
 /// How long a hidden window waits for its frontend before it is shown anyway,
 /// so a page that fails to load is still visible and debuggable.
@@ -81,6 +84,9 @@ pub fn open<R: Runtime>(
     tauri::async_runtime::spawn(async move {
         until_closed(receiver).await;
         destroy(&app, &label);
+        if let Err(error) = app.emit_to(MAIN_WINDOW, SESSION_CLOSED_EVENT, id.0) {
+            tracing::warn!(session = id.0, "Could not announce closed session: {error}");
+        }
     });
     Ok(())
 }

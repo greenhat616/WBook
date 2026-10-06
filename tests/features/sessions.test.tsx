@@ -61,7 +61,8 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
     isTauri: vi.fn(),
     openDialog: vi.fn(),
     webview: {
-      drop: null as null | ((event: { payload: unknown }) => void)
+      drop: null as null | ((event: { payload: unknown }) => void),
+      events: new Map<string, (event: { payload: unknown }) => void>()
     }
   }
 })
@@ -87,6 +88,10 @@ vi.mock('@tauri-apps/api/webview', () => ({
       return Promise.resolve(() => {
         webview.drop = null
       })
+    },
+    listen: (name: string, handler: (event: { payload: unknown }) => void) => {
+      webview.events.set(name, handler)
+      return Promise.resolve(() => webview.events.delete(name))
     }
   })
 }))
@@ -790,6 +795,18 @@ describe('home page session entry', () => {
     await screen.findByText('C:/book-2.txt')
     expect(screen.getByText('C:/book-1.txt')).toBeTruthy()
     expect(screen.queryByText('松开以添加工作会话')).toBeNull()
+  })
+
+  it('drops a session once the host reports its window closed it', async () => {
+    isTauri.mockReturnValue(true)
+    commands.listSessions.mockResolvedValue([snapshot(1), snapshot(2)])
+    renderHome()
+    await screen.findByText('C:/book-2.txt')
+    await waitFor(() => expect(webview.events.has('session-closed')).toBe(true))
+
+    act(() => webview.events.get('session-closed')!({ payload: 1 }))
+    await waitFor(() => expect(screen.queryByText('C:/book-1.txt')).toBeNull())
+    expect(screen.getByText('C:/book-2.txt')).toBeTruthy()
   })
 
   it('reports a window that cannot be opened', async () => {

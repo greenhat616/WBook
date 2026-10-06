@@ -8,7 +8,7 @@ use axum::{
 use serde_json::{json, Value};
 use tauri::{
     test::{mock_builder, mock_context, noop_assets, MockRuntime},
-    Manager, WebviewWindow,
+    Listener, Manager, WebviewWindow,
 };
 use tower::ServiceExt;
 use wbook_core::{session::Rejected, types::Port, Params, Wbook};
@@ -467,7 +467,20 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
     assert_eq!(url.scheme(), "http");
     assert_eq!(url.fragment(), Some("/sessions/1"));
 
+    let (closed, announced) = tokio::sync::oneshot::channel();
+    let closed = std::sync::Mutex::new(Some(closed));
+    h.window
+        .listen(crate::windows::SESSION_CLOSED_EVENT, move |event| {
+            if let Some(closed) = closed.lock().unwrap().take() {
+                let _ = closed.send(event.payload().to_owned());
+            }
+        });
     h.rpc_ok("close_session", args.clone()).await;
+    let payload = tokio::time::timeout(std::time::Duration::from_secs(5), announced)
+        .await
+        .expect("the main window hears about the closed session")
+        .unwrap();
+    assert_eq!(payload, created["session"].to_string());
     for args in [args, json!({ "sessionId": 99 })] {
         assert_eq!(
             h.ipc("open_session_window", args).await.unwrap_err()["kind"],
