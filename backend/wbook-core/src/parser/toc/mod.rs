@@ -2,6 +2,7 @@ mod config;
 mod leveled;
 mod presets;
 mod rule;
+mod settings;
 mod split;
 mod vbook;
 
@@ -18,5 +19,6 @@ pub use presets::{
     vbook_config, volume_and_chapter, volume_and_chapter_config, volume_rules, EXTRA_PATTERN,
 };
 pub use rule::{scan_lines, LineRule};
+pub use settings::{TocMode, TocSettings, VolumeSplit};
 pub use split::SplitEvenlyParser;
 pub use vbook::{ChapterMode, VBookConfig, VBookTocParser, VolumeMode};

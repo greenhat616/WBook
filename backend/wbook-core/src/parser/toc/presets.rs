@@ -7,37 +7,57 @@ use super::vbook::{ChapterMode, VBookConfig, VolumeMode};
 
 pub const EXTRA_PATTERN: &str = r"^\s*(简介|序言|序曲|楔子|前言|后记|尾声|番外[^\n]{0,25})$";
 
-fn simple_rule(prefixes: &[&str], suffixes: &[&str]) -> HeadingRuleConfig {
+pub(super) const MAX_TITLE_LEN: usize = 25;
+
+fn strings(values: &[&str]) -> Vec<String> {
+    values.iter().map(|s| (*s).into()).collect()
+}
+
+fn simple_rule(
+    prefixes: Vec<String>,
+    suffixes: Vec<String>,
+    max_title_len: usize,
+) -> HeadingRuleConfig {
     HeadingRuleConfig::Simple(SimpleRuleConfig {
         allow_leading_space: true,
-        prefixes: prefixes.iter().map(|s| (*s).into()).collect(),
+        prefixes,
         numeral: NumeralStyle::Mixed,
-        suffixes: suffixes.iter().map(|s| (*s).into()).collect(),
+        suffixes,
         min_numeral_len: 1,
         max_numeral_len: Some(9),
-        max_title_len: 25,
+        max_title_len,
     })
 }
 
-fn extra_pattern() -> HeadingRuleConfig {
+/// Matches both "第十章" and the prefix-only "章十" forms of the given marks.
+pub(super) fn heading_rules(marks: &[String], max_title_len: usize) -> Vec<HeadingRuleConfig> {
+    vec![
+        simple_rule(strings(&["第"]), marks.to_vec(), max_title_len),
+        simple_rule(marks.to_vec(), vec![], max_title_len),
+    ]
+}
+
+pub(super) fn extra_pattern() -> HeadingRuleConfig {
     HeadingRuleConfig::Regex(PatternRuleConfig {
         pattern: EXTRA_PATTERN.into(),
         title_group: None,
     })
 }
 
+pub(super) fn chapter_marks() -> Vec<String> {
+    strings(&["章", "回", "节", "集"])
+}
+
+pub(super) fn volume_marks() -> Vec<String> {
+    strings(&["部", "卷"])
+}
+
 pub fn chapter_rules() -> Vec<HeadingRuleConfig> {
-    vec![
-        simple_rule(&["第"], &["章", "回", "节", "集"]),
-        simple_rule(&["章", "回", "节", "集"], &[]),
-    ]
+    heading_rules(&chapter_marks(), MAX_TITLE_LEN)
 }
 
 pub fn volume_rules() -> Vec<HeadingRuleConfig> {
-    vec![
-        simple_rule(&["第"], &["部", "卷"]),
-        simple_rule(&["卷", "部"], &[]),
-    ]
+    heading_rules(&volume_marks(), MAX_TITLE_LEN)
 }
 
 pub fn digit_chapter_rule() -> SimpleRuleConfig {
@@ -82,8 +102,12 @@ pub fn easy_pub_config() -> TocRulesConfig {
         levels: vec![LevelRulesConfig {
             level: 1,
             rules: vec![
-                simple_rule(&["第", "卷"], &["章", "回", "卷", "节", "集", "部"]),
-                simple_rule(&["卷", "部"], &[]),
+                simple_rule(
+                    strings(&["第", "卷"]),
+                    strings(&["章", "回", "卷", "节", "集", "部"]),
+                    MAX_TITLE_LEN,
+                ),
+                simple_rule(strings(&["卷", "部"]), vec![], MAX_TITLE_LEN),
                 extra_pattern(),
             ],
         }],

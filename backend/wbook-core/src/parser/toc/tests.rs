@@ -726,3 +726,67 @@ fn cancellation_during_tree_build_discards_partial_results() {
         Err(ParserError::Cancelled)
     ));
 }
+
+#[test]
+fn default_settings_match_presets() {
+    use super::{TocMode, TocSettings};
+    let settings = |mode| TocSettings {
+        mode,
+        ..TocSettings::default()
+    };
+    assert_eq!(
+        settings(TocMode::VBook).to_config().unwrap(),
+        TocParserConfig::VBook(vbook_config())
+    );
+    assert_eq!(
+        settings(TocMode::Chapters).to_config().unwrap(),
+        TocParserConfig::Levels(chapter_only_config())
+    );
+    assert_eq!(
+        settings(TocMode::Volumes).to_config().unwrap(),
+        TocParserConfig::Levels(volume_and_chapter_config())
+    );
+    assert_eq!(
+        settings(TocMode::Split).to_config().unwrap(),
+        TocParserConfig::SplitEvenly { parts: 10 }
+    );
+}
+
+#[test]
+fn settings_without_volume_split_need_no_volume_marks() {
+    use super::{TocSettings, VolumeSplit};
+    let mut settings = TocSettings {
+        volume_marks: vec![],
+        ..TocSettings::default()
+    };
+    assert!(settings.to_config().is_err());
+    settings.volume_split = VolumeSplit::None;
+    assert!(matches!(
+        settings.to_config().unwrap(),
+        TocParserConfig::VBook(super::VBookConfig {
+            volumes: VolumeMode::None,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn settings_reject_empty_chapter_marks_and_zero_limits() {
+    use super::TocSettings;
+    for settings in [
+        TocSettings {
+            chapter_marks: vec![],
+            ..TocSettings::default()
+        },
+        TocSettings {
+            max_title_len: 0,
+            ..TocSettings::default()
+        },
+        TocSettings {
+            chapters_per_volume: 0,
+            ..TocSettings::default()
+        },
+    ] {
+        assert!(settings.to_config().is_err(), "{settings:?}");
+    }
+}
