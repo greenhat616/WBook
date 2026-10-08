@@ -67,7 +67,9 @@ impl Harness {
                     cmd: method,
                     callback: tauri::ipc::CallbackFn(0),
                     error: tauri::ipc::CallbackFn(1),
-                    url: "http://tauri.localhost".parse().unwrap(),
+                    // The local origin differs per platform: tauri://localhost
+                    // outside Windows, so take it from the window itself.
+                    url: window.url().unwrap(),
                     body: tauri::ipc::InvokeBody::Json(params),
                     headers: Default::default(),
                     invoke_key: tauri::test::INVOKE_KEY.to_string(),
@@ -529,7 +531,8 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
     let windows = h._app.webview_windows();
     assert_eq!(windows.len(), 2);
     let url = windows["session-1"].url().unwrap();
-    assert_eq!(url.scheme(), "http");
+    // Bridge requests must keep the main window's Origin.
+    assert_eq!(url.origin(), h.window.url().unwrap().origin());
     assert_eq!(url.fragment(), Some("/sessions/1"));
 
     let (closed, announced) = tokio::sync::oneshot::channel();
