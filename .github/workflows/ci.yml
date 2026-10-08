@@ -12,7 +12,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Rust toolchain
         run: rustup toolchain install --profile minimal && rustup component add clippy
       - name: Tauri dependencies
@@ -72,7 +72,7 @@ jobs:
     # the steps our job runs **in order**
     steps:
       # checkout the code on the workflow runner
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
 
       # install system dependencies that Tauri needs to compile on Linux.
       # note the extra dependencies for `tauri-driver` to run which are: `webkit2gtk-driver` and `xvfb`
