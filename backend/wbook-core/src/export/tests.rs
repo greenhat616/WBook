@@ -312,7 +312,7 @@ fn escapes_text_without_interpreting_html_or_tera() {
             ("h1".into(), "第一章 <script>".into()),
             (
                 "p".into(),
-                "  a & b <script>\"quoted\" 'apostrophe' {{ book.title }} 中文🙂".into()
+                "a & b <script>\"quoted\" 'apostrophe' {{ book.title }} 中文🙂".into()
             ),
             ("p".into(), "".into()),
             ("p".into(), "尾行".into())
@@ -327,6 +327,10 @@ fn no_toc_and_terminal_newlines_preserve_paragraphs() {
         ("a\n", vec!["a"]),
         ("a\n\n", vec!["a", ""]),
         ("\r\n正文\r\n", vec!["", "正文"]),
+        (
+            "　　正文\n \t\n    段落  内部",
+            vec!["正文", "", "段落  内部"],
+        ),
     ] {
         let document = book(source, &chapter_only());
         let rendered = render_book(

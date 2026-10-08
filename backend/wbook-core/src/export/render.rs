@@ -242,7 +242,11 @@ fn section(
                 .raw
                 .strip_suffix("\r\n")
                 .or_else(|| line.raw.strip_suffix('\n'))
-                .unwrap_or(&line.raw);
+                .unwrap_or(&line.raw)
+                // Sources indent with full-width or ASCII spaces of varying
+                // width; the stylesheet's text-indent is the only indent, or
+                // pre-wrap would add the two together.
+                .trim_start();
             xml_text(ct, text, &format!("source offset {}", line.range.start))?;
             let mut paragraph = Context::new();
             paragraph.insert("text", &text);
