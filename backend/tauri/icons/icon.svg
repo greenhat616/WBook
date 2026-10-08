@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="cover" x1="100" y1="385" x2="925" y2="846" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#079486"/>
+      <stop offset="1" stop-color="#1DBB80"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="150" x2="0" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFDF8"/>
+      <stop offset="1" stop-color="#F3EEE3"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="760" y1="150" x2="868" y2="258" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFC966"/>
+      <stop offset="1" stop-color="#F0A33A"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#06463D" flood-opacity="0.24"/>
+    </filter>
+    <filter id="lift" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#06463D" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <!-- Scaled so the book fills the canvas like other app icons. -->
+  <g filter="url(#shadow)" transform="translate(512 498) scale(1.1) translate(-512 -498)">
+    <path fill="url(#cover)" d="M145 385H880Q925 385 925 430V765Q925 810 880 810H592Q566 810 549 828Q532 846 512 846Q492 846 475 828Q458 810 432 810H145Q100 810 100 765V430Q100 385 145 385Z"/>
+    <path fill="#C4D9D0" d="M156 600V692Q156 728 192 727Q380 720 470 762Q495 777 512 802Q529 777 554 762Q644 720 832 727Q868 728 868 692V600Z"/>
+    <path fill="#DDEAE4" d="M156 600V672Q156 708 192 707Q380 700 470 742Q495 757 512 782Q529 757 554 742Q644 700 832 707Q868 708 868 672V600Z"/>
+    <g filter="url(#lift)" fill="url(#page)">
+      <path d="M512 425Q470 362 360 346Q260 334 190 340Q156 344 156 378V650Q156 686 192 685Q380 678 470 720Q495 735 512 760Z"/>
+      <path d="M512 425Q540 385 588 368V178Q588 150 616 150H760L868 258V650Q868 686 832 685Q644 678 554 720Q529 735 512 760Z"/>
+    </g>
+    <path fill="none" stroke="#DCE6E0" stroke-width="4" d="M512 425V760"/>
+    <path fill="url(#fold)" d="M760 150V230Q760 258 788 258H868Z"/>
+    <g fill="none" stroke="#0B7D6E" stroke-linecap="round">
+      <path stroke-width="44" d="M240 484L440 491M240 564L440 569M584 491L784 484M584 569L784 564"/>
+      <path stroke-width="30" d="M642 282H786M642 334H786"/>
+    </g>
+  </g>
+</svg>
