@@ -621,6 +621,18 @@ describe('session page', () => {
     commands.readResults.mockImplementation(async () =>
       receipt(shown, backend.workspace_status.Available!.revision)
     )
+    const router = renderPage()
+    await screen.findByRole('heading', { name: 'book-1.txt' })
+    await waitFor(() => {
+      expect(
+        (screen.getByRole('button', { name: '生成预览' }) as HTMLButtonElement)
+          .disabled
+      ).toBe(false)
+    })
+    return router
+  }
+
+  function renderPage() {
     const root = createRootRoute()
     const home = createRoute({
       getParentRoute: () => root,
@@ -637,15 +649,33 @@ describe('session page', () => {
       history: createMemoryHistory({ initialEntries: ['/sessions/1'] })
     })
     render(<RouterProvider router={router} />)
-    await screen.findByRole('heading', { name: 'book-1.txt' })
-    await waitFor(() => {
-      expect(
-        (screen.getByRole('button', { name: '生成预览' }) as HTMLButtonElement)
-          .disabled
-      ).toBe(false)
-    })
     return router
   }
+
+  it('organizes an unparsed book once when its page opens', async () => {
+    backend = snapshot(1, 1, 0)
+    commands.initializeSession.mockRejectedValue({
+      kind: 'extractor',
+      message: 'Cannot read the file'
+    })
+    renderPage()
+    expect(await screen.findByText(/Cannot read the file/)).toBeTruthy()
+    expect(commands.initializeSession).toHaveBeenCalledWith(1)
+    // A failure is left to the button rather than retried automatically.
+    await act(async () => {
+      subscriptions.at(-1)!.receive(snapshot(1, 2, 0))
+    })
+    expect(commands.initializeSession).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '整理文本' }))
+    await waitFor(() =>
+      expect(commands.initializeSession).toHaveBeenCalledTimes(2)
+    )
+  })
+
+  it('does not organize a book whose TOC is installed', async () => {
+    await openPage(book)
+    expect(commands.initializeSession).not.toHaveBeenCalled()
+  })
 
   it('keeps cleanup warnings visible and disables actions before the closed SSE snapshot arrives', async () => {
     const router = await openPage()

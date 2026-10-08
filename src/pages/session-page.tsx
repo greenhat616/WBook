@@ -1,4 +1,11 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode
+} from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -113,6 +120,24 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
   const name = snapshot
     ? snapshot.source.split(/[\\/]/).pop() || snapshot.source
     : ''
+
+  // Opening a book should show its chapters without an extra click. Each
+  // session is tried once; after a failure the button retries, so an error
+  // is never repeated in a loop.
+  const attempted = useRef<number | null>(null)
+  const unparsed =
+    snapshot?.lifecycle === 'Open' &&
+    connection !== 'closed' &&
+    ['Absent', 'Unparsed'].includes(
+      snapshot.workspace_status.Available?.document ?? ''
+    )
+  const idle = snapshot?.activity === 'Idle' && !pending && !loading
+  const { initialize } = session
+  useEffect(() => {
+    if (!unparsed || !idle || attempted.current === sessionId) return
+    attempted.current = sessionId
+    void initialize()
+  }, [unparsed, idle, sessionId, initialize])
 
   async function closeSession() {
     setClosing(true)
