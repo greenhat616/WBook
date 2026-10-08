@@ -84,7 +84,7 @@
     "eslint-plugin-react": "7.37.5",
     "husky": "9.1.7",
     "i18next": "26.4.2",
-    "jsdom": "26.1.0",
+    "jsdom": "30.1.2",
     "lint-staged": "17.6.0",
     "ofetch": "1.5.1",
     "postcss": "8.5.29",
