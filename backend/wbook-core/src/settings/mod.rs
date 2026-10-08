@@ -109,7 +109,9 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
-            layout: RenderLayout::SingleHtml,
+            // Readers parse and page one small file per chapter much faster
+            // than a single file holding the whole book.
+            layout: RenderLayout::SplitChapters,
             language: "zh-CN".into(),
             templates: TemplateOverrides::default(),
         }

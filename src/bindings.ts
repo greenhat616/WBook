@@ -362,8 +362,8 @@ export type TocSettings = {
 	max_title_len: number,
 	volume_split: VolumeSplit,
 	/**
-	 *  In VBook mode, also sizes the volumes for chapters before the first
-	 *  volume heading.
+	 *  In VBook mode with volume titles, sizes volumes for a book that has no
+	 *  volume headings; 0 leaves its chapters ungrouped.
 	 */
 	chapters_per_volume: number,
 	parts: number,

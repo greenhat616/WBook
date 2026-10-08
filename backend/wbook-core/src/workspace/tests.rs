@@ -1201,7 +1201,7 @@ fn settings_changes_commit_close_the_preview_and_reject_invalid_values() {
     assert!(preview.directory.exists());
 
     let mut changed = ws.settings().clone();
-    changed.render.layout = RenderLayout::SplitChapters;
+    changed.render.layout = RenderLayout::Paged;
     let next = ws.set_settings(&cx, revision, changed.clone()).unwrap();
     assert_eq!(next, Revision(revision.0 + 1));
     assert_eq!(ws.settings(), &changed);

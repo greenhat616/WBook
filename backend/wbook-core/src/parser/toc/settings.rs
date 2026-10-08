@@ -32,8 +32,8 @@ pub struct TocSettings {
     pub volume_marks: Vec<String>,
     pub max_title_len: usize,
     pub volume_split: VolumeSplit,
-    /// In VBook mode, also sizes the volumes for chapters before the first
-    /// volume heading.
+    /// In VBook mode with volume titles, sizes volumes for a book that has no
+    /// volume headings; 0 leaves its chapters ungrouped.
     pub chapters_per_volume: usize,
     pub parts: usize,
 }
@@ -46,7 +46,8 @@ impl Default for TocSettings {
             volume_marks: volume_marks(),
             max_title_len: MAX_TITLE_LEN,
             volume_split: VolumeSplit::Titles,
-            chapters_per_volume: 50,
+            // Invented volumes only add a level readers must open.
+            chapters_per_volume: 0,
             parts: 10,
         }
     }
@@ -81,7 +82,7 @@ impl TocSettings {
             return Err(invalid("the title length limit must be positive"));
         }
         if self.mode == TocMode::VBook
-            && self.volume_split != VolumeSplit::None
+            && self.volume_split == VolumeSplit::Forced
             && self.chapters_per_volume == 0
         {
             return Err(invalid("chapters per volume must be positive"));
@@ -118,7 +119,8 @@ impl TocSettings {
                     },
                     VolumeSplit::Titles => VolumeMode::Normal {
                         rules: volumes,
-                        fallback_chapters_per_volume: Some(self.chapters_per_volume),
+                        fallback_chapters_per_volume: (self.chapters_per_volume > 0)
+                            .then_some(self.chapters_per_volume),
                     },
                 },
             }),

@@ -46,6 +46,18 @@ const mode = (name: string) =>
   screen.getByRole('radio', { name }).getAttribute('aria-checked')
 
 describe('parser panel', () => {
+  it('accepts no automatic volumes, which fixed-size volumes cannot use', () => {
+    const { onParse } = renderPanel({ ...toc, chapters_per_volume: 0 })
+    fireEvent.click(screen.getByRole('button', { name: '试解析' }))
+    expect(onParse).toHaveBeenLastCalledWith({ ...toc, chapters_per_volume: 0 })
+    fireEvent.change(screen.getByLabelText('分卷方式'), {
+      target: { value: 'Forced' }
+    })
+    expect((screen.getByLabelText(/每卷章数/) as HTMLInputElement).value).toBe(
+      '50'
+    )
+  })
+
   it('follows rules saved elsewhere while it has no edits', () => {
     const { update } = renderPanel(toc)
     update({ ...other, mode: 'Chapters' })

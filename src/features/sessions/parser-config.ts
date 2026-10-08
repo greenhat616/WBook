@@ -45,10 +45,20 @@ export function validateTocForm(form: TocForm): string | null {
   if (!positive(form.max_title_len)) return '标题长度上限必须是正整数'
   if (
     form.mode === 'VBook' &&
-    form.volume_split !== 'None' &&
+    form.volume_split === 'Forced' &&
     !positive(form.chapters_per_volume)
   ) {
     return '每卷章数必须是正整数'
+  }
+  if (
+    form.mode === 'VBook' &&
+    form.volume_split === 'Titles' &&
+    !(
+      Number.isSafeInteger(form.chapters_per_volume) &&
+      form.chapters_per_volume >= 0
+    )
+  ) {
+    return '每卷章数必须是非负整数'
   }
   return null
 }

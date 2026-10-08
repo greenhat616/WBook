@@ -119,7 +119,7 @@ pub fn vbook_config() -> VBookConfig {
         chapters: ChapterMode::Rules(chapter_rules()),
         volumes: VolumeMode::Normal {
             rules: volume_rules(),
-            fallback_chapters_per_volume: Some(50),
+            fallback_chapters_per_volume: None,
         },
     }
 }

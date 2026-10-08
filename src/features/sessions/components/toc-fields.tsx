@@ -109,9 +109,16 @@ export function TocFields({ form, onChange: update }: Props) {
               <Field label="分卷方式">
                 <select
                   value={form.volume_split}
-                  onChange={(event) =>
-                    update({ volume_split: event.target.value as VolumeSplit })
-                  }
+                  onChange={(event) => {
+                    const volume_split = event.target.value as VolumeSplit
+                    // 0 means "no automatic volumes", which fixed-size
+                    // volumes cannot use.
+                    update(
+                      volume_split === 'Forced' && form.chapters_per_volume < 1
+                        ? { volume_split, chapters_per_volume: 50 }
+                        : { volume_split }
+                    )
+                  }}
                   className="h-9 w-full rounded-xl border border-input bg-background px-3"
                 >
                   {volumeSplits.map((item) => (
@@ -126,11 +133,12 @@ export function TocFields({ form, onChange: update }: Props) {
                   label="每卷章数"
                   hint={
                     form.volume_split === 'Titles'
-                      ? '用于首个分卷标题之前的章节'
+                      ? '全书没有分卷标题时按此自动分卷；0 表示不分卷'
                       : undefined
                   }
                 >
                   <NumberInput
+                    min={form.volume_split === 'Titles' ? 0 : 1}
                     value={form.chapters_per_volume}
                     onChange={(chapters_per_volume) =>
                       update({ chapters_per_volume })
@@ -168,16 +176,18 @@ export function Field({
 
 function NumberInput({
   value,
-  onChange
+  onChange,
+  min = 1
 }: {
   value: number
   onChange: (value: number) => void
+  min?: number
 }) {
   return (
     <Input
       type="number"
       inputMode="numeric"
-      min={1}
+      min={min}
       step={1}
       value={Number.isNaN(value) ? '' : value}
       onChange={(event) => onChange(event.target.valueAsNumber)}

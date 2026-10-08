@@ -572,10 +572,9 @@ fn vbook_normal_ignores_recurring_labels_without_chapter_headings() {
     let parser = VBookTocParser::from_config(&vbook_config()).unwrap();
     let text = "第一章 开始\n第一个人：你好\n第一个人：再见\n第一个人：走吧\n第二章 继续";
     let entries = TocSnapshot::from(&parse(&parser, text));
-    // Without a volume heading, the count fallback groups the chapters.
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].title, "第 1 卷");
-    assert_eq!(entries[0].children.len(), 2);
+    // The labels form no volumes, so the chapters stay at the top level.
+    let titles: Vec<_> = entries.iter().map(|entry| entry.title.as_str()).collect();
+    assert_eq!(titles, ["第一章 开始", "第二章 继续"]);
 }
 
 #[test]
@@ -847,6 +846,7 @@ fn settings_reject_empty_chapter_marks_and_zero_limits() {
             ..TocSettings::default()
         },
         TocSettings {
+            volume_split: super::VolumeSplit::Forced,
             chapters_per_volume: 0,
             ..TocSettings::default()
         },
