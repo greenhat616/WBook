@@ -48,6 +48,9 @@ tokio-util = { version = "0.7", features = ["full"] }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+fontdb = "0.24.0"
+ab_glyph = "0.2.32"
 
 [target.'cfg(windows)'.dependencies]
 codepage = "0.1"

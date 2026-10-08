@@ -75,7 +75,8 @@ const defaults: Settings = {
       section: null,
       paragraph: null
     }
-  }
+  },
+  cover: { kind: 'Generated', overlay: false, grayscale: false }
 }
 const builtin = {
   stylesheet: 'p { text-indent: 2em; }',

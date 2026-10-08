@@ -54,3 +54,13 @@ opt-level = "s"
 strip = true
 lto = true
 codegen-units = 1
+
+# Covers are decoded, resized and encoded per preview; unoptimized image code
+# takes seconds per cover in debug builds.
+[profile.dev.package]
+image = { opt-level = 3 }
+zune-jpeg = { opt-level = 3 }
+png = { opt-level = 3 }
+fdeflate = { opt-level = 3 }
+image-webp = { opt-level = 3 }
+ab_glyph_rasterizer = { opt-level = 3 }

@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -38,6 +39,8 @@ pub struct ProcessingDocument {
     document: TextDocument,
     results: Option<ParsedResults>,
     pub metadata_overrides: Metadata,
+    /// The custom cover image as uploaded, checked by `export::cover`.
+    pub cover_image: Option<Arc<[u8]>>,
 }
 
 impl ProcessingDocument {
@@ -46,6 +49,7 @@ impl ProcessingDocument {
             document,
             results: None,
             metadata_overrides: Metadata::default(),
+            cover_image: None,
         }
     }
 

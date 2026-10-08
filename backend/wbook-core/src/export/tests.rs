@@ -21,6 +21,11 @@ fn options(layout: RenderLayout) -> ExportOptions {
         format: OutputFormat::Epub,
         language: "zh-Hans".into(),
         identifier: Some("urn:wbook:test&book".into()),
+        // Covers have their own tests; drawing one slows every export.
+        cover: crate::export::CoverSettings {
+            kind: crate::export::CoverKind::None,
+            ..Default::default()
+        },
     }
 }
 
@@ -103,8 +108,10 @@ fn archive(path: &Path) -> std::collections::HashMap<String, String> {
     let mut files = std::collections::HashMap::new();
     for index in 0..zip.len() {
         let mut file = zip.by_index(index).unwrap();
-        let mut text = String::new();
-        file.read_to_string(&mut text).unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        // Images are kept only so their presence can be checked.
+        let text = String::from_utf8_lossy(&bytes).into_owned();
         if file.name().ends_with(".xhtml")
             || file.name().ends_with(".xml")
             || file.name().ends_with(".opf")
@@ -230,6 +237,62 @@ fn publication_metadata_is_packaged() {
     document.metadata_overrides.isbn = Some("978-7-02-000220-8".into());
     let error = render_book(&ct, &document, &options(RenderLayout::SingleHtml)).unwrap_err();
     assert!(error.to_string().contains("ISBN"));
+}
+
+fn png() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::new(30, 45))
+        .write_to(&mut io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .unwrap();
+    bytes
+}
+
+#[test]
+fn cover_is_packaged_first_and_marked_for_readers() {
+    let ct = CancellationToken::new();
+    let mut document = book(
+        "第一章 开始
+正文",
+        &chapter_only(),
+    );
+    document.cover_image = Some(png().into());
+    let mut opts = options(RenderLayout::SplitChapters);
+    opts.cover.kind = CoverKind::Image;
+    let output = tempfile::tempdir().unwrap();
+    let path = output.path().join("book.epub");
+    export_epub(&ct, &document, &opts, &path).unwrap();
+    let mut zip = zip::ZipArchive::new(fs::File::open(&path).unwrap()).unwrap();
+    let mut image = Vec::new();
+    zip.by_name("EPUB/images/cover.jpg")
+        .unwrap()
+        .read_to_end(&mut image)
+        .unwrap();
+    assert_eq!(
+        image::guess_format(&image).unwrap(),
+        image::ImageFormat::Jpeg
+    );
+    let files = archive(&path);
+    assert!(files["EPUB/cover.xhtml"].contains("images/cover.jpg"));
+    let opf = roxmltree::Document::parse(&files["EPUB/package.opf"]).unwrap();
+    let item = opf
+        .descendants()
+        .find(|n| n.attribute("id") == Some("cover-image"))
+        .unwrap();
+    assert_eq!(item.attribute("properties"), Some("cover-image"));
+    assert!(opf
+        .descendants()
+        .any(|n| n.attribute("name") == Some("cover")
+            && n.attribute("content") == Some("cover-image")));
+    let spine: Vec<_> = opf
+        .descendants()
+        .filter_map(|n| n.attribute("idref"))
+        .collect();
+    assert_eq!(spine[0], "cover");
+
+    // Without a chosen image the export fails instead of dropping the cover.
+    document.cover_image = None;
+    let error = render_book(&ct, &document, &opts).unwrap_err();
+    assert!(matches!(error.source, ExportFailure::Cover { .. }));
 }
 
 #[test]
@@ -772,7 +835,14 @@ fn render_rejects_a_plan_from_another_document() {
     let second = book("正文", &chapter_only());
     let plan = plan::build(&ct, &first, &options(RenderLayout::SingleHtml)).unwrap();
     assert!(matches!(
-        render::render(&ct, second.view(), plan, &TemplateOverrides::default()).unwrap_err(),
+        render::render(
+            &ct,
+            second.view(),
+            plan,
+            &TemplateOverrides::default(),
+            None
+        )
+        .unwrap_err(),
         ExportFailure::Document {
             source: DocumentError::WrongDocument
         }

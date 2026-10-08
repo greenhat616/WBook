@@ -203,6 +203,29 @@ mod api {
         .await
     }
 
+    /// `image` is base64, so the browser bridge can carry it in JSON.
+    pub async fn set_cover_image(
+        app: &Wbook,
+        session_id: SessionId,
+        expected: Revision,
+        image: Option<String>,
+    ) -> Result<OperationResponse<Revision>, CommandError> {
+        let image = image.as_deref().map(decode_base64).transpose()?;
+        complete(
+            app.session_manager()
+                .get(session_id)?
+                .set_cover_image(expected, image),
+        )
+        .await
+    }
+
+    pub async fn render_cover(
+        app: &Wbook,
+        session_id: SessionId,
+    ) -> Result<OperationResponse<RenderedCover>, CommandError> {
+        complete(app.session_manager().get(session_id)?.render_cover()).await
+    }
+
     #[query]
     pub async fn read_text(
         app: &Wbook,

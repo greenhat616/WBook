@@ -131,7 +131,8 @@ const settings: Settings = {
       section: null,
       paragraph: null
     }
-  }
+  },
+  cover: { kind: 'Generated', overlay: false, grayscale: false }
 }
 const exportOptions: ExportOptions = {
   render: {
@@ -140,7 +141,8 @@ const exportOptions: ExportOptions = {
   },
   format: 'Epub',
   language: settings.render.language,
-  identifier: null
+  identifier: null,
+  cover: settings.cover
 }
 const ok = <T,>(data: T): Outcome<T> => ({ status: 'ok', data })
 const receipt = <T,>(data: T, revision = 1): OperationResponse<T> => ({
@@ -166,6 +168,7 @@ const snapshot = (session = 1, seq = 0, revision = 0): SessionSnapshot => ({
       document_len: null,
       filters: { applied: 0, total: 0 },
       has_overrides: false,
+      cover_image: false,
       preview: null,
       preview_id: null
     }

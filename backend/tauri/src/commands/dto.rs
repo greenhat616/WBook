@@ -1,5 +1,6 @@
 use std::{fmt, path::PathBuf};
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use snafu::ResultExt;
@@ -106,7 +107,9 @@ impl From<OpError> for CommandError {
             OpError::Workspace { source } if source.is_cancelled() => ErrorKind::Cancelled,
             OpError::Workspace { source } => match source {
                 WorkspaceError::InvalidConfig { .. } => ErrorKind::InvalidConfig,
-                WorkspaceError::InvalidMetadata { .. } => ErrorKind::InvalidParams,
+                WorkspaceError::InvalidMetadata { .. } | WorkspaceError::Cover { .. } => {
+                    ErrorKind::InvalidParams
+                }
                 WorkspaceError::StaleRevision { .. } => ErrorKind::StaleRevision,
                 WorkspaceError::NoDocument => ErrorKind::NoDocument,
                 WorkspaceError::AlreadyInitialized => ErrorKind::AlreadyInitialized,
@@ -186,6 +189,26 @@ fn operation_response<T, U: From<T>>(result: session::OperationResult<T>) -> Ope
         },
         warnings,
     }
+}
+
+/// The cover as base64 JPEG, or `None` for a book without a cover.
+#[derive(Debug, Serialize, Type)]
+pub struct RenderedCover {
+    pub jpeg: Option<String>,
+}
+
+impl From<Option<Vec<u8>>> for RenderedCover {
+    fn from(value: Option<Vec<u8>>) -> Self {
+        Self {
+            jpeg: value.map(|bytes| BASE64.encode(bytes)),
+        }
+    }
+}
+
+pub fn decode_base64(data: &str) -> Result<Vec<u8>, CommandError> {
+    BASE64.decode(data).map_err(|error| {
+        CommandError::new(ErrorKind::InvalidParams, format!("invalid base64: {error}"))
+    })
 }
 
 #[derive(Debug, Serialize, Type)]

@@ -24,11 +24,17 @@ pub(super) fn write(
     zip.write_all(b"application/epub+zip")?;
     zip.start_file("META-INF/container.xml", options)?;
     zip.write_all(CONTAINER.as_bytes())?;
+    let cover: &[&str] = if book.cover {
+        &[render::COVER_IMAGE, render::COVER_PAGE]
+    } else {
+        &[]
+    };
     for path in book
         .files
         .iter()
         .map(String::as_str)
         .chain(["nav.xhtml", "styles/book.css"])
+        .chain(cover.iter().copied())
     {
         check(ct)?;
         zip.start_file(format!("EPUB/{path}"), options)?;
@@ -46,6 +52,7 @@ pub(super) fn write(
     let mut context = Context::new();
     context.insert("book", &book.plan.metadata);
     context.insert("files", &book.files);
+    context.insert("cover", &book.cover);
     render::builtin_template(
         "package.xml",
         &context,

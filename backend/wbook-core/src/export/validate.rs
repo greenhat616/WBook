@@ -215,8 +215,29 @@ pub(super) fn epub(ct: &CancellationToken, path: &Path, book: &RenderedBook) -> 
         .enumerate()
         .map(|(i, _)| format!("content-{}", i + 1))
         .collect();
-    if package.spine != expected || package.manifest.len() != book.files.len() + 2 {
+    let (cover_items, cover_spine) = if book.cover { (2, 1) } else { (0, 0) };
+    if package.spine[cover_spine.min(package.spine.len())..] != expected
+        || package.spine.len() != expected.len() + cover_spine
+        || package.manifest.len() != book.files.len() + 2 + cover_items
+    {
         return Err(invalid("manifest or spine differs from the rendered book"));
+    }
+    if book.cover
+        && (package.spine.first().map(String::as_str) != Some("cover")
+            || package.manifest.get("cover")
+                != Some(&(
+                    super::render::COVER_PAGE.into(),
+                    "application/xhtml+xml".into(),
+                    String::new(),
+                ))
+            || package.manifest.get("cover-image")
+                != Some(&(
+                    super::render::COVER_IMAGE.into(),
+                    "image/jpeg".into(),
+                    "cover-image".into(),
+                )))
+    {
+        return Err(invalid("invalid cover manifest item"));
     }
     for (index, file) in book.files.iter().enumerate() {
         if package.manifest.get(&expected[index])

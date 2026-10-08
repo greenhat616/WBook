@@ -245,6 +245,30 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
     assert_eq!(data(&exported)["revision"], revision);
     assert!(destination.is_file());
 
+    const PIXEL: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    let (status, error) = h
+        .rpc(
+            "set_cover_image",
+            json!({ "sessionId": id, "expected": revision, "image": "not base64!" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["kind"], "invalid_params");
+    let covered = h
+        .rpc_ok(
+            "set_cover_image",
+            json!({ "sessionId": id, "expected": revision, "image": PIXEL }),
+        )
+        .await;
+    assert_ne!(data(&covered), revision);
+    let cover = h
+        .ipc("render_cover", json!({ "sessionId": id }))
+        .await
+        .unwrap();
+    assert!(data(&cover)["jpeg"]
+        .as_str()
+        .is_some_and(|jpeg| jpeg.starts_with("/9j/")));
+
     let cancel = json!({ "sessionId": id, "operationId": exported["op"] });
     assert_eq!(
         h.ipc("cancel_operation", cancel.clone()).await.unwrap(),

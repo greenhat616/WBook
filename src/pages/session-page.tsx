@@ -51,6 +51,8 @@ const operationLabels: Record<OpKind, string> = {
   Edit: '更新文本',
   SetMetadataOverrides: '更新书籍信息',
   SetSettings: '更新本书设置',
+  SetCoverImage: '更换封面',
+  RenderCover: '生成封面',
   ReadText: '读取文本',
   ReadResults: '读取整理结果',
   RenderPreview: '生成预览',

@@ -68,6 +68,7 @@ fn main() -> anyhow::Result<()> {
             format: OutputFormat::Epub,
             language: "zh-Hans".into(),
             identifier: Some(format!("urn:wbook:example:along-the-river:{name}")),
+            cover: Default::default(),
         };
         let start = Instant::now();
         let rendered = render_book(&ct, &document, &options)?;

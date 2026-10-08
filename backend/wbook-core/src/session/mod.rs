@@ -42,6 +42,8 @@ pub enum OpKind {
     Edit,
     SetMetadataOverrides,
     SetSettings,
+    SetCoverImage,
+    RenderCover,
     ReadText,
     ReadResults,
     RenderPreview,
@@ -350,6 +352,20 @@ impl SessionHandle {
         self.run(OpKind::SetSettings, move |ws, cx| {
             ws.set_settings(cx, expected, settings)
         })
+    }
+
+    pub fn set_cover_image(
+        &self,
+        expected: Revision,
+        image: Option<Vec<u8>>,
+    ) -> Result<Receipt<Revision>, Rejected> {
+        self.run(OpKind::SetCoverImage, move |ws, cx| {
+            ws.set_cover_image(cx, expected, image)
+        })
+    }
+
+    pub fn render_cover(&self) -> Result<Receipt<Option<Vec<u8>>>, Rejected> {
+        self.run(OpKind::RenderCover, |ws, cx| ws.render_cover(cx))
     }
 
     pub fn read_text(

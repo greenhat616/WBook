@@ -28,6 +28,9 @@ export const commands = {
 	installResults: (sessionId: SessionId, expected: Revision, results: ParsedResults_Deserialize) => __TAURI_INVOKE<OperationResponse<Revision>>("install_results", { sessionId, expected, results }),
 	applyEdits: (sessionId: SessionId, expected: Revision, batch: EditBatch) => __TAURI_INVOKE<OperationResponse<Revision>>("apply_edits", { sessionId, expected, batch }),
 	setMetadataOverrides: (sessionId: SessionId, expected: Revision, overrides: Metadata) => __TAURI_INVOKE<OperationResponse<Revision>>("set_metadata_overrides", { sessionId, expected, overrides }),
+	/**  `image` is base64, so the browser bridge can carry it in JSON. */
+	setCoverImage: (sessionId: SessionId, expected: Revision, image: string | null) => __TAURI_INVOKE<OperationResponse<Revision>>("set_cover_image", { sessionId, expected, image }),
+	renderCover: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<RenderedCover>>("render_cover", { sessionId }),
 	renderPreview: (sessionId: SessionId, expected: Revision) => __TAURI_INVOKE<OperationResponse<PreviewInfo>>("render_preview", { sessionId, expected }),
 	exportEpub: (sessionId: SessionId, expected: Revision, destination: string) => __TAURI_INVOKE<OperationResponse<ExportedBook>>("export_epub", { sessionId, expected, destination }),
 	cancelOperation: (sessionId: SessionId, operationId: OperationId) => __TAURI_INVOKE<CancelReply>("cancel_operation", { sessionId, operationId }),
@@ -71,6 +74,21 @@ export type CommandError = {
 	message: string,
 };
 
+export type CoverKind = "None" | "Generated" |
+/**  The image the user chose for this book. */
+"Image";
+
+export type CoverSettings = {
+	kind: CoverKind,
+	/**
+	 *  Draws the title and author over a custom image; the generated cover
+	 *  always shows them.
+	 */
+	overlay: boolean,
+	/**  E-ink readers show color covers with poor contrast. */
+	grayscale: boolean,
+};
+
 export type DocumentStatus = "Absent" | "Unparsed" | "Current" | "Stale";
 
 export type DocumentVersion = {
@@ -90,6 +108,7 @@ export type ExportOptions = {
 	format: OutputFormat,
 	language: string,
 	identifier: string | null,
+	cover: CoverSettings,
 };
 
 export type ExportedBook = {
@@ -113,7 +132,7 @@ export type LifecycleState = "Open" | "Closing" | "Closed";
 export type Metadata = {
 	title: string | null,
 	author: string | null,
-	/**  ISBN-10 or ISBN-13, as typed; see [`isbn`] for the packaged form. */
+	/**  ISBN-10 or ISBN-13 as typed; it is packaged without separators. */
 	isbn: string | null,
 	publisher: string | null,
 	/**  `YYYY`, `YYYY-MM` or `YYYY-MM-DD`, the date forms EPUB requires. */
@@ -131,7 +150,7 @@ export type Metadata = {
  */
 export type NodeId = number;
 
-export type OpKind = "Initialize" | "Parse" | "Install" | "Edit" | "SetMetadataOverrides" | "SetSettings" | "ReadText" | "ReadResults" | "RenderPreview" | "ExportEpub";
+export type OpKind = "Initialize" | "Parse" | "Install" | "Edit" | "SetMetadataOverrides" | "SetSettings" | "SetCoverImage" | "RenderCover" | "ReadText" | "ReadResults" | "RenderPreview" | "ExportEpub";
 
 export type OperationId = number;
 
@@ -194,6 +213,11 @@ export type RenderSettings = {
 	templates: TemplateOverrides,
 };
 
+/**  The cover as base64 JPEG, or `None` for a book without a cover. */
+export type RenderedCover = {
+	jpeg: string | null,
+};
+
 export type ResultCategory = "Succeeded" | "Failed" | "Cancelled" | "Panicked";
 
 export type Revision = number;
@@ -224,6 +248,8 @@ export type Settings = {
 	/**  Filters run once, when the session is initialized. */
 	filters: FilterConfig[],
 	render: RenderSettings,
+	/**  The custom image itself is stored with the book, not here. */
+	cover: CoverSettings,
 };
 
 export type StoredSettings = {
@@ -364,6 +390,7 @@ export type WorkspaceStatus = {
 	document_len: number | null,
 	filters: FilterProgress,
 	has_overrides: boolean,
+	cover_image: boolean,
 	preview: ExportOptions | null,
 	preview_id: string | null,
 };
@@ -429,6 +456,8 @@ export const mutations = {
 	installResults: () => mutationOptions({ mutationKey: ["installResults"], mutationFn: (input: { sessionId: Parameters<typeof commands.installResults>[0]; expected: Parameters<typeof commands.installResults>[1]; results: Parameters<typeof commands.installResults>[2] }) => commands.installResults(input.sessionId, input.expected, input.results) }),
 	applyEdits: () => mutationOptions({ mutationKey: ["applyEdits"], mutationFn: (input: { sessionId: Parameters<typeof commands.applyEdits>[0]; expected: Parameters<typeof commands.applyEdits>[1]; batch: Parameters<typeof commands.applyEdits>[2] }) => commands.applyEdits(input.sessionId, input.expected, input.batch) }),
 	setMetadataOverrides: () => mutationOptions({ mutationKey: ["setMetadataOverrides"], mutationFn: (input: { sessionId: Parameters<typeof commands.setMetadataOverrides>[0]; expected: Parameters<typeof commands.setMetadataOverrides>[1]; overrides: Parameters<typeof commands.setMetadataOverrides>[2] }) => commands.setMetadataOverrides(input.sessionId, input.expected, input.overrides) }),
+	setCoverImage: () => mutationOptions({ mutationKey: ["setCoverImage"], mutationFn: (input: { sessionId: Parameters<typeof commands.setCoverImage>[0]; expected: Parameters<typeof commands.setCoverImage>[1]; image: Parameters<typeof commands.setCoverImage>[2] }) => commands.setCoverImage(input.sessionId, input.expected, input.image) }),
+	renderCover: () => mutationOptions({ mutationKey: ["renderCover"], mutationFn: (input: { sessionId: Parameters<typeof commands.renderCover>[0] }) => commands.renderCover(input.sessionId) }),
 	renderPreview: () => mutationOptions({ mutationKey: ["renderPreview"], mutationFn: (input: { sessionId: Parameters<typeof commands.renderPreview>[0]; expected: Parameters<typeof commands.renderPreview>[1] }) => commands.renderPreview(input.sessionId, input.expected) }),
 	exportEpub: () => mutationOptions({ mutationKey: ["exportEpub"], mutationFn: (input: { sessionId: Parameters<typeof commands.exportEpub>[0]; expected: Parameters<typeof commands.exportEpub>[1]; destination: Parameters<typeof commands.exportEpub>[2] }) => commands.exportEpub(input.sessionId, input.expected, input.destination) }),
 	cancelOperation: () => mutationOptions({ mutationKey: ["cancelOperation"], mutationFn: (input: { sessionId: Parameters<typeof commands.cancelOperation>[0]; operationId: Parameters<typeof commands.cancelOperation>[1] }) => commands.cancelOperation(input.sessionId, input.operationId) }),
@@ -447,6 +476,8 @@ export const mutationKeys = {
 	installResults: () => ["installResults"],
 	applyEdits: () => ["applyEdits"],
 	setMetadataOverrides: () => ["setMetadataOverrides"],
+	setCoverImage: () => ["setCoverImage"],
+	renderCover: () => ["renderCover"],
 	renderPreview: () => ["renderPreview"],
 	exportEpub: () => ["exportEpub"],
 	cancelOperation: () => ["cancelOperation"],

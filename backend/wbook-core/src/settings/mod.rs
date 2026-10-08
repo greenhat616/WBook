@@ -16,7 +16,7 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use crate::export::{
-    self, ExportFailure, ExportOptions, OutputFormat, RenderLayout, RenderOptions,
+    self, CoverSettings, ExportFailure, ExportOptions, OutputFormat, RenderLayout, RenderOptions,
     TemplateOverrides,
 };
 use crate::parser::toc::{TocConfigError, TocSettings};
@@ -33,6 +33,8 @@ pub struct Settings {
     /// Filters run once, when the session is initialized.
     pub filters: Vec<FilterConfig>,
     pub render: RenderSettings,
+    /// The custom image itself is stored with the book, not here.
+    pub cover: CoverSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -76,6 +78,7 @@ impl Settings {
             format: OutputFormat::Epub,
             language: self.render.language.clone(),
             identifier: None,
+            cover: self.cover,
         }
     }
 }

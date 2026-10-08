@@ -8,11 +8,13 @@ use tokio_util::sync::CancellationToken;
 
 use crate::document::{DocumentError, DocumentVersion, PipelineError, ProcessingDocument};
 
+pub mod cover;
 mod epub;
 mod plan;
 mod render;
 mod validate;
 
+pub use cover::{CoverError, CoverKind, CoverSettings};
 pub use render::RenderedBook;
 
 #[cfg(test)]
@@ -69,6 +71,7 @@ pub struct ExportOptions {
     pub format: OutputFormat,
     pub language: String,
     pub identifier: Option<String>,
+    pub cover: CoverSettings,
 }
 
 #[derive(Debug)]
@@ -115,6 +118,8 @@ pub enum ExportFailure {
     Template { source: tera::Error },
     #[snafu(context(false), display("{source}"))]
     Zip { source: zip::result::ZipError },
+    #[snafu(context(false), display("{source}"))]
+    Cover { source: CoverError },
 }
 
 #[derive(Debug, snafu::Snafu)]
@@ -164,7 +169,14 @@ pub fn render_book(
         plan::build(ct, document, options)
     })?;
     stage(ct, ExportStage::Rendering, || {
-        render::render(ct, document.view(), plan, &options.render.templates)
+        let cover = cover::render(
+            &options.cover,
+            document.cover_image.as_deref(),
+            &plan.metadata.title,
+            plan.metadata.author.as_deref(),
+        )?;
+        check(ct)?;
+        render::render(ct, document.view(), plan, &options.render.templates, cover)
     })
 }
 

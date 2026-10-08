@@ -11,11 +11,14 @@
 {% if book.description %}<dc:description>{{ book.description }}</dc:description>{% endif %}
 <meta property="dcterms:modified">{{ book.modified }}</meta>
 <meta property="rendition:layout">reflowable</meta>
+{% if cover %}<meta name="cover" content="cover-image" />{% endif %}
 </metadata>
 <manifest>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
 <item id="css" href="styles/book.css" media-type="text/css" />
-{% for file in files %}<item id="content-{{ loop.index }}" href="{{ file }}" media-type="application/xhtml+xml" />
+{% if cover %}<item id="cover-image" href="images/cover.jpg" media-type="image/jpeg" properties="cover-image" />
+<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" />
+{% endif %}{% for file in files %}<item id="content-{{ loop.index }}" href="{{ file }}" media-type="application/xhtml+xml" />
 {% endfor %}</manifest>
-<spine>{% for file in files %}<itemref idref="content-{{ loop.index }}" />{% endfor %}</spine>
+<spine>{% if cover %}<itemref idref="cover" />{% endif %}{% for file in files %}<itemref idref="content-{{ loop.index }}" />{% endfor %}</spine>
 </package>

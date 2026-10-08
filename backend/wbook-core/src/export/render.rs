@@ -35,11 +35,14 @@ static TEMPLATES: LazyLock<std::result::Result<Tera, tera::Error>> = LazyLock::n
             "<li><a href=\"{{ href }}\">{{ title }}</a>",
         ),
         ("package.xml", include_str!("templates/package.xml")),
+        ("cover.xhtml", include_str!("templates/cover.xhtml")),
     ])?;
     Ok(tera)
 });
 
 const STYLESHEET: &str = include_str!("templates/style.css");
+pub(super) const COVER_IMAGE: &str = "images/cover.jpg";
+pub(super) const COVER_PAGE: &str = "cover.xhtml";
 
 fn builtin() -> Result<&'static Tera> {
     TEMPLATES
@@ -97,6 +100,7 @@ pub struct RenderedBook {
     directory: tempfile::TempDir,
     pub(super) plan: BookPlan,
     pub(super) files: Vec<String>,
+    pub(super) cover: bool,
 }
 
 impl RenderedBook {
@@ -127,6 +131,7 @@ pub(super) fn render(
     view: TextView<'_>,
     plan: BookPlan,
     overrides: &TemplateOverrides,
+    cover: Option<Vec<u8>>,
 ) -> Result<RenderedBook> {
     view.version().check(plan.version)?;
     let tera = templates(overrides)?;
@@ -149,7 +154,16 @@ pub(super) fn render(
         directory,
         plan,
         files,
+        cover: cover.is_some(),
     };
+    if let Some(image) = cover {
+        fs::create_dir(book.directory().join("images"))?;
+        fs::write(book.directory().join(COVER_IMAGE), image)?;
+        let mut context = Context::new();
+        context.insert("book", &book.plan.metadata);
+        let output = File::create(book.directory().join(COVER_PAGE))?;
+        builtin_template("cover.xhtml", &context, BufWriter::new(output))?;
+    }
     for (file_index, path) in book.files.iter().enumerate() {
         check(ct)?;
         let output = File::create(book.directory().join(path))?;

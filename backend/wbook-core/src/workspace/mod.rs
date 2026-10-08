@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,8 @@ use crate::document::{
     PipelineError, ProcessingDocument,
 };
 use crate::export::{
-    self, CleanupFailure, ExportError, ExportFailure, ExportOptions, RenderedBook,
+    self, cover, CleanupFailure, CoverError, CoverKind, ExportError, ExportFailure, ExportOptions,
+    RenderedBook,
 };
 use crate::extractor::{Extractor, ExtractorError, ParsedContent, ProcessOptions, SimpleExtractor};
 use crate::parser::toc::TocParserConfig;
@@ -82,6 +84,7 @@ pub struct WorkspaceStatus {
     pub document_len: Option<u64>,
     pub filters: FilterProgress,
     pub has_overrides: bool,
+    pub cover_image: bool,
     pub preview: Option<ExportOptions>,
     pub preview_id: Option<String>,
 }
@@ -131,6 +134,8 @@ pub enum WorkspaceError {
     InvalidConfig { source: SettingsError },
     #[snafu(context(false), display("{source}"))]
     InvalidMetadata { source: MetadataError },
+    #[snafu(context(false), display("{source}"))]
+    Cover { source: CoverError },
     #[snafu(display("stale workspace revision: expected {expected:?}, actual {actual:?}"))]
     StaleRevision {
         expected: Revision,
@@ -238,6 +243,7 @@ impl Workspace {
             },
             has_overrides: document
                 .is_some_and(|doc| doc.metadata_overrides != Metadata::default()),
+            cover_image: document.is_some_and(|doc| doc.cover_image.is_some()),
             preview: self.preview.as_ref().map(|preview| preview.options.clone()),
             preview_id: self.preview.as_ref().map(|preview| preview.id.clone()),
         }
@@ -478,6 +484,15 @@ impl Workspace {
         self.check_revision(expected)?;
         (cx.report)(Phase::Editing);
         settings.validate()?;
+        if settings.cover.kind == CoverKind::Image
+            && !self
+                .state
+                .document
+                .as_ref()
+                .is_some_and(|doc| doc.cover_image.is_some())
+        {
+            return Err(CoverError::MissingImage.into());
+        }
         check_cancelled(cx.ct)?;
         self.commit(|state| {
             let changed = state.settings != settings;
@@ -487,6 +502,59 @@ impl Workspace {
             Ok(((), changed))
         })?;
         Ok(self.revision())
+    }
+
+    /// Choosing an image also switches the cover to it, and removing it
+    /// falls back to the generated cover, so the cover never names an image
+    /// that is not there.
+    pub fn set_cover_image(
+        &mut self,
+        cx: &OpContext<'_>,
+        expected: Revision,
+        image: Option<Vec<u8>>,
+    ) -> Result<Revision, WorkspaceError> {
+        self.check_revision(expected)?;
+        (cx.report)(Phase::Editing);
+        if let Some(image) = &image {
+            cover::check_image(image)?;
+        }
+        check_cancelled(cx.ct)?;
+        self.commit(|state| {
+            let document = state.document.as_mut().ok_or(WorkspaceError::NoDocument)?;
+            let image: Option<Arc<[u8]>> = image.map(Into::into);
+            let kind = match (&image, state.settings.cover.kind) {
+                (Some(_), _) => CoverKind::Image,
+                (None, CoverKind::Image) => CoverKind::Generated,
+                (None, kind) => kind,
+            };
+            let changed = document.cover_image != image || state.settings.cover.kind != kind;
+            document.cover_image = image;
+            state.settings.cover.kind = kind;
+            Ok(((), changed))
+        })?;
+        Ok(self.revision())
+    }
+
+    /// The cover as it would be exported, for showing it before export.
+    /// Unlike an export it works before the TOC is current, falling back to
+    /// the file name for a missing title.
+    pub fn render_cover(&self, cx: &OpContext<'_>) -> Result<Option<Vec<u8>>, WorkspaceError> {
+        (cx.report)(Phase::Rendering);
+        check_cancelled(cx.ct)?;
+        let document = self.document()?;
+        let metadata = document
+            .metadata()
+            .unwrap_or_else(|_| document.metadata_overrides.clone());
+        let title = metadata
+            .title
+            .filter(|title| !title.trim().is_empty())
+            .unwrap_or_else(|| self.state.source.file_stem().unwrap_or_default().to_owned());
+        Ok(cover::render(
+            &self.state.settings.cover,
+            document.cover_image.as_deref(),
+            &title,
+            metadata.author.as_deref(),
+        )?)
     }
 
     pub fn read_text(

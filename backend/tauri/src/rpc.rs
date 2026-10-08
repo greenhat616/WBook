@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{rejection::JsonRejection, State},
+    extract::{rejection::JsonRejection, DefaultBodyLimit, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
@@ -32,6 +32,10 @@ fn empty_params() -> Value {
 pub fn router(app: Arc<Wbook>) -> Router {
     Router::new()
         .route("/bridge/rpc", post(invoke))
+        // Cover images arrive as base64 inside the request.
+        .layer(DefaultBodyLimit::max(
+            wbook_core::export::cover::MAX_IMAGE_BYTES * 4 / 3 + 64 * 1024,
+        ))
         .with_state(app.clone())
         .merge(crate::subscriptions::router(app.clone()))
         .merge(crate::preview::router(app))

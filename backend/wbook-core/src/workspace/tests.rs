@@ -51,6 +51,11 @@ fn options() -> ExportOptions {
         format: OutputFormat::Epub,
         language: "en".into(),
         identifier: Some("urn:workspace-test".into()),
+        // Covers have their own tests; drawing one slows every export.
+        cover: crate::export::CoverSettings {
+            kind: crate::export::CoverKind::None,
+            ..Default::default()
+        },
     }
 }
 
@@ -1204,4 +1209,57 @@ fn settings_changes_commit_close_the_preview_and_reject_invalid_values() {
     assert!(ws.status().preview.is_none());
     // Settings do not touch the installed results.
     assert_eq!(ws.status().document, DocumentStatus::Current);
+}
+
+#[test]
+fn cover_image_choice_drives_the_cover_kind_and_is_validated() {
+    let (_directory, mut ws) = fixture("第一章 开始\nBody", 0);
+    let ct = CancellationToken::new();
+    let cx = context(&ct);
+    assert!(matches!(
+        ws.set_cover_image(&cx, Revision(0), None),
+        Err(WorkspaceError::NoDocument)
+    ));
+    let revision = ws.initialize(&cx).unwrap();
+    assert_eq!(ws.settings().cover.kind, CoverKind::Generated);
+    assert!(ws.render_cover(&cx).unwrap().is_some());
+
+    assert!(matches!(
+        ws.set_cover_image(&cx, revision, Some(b"junk".to_vec())),
+        Err(WorkspaceError::Cover { .. })
+    ));
+    let mut image = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::new(20, 30))
+        .write_to(
+            &mut std::io::Cursor::new(&mut image),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+    let revision = ws
+        .set_cover_image(&cx, revision, Some(image.clone()))
+        .unwrap();
+    assert_eq!(ws.settings().cover.kind, CoverKind::Image);
+    assert!(ws.status().cover_image);
+    let cover = ws.render_cover(&cx).unwrap().unwrap();
+    assert_eq!(image::load_from_memory(&cover).unwrap().width(), 20);
+    assert_eq!(
+        ws.set_cover_image(&cx, revision, Some(image)).unwrap(),
+        revision
+    );
+
+    let mut none = ws.settings().clone();
+    none.cover.kind = CoverKind::None;
+    let revision = ws.set_settings(&cx, revision, none).unwrap();
+    assert!(ws.render_cover(&cx).unwrap().is_none());
+    // Removing the image keeps an explicit "no cover".
+    let revision = ws.set_cover_image(&cx, revision, None).unwrap();
+    assert_eq!(ws.settings().cover.kind, CoverKind::None);
+    let mut image_kind = ws.settings().clone();
+    image_kind.cover.kind = CoverKind::Image;
+    assert!(matches!(
+        ws.set_settings(&cx, revision, image_kind),
+        Err(WorkspaceError::Cover { .. })
+    ));
+    assert_eq!(ws.revision(), revision);
+    ws.close();
 }
