@@ -140,6 +140,7 @@ fn open_window<R: Runtime>(
     let built = WebviewWindowBuilder::new(app, label, url)
         .title(title)
         .inner_size(width, height)
+        .center()
         // Shown by `ready` once the frontend has rendered, avoiding a blank flash.
         .visible(false)
         // Match the main window so bridge requests keep the same Origin.
