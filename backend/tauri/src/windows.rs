@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use specta::Type;
 use tauri::{
-    AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
-    WindowEvent,
+    AppHandle, Manager, Monitor, PhysicalPosition, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, Window, WindowEvent,
 };
 use tauri_specta::Event;
 use tokio::sync::watch;
@@ -48,7 +48,7 @@ pub fn session_of(label: &str) -> Option<SessionId> {
 
 /// Opens the window of a session, or focuses it if it is already open.
 pub fn open<R: Runtime>(
-    app: &AppHandle<R>,
+    opener: &WebviewWindow<R>,
     core: &Wbook,
     id: SessionId,
 ) -> Result<(), CommandError> {
@@ -59,10 +59,10 @@ pub fn open<R: Runtime>(
         .file_name()
         .unwrap_or(snapshot.source.as_str());
     let route = format!("sessions/{}", id.0);
-    if !open_window(app, &label, &route, title, (1200.0, 800.0))? {
+    if !open_window(opener, &label, &route, title, (1200.0, 800.0))? {
         return Ok(());
     }
-    let app = app.clone();
+    let app = opener.app_handle().clone();
     let receiver = session.subscribe();
     tauri::async_runtime::spawn(async move {
         until_closed(receiver).await;
@@ -76,7 +76,7 @@ pub fn open<R: Runtime>(
 
 /// Opens the settings window of a session; it lives no longer than the session.
 pub fn open_session_settings<R: Runtime>(
-    app: &AppHandle<R>,
+    opener: &WebviewWindow<R>,
     core: &Wbook,
     id: SessionId,
 ) -> Result<(), CommandError> {
@@ -90,10 +90,10 @@ pub fn open_session_settings<R: Runtime>(
             .unwrap_or(snapshot.source.as_str())
     );
     let route = format!("sessions/{}/settings", id.0);
-    if !open_window(app, &label, &route, &title, (960.0, 800.0))? {
+    if !open_window(opener, &label, &route, &title, (960.0, 800.0))? {
         return Ok(());
     }
-    let app = app.clone();
+    let app = opener.app_handle().clone();
     let receiver = session.subscribe();
     tauri::async_runtime::spawn(async move {
         until_closed(receiver).await;
@@ -103,8 +103,8 @@ pub fn open_session_settings<R: Runtime>(
 }
 
 /// Opens the global settings window, which is shared by every other window.
-pub fn open_settings<R: Runtime>(app: &AppHandle<R>) -> Result<(), CommandError> {
-    open_window(app, SETTINGS_WINDOW, "settings", "设置", (960.0, 800.0))?;
+pub fn open_settings<R: Runtime>(opener: &WebviewWindow<R>) -> Result<(), CommandError> {
+    open_window(opener, SETTINGS_WINDOW, "settings", "设置", (960.0, 800.0))?;
     Ok(())
 }
 
@@ -121,17 +121,19 @@ fn open_session(
     }
 }
 
-/// Creates a hidden window for `route`, or focuses the existing one.
+/// Creates a hidden window for `route` on the screen of `opener`, or focuses
+/// the existing one.
 ///
 /// Returns whether this call created the window, in which case the caller
 /// owns whatever must watch over it.
 fn open_window<R: Runtime>(
-    app: &AppHandle<R>,
+    opener: &WebviewWindow<R>,
     label: &str,
     route: &str,
     title: &str,
     (width, height): (f64, f64),
 ) -> Result<bool, CommandError> {
+    let app = opener.app_handle();
     if let Some(window) = app.get_webview_window(label) {
         focus(&window)?;
         return Ok(false);
@@ -140,7 +142,6 @@ fn open_window<R: Runtime>(
     let built = WebviewWindowBuilder::new(app, label, url)
         .title(title)
         .inner_size(width, height)
-        .center()
         // Shown by `ready` once the frontend has rendered, avoiding a blank flash.
         .visible(false)
         // Match the main window so bridge requests keep the same Origin.
@@ -157,14 +158,52 @@ fn open_window<R: Runtime>(
             return Ok(false);
         }
         built => {
-            built.context(WindowSnafu {
+            let window = built.context(WindowSnafu {
                 action: "create",
                 label,
             })?;
+            center(&window, opener.current_monitor().ok().flatten());
         }
     }
     reveal_after(app, label, READY_TIMEOUT);
     Ok(true)
+}
+
+/// Centers a window that is still hidden on `monitor`, or on the screen
+/// under the cursor.
+///
+/// Tauri's own centering always picks the primary monitor, which puts the
+/// window on another screen whenever the user works on a secondary one.
+pub fn center<R: Runtime>(window: &WebviewWindow<R>, monitor: Option<Monitor>) {
+    let monitor = monitor
+        .or_else(|| {
+            let cursor = window.cursor_position().ok()?;
+            window.monitor_from_point(cursor.x, cursor.y).ok()?
+        })
+        .or_else(|| window.primary_monitor().ok()?);
+    let Some(monitor) = monitor else {
+        return;
+    };
+    let area = monitor.work_area();
+    // Moving onto a screen with another scale factor resizes the window, so
+    // place it once more with the size it has there.
+    for _ in 0..2 {
+        let size = match window.outer_size() {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(label = window.label(), "Could not measure window: {error}");
+                return;
+            }
+        };
+        let position = PhysicalPosition::new(
+            area.position.x + (area.size.width as i32 - size.width as i32) / 2,
+            area.position.y + (area.size.height as i32 - size.height as i32) / 2,
+        );
+        if let Err(error) = window.set_position(position) {
+            tracing::warn!(label = window.label(), "Could not center window: {error}");
+            return;
+        }
+    }
 }
 
 fn focus<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), CommandError> {

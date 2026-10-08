@@ -52,6 +52,10 @@ pub fn run() {
             app.manage(runtime.core.clone());
             app.manage(Port(runtime.port));
             app.manage(runtime);
+            if let Some(window) = app.get_webview_window(windows::MAIN_WINDOW) {
+                // The app starts on the screen the user launched it from.
+                windows::center(&window, None);
+            }
             windows::reveal_after(app.handle(), windows::MAIN_WINDOW, windows::READY_TIMEOUT);
             Ok(())
         })
