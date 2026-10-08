@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isTauri } from '@tauri-apps/api/core'
 import { useCanGoBack, useRouter } from '@tanstack/react-router'
 import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
 import { commands, mutations, queries } from '@/bindings'
@@ -25,16 +26,19 @@ export function SettingsPage() {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pb-6 pt-4 sm:px-6">
       <header className="flex items-start gap-2">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0"
-          aria-label="关闭设置"
-          title="关闭设置"
-          onClick={close}
-        >
-          <ArrowLeftIcon aria-hidden="true" />
-        </Button>
+        {/* Desktop settings have a window of their own to close. */}
+        {!isTauri() && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0"
+            aria-label="关闭设置"
+            title="关闭设置"
+            onClick={close}
+          >
+            <ArrowLeftIcon aria-hidden="true" />
+          </Button>
+        )}
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
           <p className="text-sm text-muted-foreground">

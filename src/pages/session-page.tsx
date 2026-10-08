@@ -13,12 +13,13 @@ import RefreshIcon from '~icons/material-symbols/refresh-rounded'
 import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
 import StopIcon from '~icons/material-symbols/stop-rounded'
 import WarningIcon from '~icons/material-symbols/warning-outline-rounded'
-import type {
-  Activity,
-  Metadata,
-  OpKind,
-  Phase,
-  WorkspaceStatus
+import {
+  commands,
+  type Activity,
+  type Metadata,
+  type OpKind,
+  type Phase,
+  type WorkspaceStatus
 } from '@/bindings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -117,6 +118,15 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
     setCancelling(true)
     await session.cancel()
     setCancelling(false)
+  }
+
+  async function openSettings() {
+    setLocalError(null)
+    try {
+      await commands.openSessionSettingsWindow(sessionId)
+    } catch (cause) {
+      setLocalError(errorMessage(cause))
+    }
   }
 
   async function chooseDestination(): Promise<string | null> {
@@ -231,16 +241,29 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               整理文本
             </Button>
           )}
-          <Button asChild variant="ghost" size="icon-sm">
-            <Link
-              to="/sessions/$sessionId/settings"
-              params={{ sessionId: String(sessionId) }}
+          {windowed ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label="本书设置"
               title="本书设置"
+              onClick={() => void openSettings()}
+              disabled={!open}
             >
               <SettingsIcon aria-hidden="true" />
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="icon-sm">
+              <Link
+                to="/sessions/$sessionId/settings"
+                params={{ sessionId: String(sessionId) }}
+                aria-label="本书设置"
+                title="本书设置"
+              >
+                <SettingsIcon aria-hidden="true" />
+              </Link>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"

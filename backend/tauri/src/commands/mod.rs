@@ -46,6 +46,22 @@ mod api {
     }
 
     #[desktop_only]
+    pub async fn open_settings_window<R: tauri::Runtime>(
+        app: tauri::AppHandle<R>,
+    ) -> Result<(), CommandError> {
+        crate::windows::open_settings(&app)
+    }
+
+    #[desktop_only]
+    pub async fn open_session_settings_window<R: tauri::Runtime>(
+        app: tauri::AppHandle<R>,
+        core: tauri::State<'_, Arc<Wbook>>,
+        session_id: SessionId,
+    ) -> Result<(), CommandError> {
+        crate::windows::open_session_settings(&app, &core, session_id)
+    }
+
+    #[desktop_only]
     pub fn window_ready<R: tauri::Runtime>(
         window: tauri::WebviewWindow<R>,
     ) -> Result<(), CommandError> {

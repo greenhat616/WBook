@@ -10,14 +10,16 @@ use tauri::{
 use tauri_specta::Event;
 use tokio::sync::watch;
 use wbook_core::{
-    session::{LifecycleState, Rejected, SessionId, SessionSnapshot},
+    session::{LifecycleState, Rejected, SessionHandle, SessionId, SessionSnapshot},
     Wbook,
 };
 
 use crate::{commands::dto::CommandError, errors::WindowSnafu};
 
 pub const MAIN_WINDOW: &str = "main";
+pub const SETTINGS_WINDOW: &str = "settings";
 const SESSION_PREFIX: &str = "session-";
+const SESSION_SETTINGS_PREFIX: &str = "session-settings-";
 /// How long a hidden window waits for its frontend before it is shown anyway,
 /// so a page that fails to load is still visible and debuggable.
 pub const READY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -33,6 +35,10 @@ pub fn session_label(id: SessionId) -> String {
     format!("{SESSION_PREFIX}{}", id.0)
 }
 
+pub fn session_settings_label(id: SessionId) -> String {
+    format!("{SESSION_SETTINGS_PREFIX}{}", id.0)
+}
+
 pub fn session_of(label: &str) -> Option<SessionId> {
     let id = SessionId(label.strip_prefix(SESSION_PREFIX)?.parse().ok()?);
     // Reject spellings such as `session-01` or `session-+1` that parse to the
@@ -40,52 +46,22 @@ pub fn session_of(label: &str) -> Option<SessionId> {
     (session_label(id) == label).then_some(id)
 }
 
+/// Opens the window of a session, or focuses it if it is already open.
 pub fn open<R: Runtime>(
     app: &AppHandle<R>,
     core: &Wbook,
     id: SessionId,
 ) -> Result<(), CommandError> {
-    let session = core.session_manager().get(id)?;
-    let snapshot = session.snapshot();
-    match snapshot.lifecycle {
-        LifecycleState::Open => {}
-        LifecycleState::Closing => return Err(Rejected::Closing.into()),
-        LifecycleState::Closed => return Err(Rejected::Closed.into()),
-    }
+    let (session, snapshot) = open_session(core, id)?;
     let label = session_label(id);
-    if let Some(window) = app.get_webview_window(&label) {
-        return focus(&window);
-    }
     let title = snapshot
         .source
         .file_name()
         .unwrap_or(snapshot.source.as_str());
-    let url = WebviewUrl::App(format!("index.html#/sessions/{}", id.0).into());
-    let built = WebviewWindowBuilder::new(app, &label, url)
-        .title(title)
-        .inner_size(1200.0, 800.0)
-        // Shown by `ready` once the frontend has rendered, avoiding a blank flash.
-        .visible(false)
-        // Match the main window so bridge requests keep the same Origin.
-        .use_https_scheme(false)
-        .build();
-    match built {
-        Err(
-            tauri::Error::WindowLabelAlreadyExists(_) | tauri::Error::WebviewLabelAlreadyExists(_),
-        ) => {
-            // A concurrent call created the window and owns its watcher.
-            return app
-                .get_webview_window(&label)
-                .map_or(Ok(()), |window| focus(&window));
-        }
-        built => {
-            built.context(WindowSnafu {
-                action: "create",
-                label: &label,
-            })?;
-        }
+    let route = format!("sessions/{}", id.0);
+    if !open_window(app, &label, &route, title, (1200.0, 800.0))? {
+        return Ok(());
     }
-    reveal_after(app, &label, READY_TIMEOUT);
     let app = app.clone();
     let receiver = session.subscribe();
     tauri::async_runtime::spawn(async move {
@@ -96,6 +72,98 @@ pub fn open<R: Runtime>(
         }
     });
     Ok(())
+}
+
+/// Opens the settings window of a session; it lives no longer than the session.
+pub fn open_session_settings<R: Runtime>(
+    app: &AppHandle<R>,
+    core: &Wbook,
+    id: SessionId,
+) -> Result<(), CommandError> {
+    let (session, snapshot) = open_session(core, id)?;
+    let label = session_settings_label(id);
+    let title = format!(
+        "本书设置 · {}",
+        snapshot
+            .source
+            .file_name()
+            .unwrap_or(snapshot.source.as_str())
+    );
+    let route = format!("sessions/{}/settings", id.0);
+    if !open_window(app, &label, &route, &title, (960.0, 800.0))? {
+        return Ok(());
+    }
+    let app = app.clone();
+    let receiver = session.subscribe();
+    tauri::async_runtime::spawn(async move {
+        until_closed(receiver).await;
+        destroy(&app, &label);
+    });
+    Ok(())
+}
+
+/// Opens the global settings window, which is shared by every other window.
+pub fn open_settings<R: Runtime>(app: &AppHandle<R>) -> Result<(), CommandError> {
+    open_window(app, SETTINGS_WINDOW, "settings", "设置", (960.0, 800.0))?;
+    Ok(())
+}
+
+fn open_session(
+    core: &Wbook,
+    id: SessionId,
+) -> Result<(SessionHandle, SessionSnapshot), CommandError> {
+    let session = core.session_manager().get(id)?;
+    let snapshot = session.snapshot();
+    match snapshot.lifecycle {
+        LifecycleState::Open => Ok((session, snapshot)),
+        LifecycleState::Closing => Err(Rejected::Closing.into()),
+        LifecycleState::Closed => Err(Rejected::Closed.into()),
+    }
+}
+
+/// Creates a hidden window for `route`, or focuses the existing one.
+///
+/// Returns whether this call created the window, in which case the caller
+/// owns whatever must watch over it.
+fn open_window<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+    route: &str,
+    title: &str,
+    (width, height): (f64, f64),
+) -> Result<bool, CommandError> {
+    if let Some(window) = app.get_webview_window(label) {
+        focus(&window)?;
+        return Ok(false);
+    }
+    let url = WebviewUrl::App(format!("index.html#/{route}").into());
+    let built = WebviewWindowBuilder::new(app, label, url)
+        .title(title)
+        .inner_size(width, height)
+        // Shown by `ready` once the frontend has rendered, avoiding a blank flash.
+        .visible(false)
+        // Match the main window so bridge requests keep the same Origin.
+        .use_https_scheme(false)
+        .build();
+    match built {
+        Err(
+            tauri::Error::WindowLabelAlreadyExists(_) | tauri::Error::WebviewLabelAlreadyExists(_),
+        ) => {
+            // A concurrent call created the window and owns its watcher.
+            if let Some(window) = app.get_webview_window(label) {
+                focus(&window)?;
+            }
+            return Ok(false);
+        }
+        built => {
+            built.context(WindowSnafu {
+                action: "create",
+                label,
+            })?;
+        }
+    }
+    reveal_after(app, label, READY_TIMEOUT);
+    Ok(true)
 }
 
 fn focus<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), CommandError> {
@@ -209,7 +277,7 @@ mod tests {
     use std::time::Duration;
 
     use tokio::time::timeout;
-    use wbook_core::{session::SessionHandle, settings::Settings, Params};
+    use wbook_core::{settings::Settings, Params};
 
     use super::*;
 
@@ -237,6 +305,9 @@ mod tests {
         }
         for label in [
             MAIN_WINDOW,
+            SETTINGS_WINDOW,
+            // Closing a session settings window must not close the session.
+            &session_settings_label(SessionId(1)),
             "session-",
             "session-01",
             "session-+1",

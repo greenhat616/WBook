@@ -46,6 +46,7 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
     commands: {
       listSessions: vi.fn(),
       openSessionWindow: vi.fn(),
+      openSessionSettingsWindow: vi.fn(),
       createSession: vi.fn(),
       getSession: vi.fn(),
       readResults: vi.fn(),
@@ -669,6 +670,28 @@ describe('session page', () => {
     expect(router.state.location.pathname).toBe('/')
   })
 
+  it('opens the session settings in their own desktop window', async () => {
+    isTauri.mockReturnValue(true)
+    commands.openSessionSettingsWindow.mockResolvedValue(null)
+    const router = await openPage()
+    fireEvent.click(screen.getByRole('button', { name: '本书设置' }))
+    await waitFor(() =>
+      expect(commands.openSessionSettingsWindow).toHaveBeenCalledWith(1)
+    )
+    expect(router.state.location.pathname).toBe('/sessions/1')
+  })
+
+  it('reports a session settings window that cannot be opened', async () => {
+    isTauri.mockReturnValue(true)
+    commands.openSessionSettingsWindow.mockRejectedValue({
+      kind: 'closing',
+      message: 'Session is closing'
+    })
+    await openPage()
+    fireEvent.click(screen.getByRole('button', { name: '本书设置' }))
+    expect(await screen.findByText(/Session is closing/)).toBeTruthy()
+  })
+
   it('returns to the workbench automatically after closing without cleanup warnings', async () => {
     const router = await openPage()
     commands.closeSession.mockResolvedValue({
@@ -927,6 +950,19 @@ describe('session settings page', () => {
       </Wrapper>
     )
   }
+
+  it('leaves closing to the window on the desktop', async () => {
+    commands.getSessionSettings.mockResolvedValue(settings)
+    openSettings()
+    await screen.findByRole('heading', { name: /本书设置/ })
+    expect(screen.getByRole('link', { name: '返回工作区' })).toBeTruthy()
+    cleanup()
+
+    isTauri.mockReturnValue(true)
+    openSettings()
+    await screen.findByRole('heading', { name: /本书设置/ })
+    expect(screen.queryByRole('link', { name: '返回工作区' })).toBeNull()
+  })
 
   it('saves against the current revision and can start from the global settings', async () => {
     const global: Settings = {

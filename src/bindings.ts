@@ -15,6 +15,8 @@ export const commands = {
 	readText: (sessionId: SessionId, version: DocumentVersion, range: TextRange) => __TAURI_INVOKE<OperationResponse<string>>("read_text", { sessionId, version, range }),
 	readResults: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<WorkspaceResults_Serialize>>("read_results", { sessionId }),
 	openSessionWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_window", { sessionId }),
+	openSettingsWindow: () => __TAURI_INVOKE<null>("open_settings_window"),
+	openSessionSettingsWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_settings_window", { sessionId }),
 	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
 	saveSettings: (expected: number, settings: Settings) => __TAURI_INVOKE<StoredSettings>("save_settings", { expected, settings }),
 	/**  The session starts from a copy of the current global settings. */
@@ -37,7 +39,7 @@ export const events = {
 };
 
 /* Constants */
-export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window","window_ready"] as const;
+export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window","open_settings_window","open_session_settings_window","window_ready"] as const;
 
 /* Types */
 export type Activity = "Idle" | { Running: {
@@ -407,6 +409,8 @@ export const queryKeys = {
 };
 export const mutations = {
 	openSessionWindow: () => mutationOptions({ mutationKey: ["openSessionWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionWindow>[0] }) => commands.openSessionWindow(input.sessionId) }),
+	openSettingsWindow: () => mutationOptions({ mutationKey: ["openSettingsWindow"], mutationFn: () => commands.openSettingsWindow() }),
+	openSessionSettingsWindow: () => mutationOptions({ mutationKey: ["openSessionSettingsWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionSettingsWindow>[0] }) => commands.openSessionSettingsWindow(input.sessionId) }),
 	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
 	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { expected: Parameters<typeof commands.saveSettings>[0]; settings: Parameters<typeof commands.saveSettings>[1] }) => commands.saveSettings(input.expected, input.settings) }),
 	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0] }) => commands.createSession(input.source) }),
@@ -423,6 +427,8 @@ export const mutations = {
 };
 export const mutationKeys = {
 	openSessionWindow: () => ["openSessionWindow"],
+	openSettingsWindow: () => ["openSettingsWindow"],
+	openSessionSettingsWindow: () => ["openSessionSettingsWindow"],
 	windowReady: () => ["windowReady"],
 	saveSettings: () => ["saveSettings"],
 	createSession: () => ["createSession"],

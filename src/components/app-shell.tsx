@@ -1,11 +1,14 @@
-import { Link } from '@tanstack/react-router'
+import { isTauri } from '@tauri-apps/api/core'
+import { Link, useLocation } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { M3eAppBar } from '@m3e/react/app-bar'
 import { M3eIconButton } from '@m3e/react/icon-button'
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import BookIcon from '~icons/material-symbols/menu-book-outline-rounded'
 import NotificationsIcon from '~icons/material-symbols/notifications-outline-rounded'
 import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
+import { commands } from '@/bindings'
+import { errorMessage } from '@/features/sessions/api'
 
 // Notifications have no screen yet; keep the button visible but inert.
 const pendingActions = [{ label: '通知', Icon: NotificationsIcon }]
@@ -13,6 +16,20 @@ const pendingActions = [{ label: '通知', Icon: NotificationsIcon }]
 export function AppShell({ children }: { children: ReactNode }) {
   const reducedMotion = useReducedMotion()
   const mainRef = useRef<HTMLElement>(null)
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const [error, setError] = useState<string | null>(null)
+  // Desktop settings live in windows of their own, which only show settings.
+  const windowed = isTauri()
+  const settingsWindow = windowed && pathname.endsWith('/settings')
+
+  async function openSettings() {
+    setError(null)
+    try {
+      await commands.openSettingsWindow()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+  }
 
   return (
     <div className="flex h-dvh flex-col">
@@ -32,38 +49,61 @@ export function AppShell({ children }: { children: ReactNode }) {
         htmlFor="main-content"
         className="[--m3e-app-bar-container-color:var(--md-sys-color-surface)] [--m3e-app-bar-padding-left:1rem] [--m3e-app-bar-padding-right:1rem] [--m3e-app-bar-small-container-height:3.25rem]"
       >
-        <Link
-          slot="leading"
-          to="/"
-          aria-label="WBook 工作台首页"
-          className="flex size-10 items-center justify-center rounded-xl bg-primary-container text-primary-on-container transition-[border-radius] duration-200 hover:rounded-2xl"
-        >
-          <BookIcon className="size-6" aria-hidden="true" />
-        </Link>
+        {!settingsWindow && (
+          <Link
+            slot="leading"
+            to="/"
+            aria-label="WBook 工作台首页"
+            className="flex size-10 items-center justify-center rounded-xl bg-primary-container text-primary-on-container transition-[border-radius] duration-200 hover:rounded-2xl"
+          >
+            <BookIcon className="size-6" aria-hidden="true" />
+          </Link>
+        )}
         <span slot="title" className="font-semibold tracking-tight">
           WBook
         </span>
-        {pendingActions.map(({ label, Icon }) => (
+        {!settingsWindow &&
+          pendingActions.map(({ label, Icon }) => (
+            <M3eIconButton
+              key={label}
+              slot="trailing"
+              aria-label={`${label}（即将推出）`}
+              title={`${label}（即将推出）`}
+              disabledInteractive
+            >
+              <Icon className="size-6" aria-hidden="true" />
+            </M3eIconButton>
+          ))}
+        {settingsWindow ? null : windowed ? (
           <M3eIconButton
-            key={label}
             slot="trailing"
-            aria-label={`${label}（即将推出）`}
-            title={`${label}（即将推出）`}
-            disabledInteractive
+            aria-label="设置"
+            title="设置"
+            onClick={() => void openSettings()}
           >
-            <Icon className="size-6" aria-hidden="true" />
+            <SettingsIcon className="size-6" aria-hidden="true" />
           </M3eIconButton>
-        ))}
-        <Link
-          slot="trailing"
-          to="/settings"
-          aria-label="设置"
-          title="设置"
-          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted [&.active]:bg-secondary [&.active]:text-secondary-foreground"
-        >
-          <SettingsIcon className="size-6" aria-hidden="true" />
-        </Link>
+        ) : (
+          <Link
+            slot="trailing"
+            to="/settings"
+            aria-label="设置"
+            title="设置"
+            className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted [&.active]:bg-secondary [&.active]:text-secondary-foreground"
+          >
+            <SettingsIcon className="size-6" aria-hidden="true" />
+          </Link>
+        )}
       </M3eAppBar>
+
+      {error && (
+        <p
+          role="alert"
+          className="mx-4 break-words rounded-2xl bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          无法打开设置窗口：{error}
+        </p>
+      )}
 
       <motion.main
         ref={mainRef}

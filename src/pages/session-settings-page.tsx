@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core'
 import { Link } from '@tanstack/react-router'
 import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
 import { commands } from '@/bindings'
@@ -17,16 +18,19 @@ export function SessionSettingsPage({ sessionId }: { sessionId: number }) {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pb-6 pt-4 sm:px-6">
       <header className="flex items-start gap-2">
-        <Button asChild variant="ghost" size="icon-sm" className="shrink-0">
-          <Link
-            to="/sessions/$sessionId"
-            params={{ sessionId: String(sessionId) }}
-            aria-label="返回工作区"
-            title="返回工作区"
-          >
-            <ArrowLeftIcon aria-hidden="true" />
-          </Link>
-        </Button>
+        {/* Desktop settings have a window of their own to close. */}
+        {!isTauri() && (
+          <Button asChild variant="ghost" size="icon-sm" className="shrink-0">
+            <Link
+              to="/sessions/$sessionId"
+              params={{ sessionId: String(sessionId) }}
+              aria-label="返回工作区"
+              title="返回工作区"
+            >
+              <ArrowLeftIcon aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
         <div className="min-w-0 space-y-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             本书设置{name && ` · ${name}`}

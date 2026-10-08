@@ -140,7 +140,10 @@ beforeEach(() => {
   updates.fail = null
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('settings page', () => {
   it('closes back to the page it was opened from', async () => {
@@ -148,6 +151,13 @@ describe('settings page', () => {
     fireEvent.click(await screen.findByRole('button', { name: '关闭设置' }))
     await screen.findByRole('heading', { name: '工作区页面' })
     expect(router.state.location.pathname).toBe('/sessions/1')
+  })
+
+  it('leaves closing to the window on the desktop', async () => {
+    vi.stubGlobal('isTauri', true)
+    renderPage()
+    await screen.findByRole('button', { name: '保存' })
+    expect(screen.queryByRole('button', { name: '关闭设置' })).toBeNull()
   })
 
   it('closes to the home page when there is nothing to go back to', async () => {

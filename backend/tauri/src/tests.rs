@@ -295,6 +295,18 @@ async fn rejected_requests_and_failed_operations_preserve_their_contract() {
             "platform_unsupported",
         ),
         (
+            "open_settings_window",
+            json!({}),
+            StatusCode::BAD_REQUEST,
+            "platform_unsupported",
+        ),
+        (
+            "open_session_settings_window",
+            json!({ "sessionId": 1 }),
+            StatusCode::BAD_REQUEST,
+            "platform_unsupported",
+        ),
+        (
             "window_ready",
             json!({}),
             StatusCode::BAD_REQUEST,
@@ -540,5 +552,48 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
         );
     }
     assert_eq!(h._app.webview_windows().len(), 2);
+    h.core.shutdown().await;
+}
+
+#[tokio::test]
+async fn settings_windows_open_once_and_only_for_open_sessions() {
+    let h = Harness::new();
+    std::fs::write(h.source(), "Text\n").unwrap();
+    let created = h.ipc("create_session", h.create_params()).await.unwrap();
+    let args = json!({ "sessionId": created["session"] });
+    for _ in 0..2 {
+        assert_eq!(
+            h.ipc("open_settings_window", json!({})).await.unwrap(),
+            Value::Null
+        );
+        assert_eq!(
+            h.ipc("open_session_settings_window", args.clone())
+                .await
+                .unwrap(),
+            Value::Null
+        );
+    }
+    let windows = h._app.webview_windows();
+    assert_eq!(windows.len(), 3);
+    assert_eq!(
+        windows["settings"].url().unwrap().fragment(),
+        Some("/settings")
+    );
+    assert_eq!(
+        windows["session-settings-1"].url().unwrap().fragment(),
+        Some("/sessions/1/settings")
+    );
+
+    // The mock runtime never reports destroyed windows, so the closure is
+    // only visible through the session being gone.
+    h.rpc_ok("close_session", args.clone()).await;
+    for args in [args, json!({ "sessionId": 99 })] {
+        assert_eq!(
+            h.ipc("open_session_settings_window", args)
+                .await
+                .unwrap_err()["kind"],
+            "not_found"
+        );
+    }
     h.core.shutdown().await;
 }

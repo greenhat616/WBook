@@ -4,7 +4,9 @@
   "local": true,
   "windows": [
     "main",
-    "session-*"
+    "settings",
+    "session-*",
+    "session-settings-*"
   ],
   "permissions": [
     "core:default",
