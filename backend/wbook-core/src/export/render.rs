@@ -4,6 +4,7 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::LazyLock;
 
+use rayon::prelude::*;
 use tera::{Context, Tera};
 use tokio_util::sync::CancellationToken;
 
@@ -39,6 +40,11 @@ static TEMPLATES: LazyLock<std::result::Result<Tera, tera::Error>> = LazyLock::n
     ])?;
     Ok(tera)
 });
+
+// Sections of a single-file layout render in parallel but are written in
+// order, so a batch bounds how much rendered text is held in memory at once.
+const SECTION_BATCH: usize = 256;
+const FOOTER: &[u8] = b"</body></html>\n";
 
 const STYLESHEET: &str = include_str!("templates/style.css");
 pub(super) const COVER_IMAGE: &str = "images/cover.jpg";
@@ -164,57 +170,88 @@ pub(super) fn render(
         let output = File::create(book.directory().join(COVER_PAGE))?;
         builtin_template("cover.xhtml", &context, BufWriter::new(output))?;
     }
-    for (file_index, path) in book.files.iter().enumerate() {
-        check(ct)?;
-        let output = File::create(book.directory().join(path))?;
+    let mut context = Context::new();
+    context.insert("book", &book.plan.metadata);
+    context.insert("navigation", &false);
+    let mut header = Vec::new();
+    template(&tera, "document.xhtml", &context, &mut header)?;
+    // is_cancelled locks the token, and paragraphs check it per line; a child
+    // token per section keeps the threads off one mutex.
+    let render_section = |index| section(&ct.child_token(), view, &book, &tera, index);
+    if book.plan.layout == RenderLayout::SplitChapters {
+        (0..book.plan.sections.len())
+            .into_par_iter()
+            .try_for_each(|index| -> Result<()> {
+                let mut output = header.clone();
+                output.extend(render_section(index)?);
+                output.extend_from_slice(FOOTER);
+                Ok(fs::write(
+                    book.directory().join(&book.files[index]),
+                    output,
+                )?)
+            })?;
+    } else {
         let mut writer = CancelWriter {
             ct,
-            inner: BufWriter::new(output),
+            inner: BufWriter::new(File::create(book.directory().join(&book.files[0]))?),
         };
-        let mut context = Context::new();
-        context.insert("book", &book.plan.metadata);
-        context.insert("navigation", &false);
-        template(&tera, "document.xhtml", &context, &mut writer)?;
-        let indices = if book.plan.layout == RenderLayout::SplitChapters {
-            file_index..file_index + 1
-        } else {
-            0..book.plan.sections.len()
-        };
-        for index in indices {
+        writer.write_all(&header)?;
+        let indices: Vec<_> = (0..book.plan.sections.len()).collect();
+        for batch in indices.chunks(SECTION_BATCH) {
             check(ct)?;
-            let section = &book.plan.sections[index];
-            context.insert("id", &section.id);
-            context.insert("title", &section.title);
-            context.insert("depth", &section.depth);
-            context.insert("heading", &section.depth.clamp(1, 6));
-            context.insert(
-                "paged",
-                &(book.plan.layout == RenderLayout::Paged && index > 0),
-            );
-            template(&tera, "section.xhtml", &context, &mut writer)?;
-            if let Some(range) = section.body {
-                for line in view.range_lines(ct, book.plan.version, range)? {
-                    let line = line?;
-                    let text = line
-                        .raw
-                        .strip_suffix("\r\n")
-                        .or_else(|| line.raw.strip_suffix('\n'))
-                        .unwrap_or(&line.raw);
-                    xml_text(ct, text, &format!("source offset {}", line.range.start))?;
-                    let mut paragraph = Context::new();
-                    paragraph.insert("text", &text);
-                    paragraph.insert("empty", &text.is_empty());
-                    template(&tera, "paragraph.xhtml", &paragraph, &mut writer)?;
-                }
+            let parts = batch
+                .par_iter()
+                .map(|&index| render_section(index))
+                .collect::<Result<Vec<_>>>()?;
+            for part in parts {
+                writer.write_all(&part)?;
             }
-            writer.write_all(b"</section>\n")?;
         }
-        writer.write_all(b"</body></html>\n")?;
+        writer.write_all(FOOTER)?;
         writer.flush()?;
     }
     navigation(ct, &book, &tera)?;
     check(ct)?;
     Ok(book)
+}
+
+fn section(
+    ct: &CancellationToken,
+    view: TextView<'_>,
+    book: &RenderedBook,
+    tera: &Tera,
+    index: usize,
+) -> Result<Vec<u8>> {
+    check(ct)?;
+    let section = &book.plan.sections[index];
+    let mut output = Vec::new();
+    let mut context = Context::new();
+    context.insert("id", &section.id);
+    context.insert("title", &section.title);
+    context.insert("depth", &section.depth);
+    context.insert("heading", &section.depth.clamp(1, 6));
+    context.insert(
+        "paged",
+        &(book.plan.layout == RenderLayout::Paged && index > 0),
+    );
+    template(tera, "section.xhtml", &context, &mut output)?;
+    if let Some(range) = section.body {
+        for line in view.range_lines(ct, book.plan.version, range)? {
+            let line = line?;
+            let text = line
+                .raw
+                .strip_suffix("\r\n")
+                .or_else(|| line.raw.strip_suffix('\n'))
+                .unwrap_or(&line.raw);
+            xml_text(ct, text, &format!("source offset {}", line.range.start))?;
+            let mut paragraph = Context::new();
+            paragraph.insert("text", &text);
+            paragraph.insert("empty", &text.is_empty());
+            template(tera, "paragraph.xhtml", &paragraph, &mut output)?;
+        }
+    }
+    output.extend_from_slice(b"</section>\n");
+    Ok(output)
 }
 
 fn navigation(ct: &CancellationToken, book: &RenderedBook, tera: &Tera) -> Result<()> {

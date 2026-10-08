@@ -30,6 +30,7 @@ tempfile = "3"
 # rocksdb = "0.25"
 
 tera = "2"
+rayon = "1"
 toml = "1"
 
 # workspace dependencies
