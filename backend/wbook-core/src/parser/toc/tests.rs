@@ -515,6 +515,70 @@ fn vbook_inline_accepts_shared_regex_rules() {
 }
 
 #[test]
+fn vbook_normal_groups_chapters_by_recurring_volume_prefixes() {
+    let parser = VBookTocParser::from_config(&vbook_config()).unwrap();
+    let text = [
+        "附录 : 人物卡",
+        "附录 : 特别提醒",
+        "附录 : 群号",
+        "第一学年 : 第一章  甲",
+        "正文：第一学年的事。",
+        "第一学年 : 第二章 乙",
+        "第一学年 : 上架感言",
+        "第一学年乱码:码 : 第三章 丙",
+        "第二学年：第一章 丁",
+        "第二学年：第二章 戊",
+        "第二学年：番外 己",
+    ]
+    .join("\n");
+    let entries = TocSnapshot::from(&parse(&parser, &text));
+    fn titles(entry: &crate::toc::TocEntry) -> Vec<&str> {
+        entry
+            .children
+            .iter()
+            .map(|child| child.title.as_str())
+            .collect()
+    }
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[0].title, "附录");
+    assert_eq!(titles(&entries[0]), ["人物卡", "特别提醒", "群号"]);
+    // A one-off prefix is noise inside a volume name, not a new volume.
+    assert_eq!(entries[1].title, "第一学年");
+    assert_eq!(
+        titles(&entries[1]),
+        ["第一章  甲", "第二章 乙", "上架感言", "第三章 丙"]
+    );
+    assert_eq!(entries[2].title, "第二学年");
+    assert_eq!(titles(&entries[2]), ["第一章 丁", "第二章 戊", "番外 己"]);
+    let volume = entries[1].meta.range.unwrap();
+    assert_eq!(
+        &text[volume.start as usize..volume.end as usize],
+        "第一学年 "
+    );
+    let first = entries[1].children[0].meta.range.unwrap();
+    assert_eq!(
+        &text[first.start as usize..first.end as usize],
+        ": 第一章  甲"
+    );
+    let second = entries[1].children[1].meta.range.unwrap();
+    assert_eq!(
+        &text[second.start as usize..second.end as usize],
+        "第一学年 : 第二章 乙"
+    );
+}
+
+#[test]
+fn vbook_normal_ignores_recurring_labels_without_chapter_headings() {
+    let parser = VBookTocParser::from_config(&vbook_config()).unwrap();
+    let text = "第一章 开始\n第一个人：你好\n第一个人：再见\n第一个人：走吧\n第二章 继续";
+    let entries = TocSnapshot::from(&parse(&parser, text));
+    // Without a volume heading, the count fallback groups the chapters.
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].title, "第 1 卷");
+    assert_eq!(entries[0].children.len(), 2);
+}
+
+#[test]
 fn end_marker_skips_empty_segments_and_keeps_unterminated_tail() {
     let mut config = vbook_config();
     config.volumes = VolumeMode::None;

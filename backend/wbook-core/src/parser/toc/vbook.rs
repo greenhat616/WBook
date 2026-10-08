@@ -1,9 +1,12 @@
+use std::collections::{HashMap, HashSet};
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tokio_util::sync::CancellationToken;
 
-use super::config::{HeadingRuleConfig, TocConfigError};
+use super::config::{HeadingRuleConfig, NumeralStyle, SimpleRuleConfig, TocConfigError};
 use super::leveled::rule_confidence;
+use super::presets::MAX_TITLE_LEN;
 use super::rule::{build_toc, scan_lines, LineRule};
 use crate::document::TextView;
 use crate::parser::{check_cancelled, MatchConfidence, ParserError, TocParser};
@@ -37,10 +40,48 @@ pub struct VBookConfig {
     pub volumes: VolumeMode,
 }
 
+// Some exports prefix every chapter with its volume, as in "第一学年 : 第二章 标题",
+// where the volume name carries no volume mark. The colon only proposes a
+// split; the parts must still read as a volume and a chapter.
+const PREFIX_SEPARATORS: [char; 2] = [':', '：'];
+// A prefix must recur before it becomes a volume, so one-off prefixes, such as
+// volume names corrupted by injected noise, never start a volume of their own.
+const MIN_PREFIX_LINES: usize = 3;
+// Volumes without an ordinal that commonly share the chapter prefix format.
+const PREFIX_VOLUME_WORDS: [&str; 3] = ["附录", "番外", "外传"];
+
 pub struct VBookTocParser {
     config: VBookConfig,
     chapter_rules: Vec<LineRule>,
     volume_rules: Vec<LineRule>,
+    ordinal: LineRule,
+}
+
+struct Prefixed<'a> {
+    /// Byte offset of the separator within the line.
+    split: usize,
+    volume: &'a str,
+    chapter: &'a str,
+}
+
+fn prefixed_splits(line: &str) -> impl Iterator<Item = Prefixed<'_>> {
+    line.char_indices()
+        .filter(|(_, c)| PREFIX_SEPARATORS.contains(c))
+        .filter_map(move |(split, c)| {
+            let volume = line[..split].trim();
+            let chapter = line[split + c.len_utf8()..].trim();
+            // Chapter titles here may carry injected noise, so they get more
+            // room than the heading rules allow; body lines are still longer.
+            (!volume.is_empty()
+                && !chapter.is_empty()
+                && volume.chars().count() <= MAX_TITLE_LEN
+                && chapter.chars().count() <= 2 * MAX_TITLE_LEN)
+                .then_some(Prefixed {
+                    split,
+                    volume,
+                    chapter,
+                })
+        })
 }
 
 impl VBookTocParser {
@@ -78,11 +119,115 @@ impl VBookTocParser {
             }
             VolumeMode::None => vec![],
         };
+        // Volume names such as "第一学年" use an ordinal without a volume mark.
+        let ordinal = LineRule::new(
+            1,
+            &HeadingRuleConfig::Simple(SimpleRuleConfig {
+                allow_leading_space: true,
+                prefixes: vec!["第".into()],
+                numeral: NumeralStyle::Mixed,
+                suffixes: vec![],
+                min_numeral_len: 1,
+                max_numeral_len: Some(9),
+                max_title_len: MAX_TITLE_LEN,
+            }),
+        )?;
         Ok(Self {
             config: config.clone(),
             chapter_rules,
             volume_rules,
+            ordinal,
         })
+    }
+
+    fn chapter_title<'a>(&self, line: &'a str) -> Option<&'a str> {
+        self.chapter_rules
+            .iter()
+            .find_map(|rule| rule.match_title(line))
+    }
+
+    fn volume_title<'a>(&self, line: &'a str) -> Option<&'a str> {
+        self.volume_rules
+            .iter()
+            .find_map(|rule| rule.match_title(line))
+    }
+
+    fn volume_like(&self, prefix: &str) -> bool {
+        PREFIX_VOLUME_WORDS.contains(&prefix)
+            || self.ordinal.match_title(prefix).is_some()
+            || self.volume_title(prefix).is_some()
+    }
+
+    /// Collects the prefixes that name volumes. The format counts only when
+    /// at least one prefixed line carries a real chapter heading, which keeps
+    /// recurring labels in ordinary text from turning into volumes.
+    fn volume_prefixes(
+        &self,
+        text: TextView<'_>,
+        ct: &CancellationToken,
+    ) -> Result<HashSet<String>, ParserError> {
+        let mut counts = HashMap::<String, usize>::new();
+        let mut has_chapter = false;
+        for line in text.lines(ct) {
+            let line = line?;
+            let line = line.text();
+            let mut seen = HashSet::new();
+            for prefixed in prefixed_splits(line) {
+                if !self.volume_like(prefixed.volume) || !seen.insert(prefixed.volume) {
+                    continue;
+                }
+                *counts.entry(prefixed.volume.to_owned()).or_default() += 1;
+                has_chapter |= self.chapter_title(prefixed.chapter).is_some();
+            }
+        }
+        check_cancelled(ct)?;
+        if !has_chapter {
+            return Ok(HashSet::new());
+        }
+        Ok(counts
+            .into_iter()
+            .filter(|(_, count)| *count >= MIN_PREFIX_LINES)
+            .map(|(prefix, _)| prefix)
+            .collect())
+    }
+
+    fn scan_prefixed(
+        &self,
+        text: TextView<'_>,
+        prefixes: &HashSet<String>,
+        ct: &CancellationToken,
+    ) -> Result<Vec<TocEvent>, ParserError> {
+        let mut events = Vec::new();
+        let mut current_volume = String::new();
+        for line in text.lines(ct) {
+            let line = line?;
+            let start = line.range.start;
+            let line = line.text();
+            let end = start + line.len() as u64;
+            let prefixed =
+                prefixed_splits(line).find(|prefixed| prefixes.contains(prefixed.volume));
+            if let Some(prefixed) = prefixed {
+                let mut chapter_start = start;
+                if prefixed.volume != current_volume {
+                    let split = start + prefixed.split as u64;
+                    events.push(heading(1, prefixed.volume, start, split));
+                    current_volume = prefixed.volume.to_owned();
+                    chapter_start = split;
+                }
+                events.push(heading(2, prefixed.chapter, chapter_start, end));
+            } else if let Some(title) = self.volume_title(line) {
+                events.push(heading(1, title, start, end));
+                current_volume = title.to_owned();
+            } else if let Some(title) = self.chapter_title(line).or_else(|| {
+                // A chapter whose volume prefix is corrupted stays in the
+                // current volume.
+                prefixed_splits(line).find_map(|prefixed| self.chapter_title(prefixed.chapter))
+            }) {
+                events.push(heading(2, title, start, end));
+            }
+        }
+        check_cancelled(ct)?;
+        Ok(events)
     }
 
     fn inline_heading<'a>(
@@ -241,6 +386,12 @@ impl TocParser for VBookTocParser {
                 fallback_chapters_per_volume,
                 ..
             } => {
+                let prefixes = self.volume_prefixes(text, ct)?;
+                if !prefixes.is_empty() {
+                    events = self.scan_prefixed(text, &prefixes, ct)?;
+                    nest_chapters(&mut events, ct)?;
+                    return build_toc(events, ct);
+                }
                 let volumes = scan_lines(text, &self.volume_rules, ct)?;
                 if volumes.is_empty() {
                     if let Some(size) = fallback_chapters_per_volume {
