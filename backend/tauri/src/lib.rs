@@ -18,6 +18,21 @@ mod windows;
 #[cfg(test)]
 mod tests;
 
+/// The portable Windows build ships this marker next to the executable so its
+/// settings travel with it instead of landing in the user's profile.
+const PORTABLE_MARKER: &str = ".portable";
+
+fn portable_dir() -> std::io::Result<Option<std::path::PathBuf>> {
+    let exe = std::env::current_exe()?;
+    let Some(dir) = exe.parent() else {
+        return Ok(None);
+    };
+    Ok(dir
+        .join(PORTABLE_MARKER)
+        .is_file()
+        .then(|| dir.join("data")))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let client = sentry::init((
@@ -41,10 +56,14 @@ pub fn run() {
             specta.mount_events(app);
             let port =
                 std::env::var("WBOOK_RPC_PORT").map_or(Ok(0), |value| value.parse::<u16>())?;
+            let (data_dir, config_dir) = match portable_dir()? {
+                Some(dir) => (dir.clone(), dir),
+                None => (app.path().app_data_dir()?, app.path().app_config_dir()?),
+            };
             let params = Params {
-                data_dir: camino::Utf8PathBuf::from_path_buf(app.path().app_data_dir()?)
+                data_dir: camino::Utf8PathBuf::from_path_buf(data_dir)
                     .map_err(|_| std::io::Error::other("App data path must be UTF-8"))?,
-                config_dir: camino::Utf8PathBuf::from_path_buf(app.path().app_config_dir()?)
+                config_dir: camino::Utf8PathBuf::from_path_buf(config_dir)
                     .map_err(|_| std::io::Error::other("App config path must be UTF-8"))?,
             };
             let runtime = Arc::new(tauri::async_runtime::block_on(runtime::AppRuntime::start(
