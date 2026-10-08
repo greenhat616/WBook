@@ -3,6 +3,13 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider
+} from '@tanstack/react-router'
+import {
   cleanup,
   fireEvent,
   render,
@@ -61,14 +68,39 @@ const builtin = {
   paragraph: '<p>{{ text }}</p>'
 }
 
-function renderPage() {
+function renderPage(initialEntries = ['/settings']) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } }
   })
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   )
-  render(<SettingsPage />, { wrapper: Wrapper })
+  const root = createRootRoute()
+  const router = createRouter({
+    routeTree: root.addChildren([
+      createRoute({
+        getParentRoute: () => root,
+        path: '/',
+        component: () => <h1>工作台</h1>
+      }),
+      createRoute({
+        getParentRoute: () => root,
+        path: '/sessions/$sessionId',
+        component: () => <h1>工作区页面</h1>
+      }),
+      createRoute({
+        getParentRoute: () => root,
+        path: '/settings',
+        component: SettingsPage
+      })
+    ]),
+    history: createMemoryHistory({
+      initialEntries,
+      initialIndex: initialEntries.length - 1
+    })
+  })
+  render(<RouterProvider router={router} />, { wrapper: Wrapper })
+  return router
 }
 
 beforeEach(() => {
@@ -84,6 +116,28 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('settings page', () => {
+  it('closes back to the page it was opened from', async () => {
+    commands.getSettings.mockResolvedValue({
+      settings: defaults,
+      problem: null
+    })
+    const router = renderPage(['/sessions/1', '/settings'])
+    fireEvent.click(await screen.findByRole('button', { name: '关闭设置' }))
+    await screen.findByRole('heading', { name: '工作区页面' })
+    expect(router.state.location.pathname).toBe('/sessions/1')
+  })
+
+  it('closes to the home page when there is nothing to go back to', async () => {
+    commands.getSettings.mockResolvedValue({
+      settings: defaults,
+      problem: null
+    })
+    const router = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '关闭设置' }))
+    await screen.findByRole('heading', { name: '工作台' })
+    expect(router.state.location.pathname).toBe('/')
+  })
+
   it('saves edited parser, filter and template settings', async () => {
     commands.getSettings.mockResolvedValue({
       settings: defaults,

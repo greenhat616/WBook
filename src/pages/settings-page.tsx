@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCanGoBack, useRouter } from '@tanstack/react-router'
+import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
 import { commands, mutations, queries } from '@/bindings'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/features/sessions/api'
@@ -8,14 +10,35 @@ export function SettingsPage() {
   const queryClient = useQueryClient()
   const stored = useQuery(queries.getSettings())
   const saving = useMutation(mutations.saveSettings())
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+
+  // Session windows open settings from their own page, so going home would
+  // strand them on the main window's screen.
+  function close() {
+    if (canGoBack) router.history.back()
+    else void router.navigate({ to: '/' })
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pb-6 pt-4 sm:px-6">
-      <header className="space-y-1 px-1">
-        <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
-        <p className="text-sm text-muted-foreground">
-          新建的工作会话会复制这里的设置；已经打开的会话保留各自的设置。
-        </p>
+      <header className="flex items-start gap-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          aria-label="关闭设置"
+          title="关闭设置"
+          onClick={close}
+        >
+          <ArrowLeftIcon aria-hidden="true" />
+        </Button>
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
+          <p className="text-sm text-muted-foreground">
+            新建的工作会话会复制这里的设置；已经打开的会话保留各自的设置。
+          </p>
+        </div>
       </header>
 
       {stored.data ? (
