@@ -1,37 +1,43 @@
 body {
   margin: 5%;
-  color: #252525;
   font-family: serif;
   line-height: 1.85;
+  color: #252525;
 }
+
 section {
   margin: 2em 0;
 }
+
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
+  margin: 1.8em 0 1em;
   font-family: serif;
   font-weight: normal;
   line-height: 1.5;
-  margin: 1.8em 0 1em;
   text-indent: 0;
   break-after: avoid;
 }
+
 h1 {
   font-size: 1.7em;
 }
+
 h2 {
   font-size: 1.35em;
 }
+
 h3,
 h4,
 h5,
 h6 {
   font-size: 1.15em;
 }
+
 p {
   margin: 0.6em 0;
   text-indent: 2em;
@@ -39,24 +45,32 @@ p {
   widows: 2;
   orphans: 2;
 }
+
 p.blank {
   min-height: 1em;
 }
+
 .page-break {
+  /* Older EPUB readers only understand the legacy property. */
+  /* stylelint-disable-next-line property-no-deprecated */
   page-break-before: always;
   break-before: column;
 }
+
 @media print {
   .page-break {
     break-before: page;
   }
 }
+
 nav ol {
   padding-left: 1.5em;
 }
+
 nav li {
   margin: 0.45em 0;
 }
+
 a {
   color: #315b72;
 }

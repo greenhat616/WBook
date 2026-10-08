@@ -13,15 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal --component clippy
       - name: Tauri dependencies
         run: >-
           sudo apt-get update &&
           sudo apt-get install -y
           libgtk-3-dev
           libayatana-appindicator3-dev
-          libwebkit2gtk-4.0-dev
+          libwebkit2gtk-4.1-dev
           webkit2gtk-driver
           xvfb
       - uses: Swatinem/rust-cache@v2
@@ -36,10 +36,9 @@ jobs:
         with:
           node-version: 20
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
-          version: 8
           run_install: false
 
       - name: Get pnpm store directory
@@ -83,13 +82,13 @@ jobs:
           sudo apt-get install -y
           libgtk-3-dev
           libayatana-appindicator3-dev
-          libwebkit2gtk-4.0-dev
+          libwebkit2gtk-4.1-dev
           webkit2gtk-driver
           xvfb
 
-      # install the latest Rust stable
-      - name: Rust stable
-        run: rustup toolchain install stable --profile minimal
+      # install the toolchain pinned by rust-toolchain.toml
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./backend/"
@@ -102,10 +101,9 @@ jobs:
         with:
           node-version: 20
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
-          version: 8
           run_install: false
 
       - name: Get pnpm store directory
@@ -127,10 +125,7 @@ jobs:
       # install the latest version of `tauri-driver`.
       # note: the tauri-driver version is independent of any other Tauri versions
       - name: Install tauri-driver
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: tauri-driver
+        run: cargo install tauri-driver --locked
       - name: Prepare fronend
         run: pnpm build # Build frontend
       # run the WebdriverIO test suite.
