@@ -32,7 +32,10 @@ export function HomePage() {
   function addSources(paths: string[]) {
     setNotice(null)
     queue.current = queue.current.then(async () => {
-      for (const path of paths) await create(path)
+      for (const path of paths) {
+        const session = await create(path)
+        if (session) await open(session.session)
+      }
     })
   }
 

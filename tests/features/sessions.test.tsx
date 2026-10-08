@@ -801,11 +801,13 @@ describe('home page session entry', () => {
     )
     await screen.findByText('C:/book-1.txt')
     expect(commands.createSession).toHaveBeenCalledWith('C:/book-1.txt')
-    expect(commands.openSessionWindow).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(commands.openSessionWindow).toHaveBeenCalledWith(1)
+    )
 
     fireEvent.click(sessionItem(/^book-1\.txt$/))
     await waitFor(() =>
-      expect(commands.openSessionWindow).toHaveBeenCalledWith(1)
+      expect(commands.openSessionWindow).toHaveBeenCalledTimes(2)
     )
     expect(router.state.location.pathname).toBe('/')
   })
@@ -867,8 +869,6 @@ describe('home page session entry', () => {
       target: { value: 'C:/book-1.txt' }
     })
     fireEvent.click(screen.getByRole('button', { name: '添加' }))
-    await screen.findByText('C:/book-1.txt')
-    fireEvent.click(sessionItem(/^book-1\.txt$/))
     await screen.findByRole('heading', { name: '工作区页面' })
     expect(router.state.location.pathname).toBe('/sessions/1')
     expect(commands.openSessionWindow).not.toHaveBeenCalled()
