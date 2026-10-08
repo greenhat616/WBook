@@ -6,8 +6,16 @@ const { isTauri, invoke } = vi.hoisted(() => ({
 }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri, invoke }))
 
-import { previewUrl, subscribeSession } from '../../src/bridge'
-import type { PreviewInfo, SessionSnapshot } from '../../src/bindings'
+import {
+  previewUrl,
+  subscribeSession,
+  subscribeSettings
+} from '../../src/bridge'
+import type {
+  PreviewInfo,
+  SessionSnapshot,
+  StoredSettings
+} from '../../src/bindings'
 
 class TestEventSource extends EventTarget {
   static instances: TestEventSource[] = []
@@ -182,5 +190,50 @@ describe('session subscription', () => {
     expect(receive).not.toHaveBeenCalled()
     expect(error).toHaveBeenCalledTimes(1)
     expect(current().close).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('settings subscription', () => {
+  const stored = (revision: number) =>
+    ({ settings: {}, revision, problem: null }) as unknown as StoredSettings
+
+  it('delivers increasing revisions without ending on its own', async () => {
+    const receive = vi.fn()
+    const error = vi.fn()
+    const stop = await subscribeSettings(receive, error)
+    expect(current().url).toBe('http://localhost:1420/bridge/settings/events')
+    for (const revision of [0, 2, 1, 2, 3])
+      current().send('settings', stored(revision))
+    expect(receive.mock.calls.map(([value]) => value.revision)).toEqual([
+      0, 2, 3
+    ])
+    expect(current().close).not.toHaveBeenCalled()
+    stop()
+    expect(current().close).toHaveBeenCalledTimes(1)
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { settings: {}, revision: -1, problem: null },
+    { settings: {}, revision: Number.MAX_SAFE_INTEGER + 1, problem: null },
+    { settings: null, revision: 0, problem: null },
+    null
+  ])('rejects invalid settings %j', async (value) => {
+    const error = vi.fn()
+    const receive = vi.fn()
+    await subscribeSettings(receive, error)
+    current().send('settings', value)
+    expect(receive).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(current().close).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports disconnects with the stream name', async () => {
+    const error = vi.fn()
+    await subscribeSettings(vi.fn(), error)
+    current().dispatchEvent(new Event('error'))
+    expect(error.mock.calls[0][0].message).toBe(
+      'Settings subscription disconnected'
+    )
   })
 })

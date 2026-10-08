@@ -10,6 +10,7 @@ import {
   RouterProvider
 } from '@tanstack/react-router'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -17,7 +18,7 @@ import {
   waitFor
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Settings } from '../../src/bindings'
+import type { Settings, StoredSettings } from '../../src/bindings'
 
 const { commands } = vi.hoisted(() => ({
   commands: {
@@ -26,6 +27,21 @@ const { commands } = vi.hoisted(() => ({
     defaultSettings: vi.fn(),
     builtinTemplates: vi.fn()
   }
+}))
+
+const updates = vi.hoisted(() => ({
+  send: null as ((stored: StoredSettings) => void) | null,
+  fail: null as ((error: Error) => void) | null
+}))
+
+vi.mock('../../src/bridge', () => ({
+  subscribeSettings: vi.fn(
+    (send: (stored: StoredSettings) => void, fail: (error: Error) => void) => {
+      updates.send = send
+      updates.fail = fail
+      return Promise.resolve(() => {})
+    }
+  )
 }))
 
 vi.mock('../../src/transport', () => ({
@@ -105,22 +121,29 @@ function renderPage(initialEntries = ['/settings']) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   commands.builtinTemplates.mockResolvedValue(builtin)
   commands.defaultSettings.mockResolvedValue(defaults)
-  commands.saveSettings.mockImplementation(async (settings: Settings) => ({
-    settings,
+  commands.saveSettings.mockImplementation(
+    async (expected: number, settings: Settings) => ({
+      settings,
+      revision: expected + 1,
+      problem: null
+    })
+  )
+  commands.getSettings.mockResolvedValue({
+    settings: defaults,
+    revision: 0,
     problem: null
-  }))
+  })
+  updates.send = null
+  updates.fail = null
 })
 
 afterEach(cleanup)
 
 describe('settings page', () => {
   it('closes back to the page it was opened from', async () => {
-    commands.getSettings.mockResolvedValue({
-      settings: defaults,
-      problem: null
-    })
     const router = renderPage(['/sessions/1', '/settings'])
     fireEvent.click(await screen.findByRole('button', { name: '关闭设置' }))
     await screen.findByRole('heading', { name: '工作区页面' })
@@ -128,10 +151,6 @@ describe('settings page', () => {
   })
 
   it('closes to the home page when there is nothing to go back to', async () => {
-    commands.getSettings.mockResolvedValue({
-      settings: defaults,
-      problem: null
-    })
     const router = renderPage()
     fireEvent.click(await screen.findByRole('button', { name: '关闭设置' }))
     await screen.findByRole('heading', { name: '工作台' })
@@ -139,10 +158,6 @@ describe('settings page', () => {
   })
 
   it('saves edited parser, filter and template settings', async () => {
-    commands.getSettings.mockResolvedValue({
-      settings: defaults,
-      problem: null
-    })
     renderPage()
 
     const save = await screen.findByRole('button', { name: '保存' })
@@ -164,7 +179,7 @@ describe('settings page', () => {
 
     fireEvent.click(save)
     await screen.findByText('设置已保存')
-    expect(commands.saveSettings).toHaveBeenCalledWith({
+    expect(commands.saveSettings).toHaveBeenCalledWith(0, {
       ...defaults,
       toc: { ...defaults.toc, mode: 'Chapters' },
       filters: ['Ad'],
@@ -182,6 +197,7 @@ describe('settings page', () => {
   it('reports an unusable settings file and restores defaults without saving', async () => {
     commands.getSettings.mockResolvedValue({
       settings: { ...defaults, filters: ['Ad'] },
+      revision: 0,
       problem: 'settings.toml is not valid TOML'
     })
     renderPage()
@@ -199,10 +215,6 @@ describe('settings page', () => {
   })
 
   it('blocks saving invalid parser settings and shows backend rejections', async () => {
-    commands.getSettings.mockResolvedValue({
-      settings: defaults,
-      problem: null
-    })
     commands.saveSettings.mockRejectedValue({
       kind: 'invalid_config',
       message: 'invalid language'
@@ -224,5 +236,98 @@ describe('settings page', () => {
     expect((await screen.findByText(/invalid language/)).textContent).toContain(
       'invalid_config'
     )
+  })
+
+  it('follows saves from other windows while the form is unchanged', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: '保存' })
+    await waitFor(() => expect(updates.send).not.toBeNull())
+    act(() =>
+      updates.send!({
+        settings: { ...defaults, filters: ['Ad'] },
+        revision: 1,
+        problem: null
+      })
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('checkbox', { name: /清除广告行/ })
+      ).toHaveProperty('checked', true)
+    )
+    expect(screen.queryByText(/已在其他窗口更新/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: '仅章节' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await screen.findByText('设置已保存')
+    expect(commands.saveSettings).toHaveBeenCalledWith(1, {
+      ...defaults,
+      toc: { ...defaults.toc, mode: 'Chapters' },
+      filters: ['Ad']
+    })
+  })
+
+  it('keeps edits when another window saves and offers the latest values', async () => {
+    renderPage()
+    const save = await screen.findByRole('button', { name: '保存' })
+    await waitFor(() => expect(updates.send).not.toBeNull())
+    fireEvent.click(screen.getByRole('radio', { name: '仅章节' }))
+    act(() =>
+      updates.send!({
+        settings: { ...defaults, filters: ['Ad'] },
+        revision: 1,
+        problem: null
+      })
+    )
+
+    expect(
+      (await screen.findByText(/已在其他窗口更新/)).getAttribute('role')
+    ).toBe('alert')
+    expect(
+      screen.getByRole('radio', { name: '仅章节' }).getAttribute('aria-checked')
+    ).toBe('true')
+    expect(save).toHaveProperty('disabled', true)
+
+    fireEvent.click(screen.getByRole('button', { name: '载入最新' }))
+    expect(screen.getByRole('checkbox', { name: /清除广告行/ })).toHaveProperty(
+      'checked',
+      true
+    )
+    expect(
+      screen.getByRole('radio', { name: '仅章节' }).getAttribute('aria-checked')
+    ).toBe('false')
+    expect(screen.queryByText(/已在其他窗口更新/)).toBeNull()
+  })
+
+  it('does not report its own save as a change from another window', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: '保存' })
+    await waitFor(() => expect(updates.send).not.toBeNull())
+    fireEvent.click(screen.getByRole('radio', { name: '仅章节' }))
+    const saved = { ...defaults, toc: { ...defaults.toc, mode: 'Chapters' } }
+    let finish!: (stored: StoredSettings) => void
+    commands.saveSettings.mockReturnValue(
+      new Promise((resolve) => (finish = resolve))
+    )
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    // The stream announces the save before its response arrives.
+    act(() => updates.send!({ settings: saved, revision: 1, problem: null }))
+    await act(async () =>
+      finish({ settings: saved, revision: 1, problem: null })
+    )
+    await screen.findByText('设置已保存')
+    expect(screen.queryByText(/已在其他窗口更新/)).toBeNull()
+  })
+
+  it('reports when updates from other windows stop and reconnects', async () => {
+    const { subscribeSettings } = await import('../../src/bridge')
+    renderPage()
+    await waitFor(() => expect(updates.fail).not.toBeNull())
+    act(() => updates.fail!(new Error('Settings subscription disconnected')))
+    expect(
+      (await screen.findByText(/无法接收其他窗口的设置更新/)).textContent
+    ).toContain('disconnected')
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await waitFor(() => expect(subscribeSettings).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText(/无法接收其他窗口的设置更新/)).toBeNull()
   })
 })

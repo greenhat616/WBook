@@ -146,9 +146,13 @@ async fn ipc_and_http_share_the_complete_session_pipeline() {
     stored["settings"]["toc"]["mode"] = json!("Split");
     stored["settings"]["toc"]["parts"] = json!(1);
     let saved = h
-        .ipc("save_settings", json!({ "settings": stored["settings"] }))
+        .ipc(
+            "save_settings",
+            json!({ "expected": 0, "settings": stored["settings"] }),
+        )
         .await
         .unwrap();
+    stored["revision"] = json!(1);
     assert_eq!(saved, stored);
     assert_eq!(h.rpc_ok("get_settings", json!({})).await, stored);
     let created = h.ipc("create_session", h.create_params()).await.unwrap();
@@ -262,11 +266,18 @@ async fn rejected_requests_and_failed_operations_preserve_their_contract() {
     let stored = h.rpc_ok("get_settings", json!({})).await;
     let mut invalid = stored["settings"].clone();
     invalid["toc"]["chapter_marks"] = json!([]);
-    let invalid = json!({ "settings": invalid });
+    let invalid = json!({ "expected": 0, "settings": invalid });
     let (status, error) = h.rpc("save_settings", invalid.clone()).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(error["kind"], "invalid_config");
     assert_eq!(h.ipc("save_settings", invalid).await.unwrap_err(), error);
+    assert_eq!(h.rpc_ok("get_settings", json!({})).await, stored);
+
+    let stale = json!({ "expected": 1, "settings": stored["settings"] });
+    let (status, error) = h.rpc("save_settings", stale.clone()).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(error["kind"], "stale_revision");
+    assert_eq!(h.ipc("save_settings", stale).await.unwrap_err(), error);
     assert_eq!(h.rpc_ok("get_settings", json!({})).await, stored);
     assert_eq!(h.rpc_ok("list_sessions", json!({})).await, json!([]));
 

@@ -59,10 +59,10 @@ mod api {
 
     pub async fn save_settings(
         app: &Wbook,
+        expected: u64,
         settings: Settings,
     ) -> Result<StoredSettings, CommandError> {
-        app.settings().save(settings)?;
-        Ok(app.settings().get())
+        Ok(app.settings().save(expected, settings)?)
     }
 
     #[query]

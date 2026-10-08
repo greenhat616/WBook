@@ -16,7 +16,7 @@ export const commands = {
 	readResults: (sessionId: SessionId) => __TAURI_INVOKE<OperationResponse<WorkspaceResults_Serialize>>("read_results", { sessionId }),
 	openSessionWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_window", { sessionId }),
 	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
-	saveSettings: (settings: Settings) => __TAURI_INVOKE<StoredSettings>("save_settings", { settings }),
+	saveSettings: (expected: number, settings: Settings) => __TAURI_INVOKE<StoredSettings>("save_settings", { expected, settings }),
 	/**  The session starts from a copy of the current global settings. */
 	createSession: (source: string) => __TAURI_INVOKE<SessionSnapshot>("create_session", { source }),
 	closeSession: (sessionId: SessionId) => __TAURI_INVOKE<ClosedSession>("close_session", { sessionId }),
@@ -221,6 +221,11 @@ export type Settings = {
 export type StoredSettings = {
 	settings: Settings,
 	/**
+	 *  Counts saves since startup so concurrent editors cannot overwrite
+	 *  each other. Not persisted: one process owns the file.
+	 */
+	revision: number,
+	/**
 	 *  Why the settings file could not be used. The defaults stand in until
 	 *  the next save replaces the file.
 	 */
@@ -403,7 +408,7 @@ export const queryKeys = {
 export const mutations = {
 	openSessionWindow: () => mutationOptions({ mutationKey: ["openSessionWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionWindow>[0] }) => commands.openSessionWindow(input.sessionId) }),
 	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
-	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { settings: Parameters<typeof commands.saveSettings>[0] }) => commands.saveSettings(input.settings) }),
+	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { expected: Parameters<typeof commands.saveSettings>[0]; settings: Parameters<typeof commands.saveSettings>[1] }) => commands.saveSettings(input.expected, input.settings) }),
 	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0] }) => commands.createSession(input.source) }),
 	closeSession: () => mutationOptions({ mutationKey: ["closeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.closeSession>[0] }) => commands.closeSession(input.sessionId) }),
 	initializeSession: () => mutationOptions({ mutationKey: ["initializeSession"], mutationFn: (input: { sessionId: Parameters<typeof commands.initializeSession>[0] }) => commands.initializeSession(input.sessionId) }),

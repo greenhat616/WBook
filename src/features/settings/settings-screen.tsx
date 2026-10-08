@@ -10,8 +10,17 @@ import {
   fromSettingsForm,
   sameSettings,
   settingsForm,
-  validateSettingsForm
+  validateSettingsForm,
+  type SettingsForm
 } from './settings-form'
+import { useSyncedForm } from './use-synced-form'
+
+const codec = {
+  toForm: settingsForm,
+  read: (form: SettingsForm) =>
+    validateSettingsForm(form) ? null : fromSettingsForm(form),
+  same: sameSettings
+}
 
 type Props = {
   saved: Settings
@@ -31,12 +40,12 @@ export function SettingsScreen({
   restore
 }: Props) {
   const builtin = useQuery(queries.builtinTemplates())
-  const [form, setForm] = useState(() => settingsForm(saved))
+  const synced = useSyncedForm(saved, codec)
+  const { form, setForm, dirty, outdated } = synced
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const problem = validateSettingsForm(form)
-  const dirty = problem !== null || !sameSettings(fromSettingsForm(form), saved)
 
   async function run(action: () => Promise<void>, done: string) {
     setPending(true)
@@ -54,7 +63,12 @@ export function SettingsScreen({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!problem) void run(() => onSave(fromSettingsForm(form)), '设置已保存')
+    if (problem || outdated) return
+    const next = fromSettingsForm(form)
+    void run(async () => {
+      await onSave(next)
+      synced.committed(next)
+    }, '设置已保存')
   }
 
   return (
@@ -72,7 +86,7 @@ export function SettingsScreen({
         <Button
           type="submit"
           size="sm"
-          disabled={disabled || pending || !dirty || !!problem}
+          disabled={disabled || pending || !dirty || !!problem || outdated}
         >
           <SaveIcon aria-hidden="true" />
           {pending ? '正在保存…' : '保存'}
@@ -81,14 +95,14 @@ export function SettingsScreen({
           type="button"
           size="sm"
           variant="ghost"
-          disabled={pending || !dirty}
+          disabled={pending || (!dirty && !outdated)}
           onClick={() => {
-            setForm(settingsForm(saved))
+            synced.reset()
             setError(null)
             setNotice(null)
           }}
         >
-          撤销修改
+          {outdated ? '载入最新' : '撤销修改'}
         </Button>
         <Button
           type="button"
@@ -104,13 +118,19 @@ export function SettingsScreen({
           {restore.label}
         </Button>
         <p
-          role={error || problem ? 'alert' : 'status'}
+          role={error || problem || outdated ? 'alert' : 'status'}
           className={cn(
             'min-w-0 break-words text-xs',
-            error || problem ? 'text-destructive' : 'text-muted-foreground'
+            error || problem || outdated
+              ? 'text-destructive'
+              : 'text-muted-foreground'
           )}
         >
-          {error ?? problem ?? notice ?? (dirty ? '有未保存的修改' : '')}
+          {error ??
+            problem ??
+            (outdated
+              ? '设置已在其他窗口更新；载入最新后再修改'
+              : (notice ?? (dirty ? '有未保存的修改' : '')))}
         </p>
       </div>
     </form>

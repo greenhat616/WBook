@@ -80,6 +80,7 @@ impl From<SaveError> for CommandError {
     fn from(error: SaveError) -> Self {
         let kind = match error {
             SaveError::Invalid { .. } => ErrorKind::InvalidConfig,
+            SaveError::Stale { .. } => ErrorKind::StaleRevision,
             SaveError::Encode { .. } | SaveError::Write { .. } => ErrorKind::InternalError,
         };
         Self::new(kind, error.to_string())

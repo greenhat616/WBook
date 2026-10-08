@@ -5,11 +5,13 @@ import { commands, mutations, queries } from '@/bindings'
 import { Button } from '@/components/ui/button'
 import { errorMessage } from '@/features/sessions/api'
 import { SettingsScreen } from '@/features/settings/settings-screen'
+import { useSettingsUpdates } from '@/features/settings/use-settings-updates'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
   const stored = useQuery(queries.getSettings())
   const saving = useMutation(mutations.saveSettings())
+  const updates = useSettingsUpdates()
   const router = useRouter()
   const canGoBack = useCanGoBack()
 
@@ -45,11 +47,30 @@ export function SettingsPage() {
         <SettingsScreen
           saved={stored.data.settings}
           onSave={async (settings) => {
-            const next = await saving.mutateAsync({ settings })
-            queryClient.setQueryData(queries.getSettings().queryKey, next)
+            const { queryKey } = queries.getSettings()
+            // The form refuses to save once it is outdated, so the latest
+            // known revision is the one its edits started from.
+            const expected = queryClient.getQueryData(queryKey)!.revision
+            const next = await saving.mutateAsync({ expected, settings })
+            queryClient.setQueryData(queryKey, (cached) =>
+              cached && cached.revision > next.revision ? cached : next
+            )
           }}
           restore={{ label: '恢复默认', load: commands.defaultSettings }}
         >
+          {updates.error && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface-container-high p-3 text-sm"
+            >
+              <span className="min-w-0 flex-1 break-words text-muted-foreground">
+                无法接收其他窗口的设置更新：{updates.error}
+              </span>
+              <Button size="sm" variant="ghost" onClick={updates.reconnect}>
+                重新连接
+              </Button>
+            </div>
+          )}
           {stored.data.problem && (
             <p
               role="alert"

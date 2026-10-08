@@ -12,6 +12,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use specta::Type;
+use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 
 use crate::export::{
     self, ExportFailure, ExportOptions, OutputFormat, RenderLayout, RenderOptions,
@@ -81,6 +83,9 @@ impl Settings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct StoredSettings {
     pub settings: Settings,
+    /// Counts saves since startup so concurrent editors cannot overwrite
+    /// each other. Not persisted: one process owns the file.
+    pub revision: u64,
     /// Why the settings file could not be used. The defaults stand in until
     /// the next save replaces the file.
     pub problem: Option<String>,
@@ -90,6 +95,8 @@ pub struct StoredSettings {
 pub enum SaveError {
     #[snafu(context(false), display("{source}"))]
     Invalid { source: SettingsError },
+    #[snafu(display("settings changed since revision {expected}; now at {current}"))]
+    Stale { expected: u64, current: u64 },
     #[snafu(display("cannot encode settings: {source}"))]
     Encode { source: toml::ser::Error },
     #[snafu(display("cannot write {path}: {source}"))]
@@ -117,8 +124,12 @@ enum LoadError {
 
 pub struct SettingsStore {
     path: Utf8PathBuf,
-    // Also serializes saves, so the file always matches the last stored value.
-    state: Mutex<StoredSettings>,
+    // Serializes saves, so the file always matches the last published value.
+    saving: Mutex<()>,
+    state: watch::Sender<StoredSettings>,
+    // The store outlives every session, so subscribers need their own signal
+    // to stop at shutdown instead of holding the HTTP server open.
+    closing: CancellationToken,
 }
 
 impl SettingsStore {
@@ -129,42 +140,67 @@ impl SettingsStore {
         let state = match read(&path) {
             Ok(settings) => StoredSettings {
                 settings,
+                revision: 0,
                 problem: None,
             },
             Err(error) => {
                 tracing::warn!("{error}; using default settings");
                 StoredSettings {
                     settings: Settings::default(),
+                    revision: 0,
                     problem: Some(error.to_string()),
                 }
             }
         };
         Self {
             path,
-            state: Mutex::new(state),
+            saving: Mutex::new(()),
+            state: watch::Sender::new(state),
+            closing: CancellationToken::new(),
         }
     }
 
     pub fn get(&self) -> StoredSettings {
-        self.state.lock().unwrap().clone()
+        self.state.borrow().clone()
     }
 
     pub fn current(&self) -> Settings {
-        self.state.lock().unwrap().settings.clone()
+        self.state.borrow().settings.clone()
     }
 
-    pub fn save(&self, settings: Settings) -> Result<(), SaveError> {
+    /// Receives the current settings and every later save.
+    pub fn subscribe(&self) -> watch::Receiver<StoredSettings> {
+        self.state.subscribe()
+    }
+
+    /// Cancelled once the app shuts down.
+    pub fn closing(&self) -> CancellationToken {
+        self.closing.clone()
+    }
+
+    pub fn close(&self) {
+        self.closing.cancel();
+    }
+
+    /// Saves `settings` unless another save landed after `expected`.
+    pub fn save(&self, expected: u64, settings: Settings) -> Result<StoredSettings, SaveError> {
         settings.validate()?;
         let text = toml::to_string_pretty(&settings).context(EncodeSnafu)?;
-        let mut state = self.state.lock().unwrap();
+        let _saving = self.saving.lock().unwrap();
+        let current = self.state.borrow().revision;
+        if current != expected {
+            return StaleSnafu { expected, current }.fail();
+        }
         write(&self.path, &text).context(WriteSnafu {
             path: self.path.clone(),
         })?;
-        *state = StoredSettings {
+        let stored = StoredSettings {
             settings,
+            revision: current + 1,
             problem: None,
         };
-        Ok(())
+        self.state.send_replace(stored.clone());
+        Ok(stored)
     }
 }
 

@@ -2,7 +2,7 @@ use std::fs;
 
 use camino::Utf8PathBuf;
 
-use super::{Settings, SettingsStore};
+use super::{SaveError, Settings, SettingsStore};
 use crate::export::{RenderLayout, TemplateOverrides};
 use crate::parser::toc::{TocMode, VolumeSplit};
 use crate::workspace::FilterConfig;
@@ -34,7 +34,7 @@ fn missing_file_loads_defaults_without_a_problem() {
 #[test]
 fn saved_settings_survive_a_reload() {
     let (_directory, path) = directory();
-    SettingsStore::load(&path).save(custom()).unwrap();
+    SettingsStore::load(&path).save(0, custom()).unwrap();
     let stored = SettingsStore::load(&path).get();
     assert_eq!(stored.settings, custom());
     assert_eq!(stored.problem, None);
@@ -74,7 +74,7 @@ fn broken_files_fall_back_to_defaults_and_are_left_alone() {
         assert!(stored.problem.is_some(), "{text}");
         assert_eq!(fs::read_to_string(&file).unwrap(), text);
 
-        store.save(custom()).unwrap();
+        store.save(0, custom()).unwrap();
         assert_eq!(store.get().problem, None);
     }
 }
@@ -88,9 +88,51 @@ fn invalid_settings_are_rejected_before_writing() {
         paragraph: Some("{{ text".into()),
         ..TemplateOverrides::default()
     };
-    assert!(store.save(invalid).is_err());
+    assert!(store.save(0, invalid).is_err());
     assert!(!path.join("settings.toml").exists());
     assert_eq!(store.current(), Settings::default());
+    assert_eq!(store.get().revision, 0);
+}
+
+#[test]
+fn saves_from_a_stale_revision_are_rejected_without_writing() {
+    let (_directory, path) = directory();
+    let store = SettingsStore::load(&path);
+    assert_eq!(store.save(0, custom()).unwrap().revision, 1);
+    let file = path.join("settings.toml");
+    let written = fs::read_to_string(&file).unwrap();
+
+    let error = store.save(0, Settings::default()).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            SaveError::Stale {
+                expected: 0,
+                current: 1
+            }
+        ),
+        "{error}"
+    );
+    assert_eq!(fs::read_to_string(&file).unwrap(), written);
+    assert_eq!(store.current(), custom());
+    assert_eq!(store.save(1, Settings::default()).unwrap().revision, 2);
+}
+
+#[test]
+fn subscribers_see_the_current_value_and_each_save() {
+    let (_directory, path) = directory();
+    let store = SettingsStore::load(&path);
+    let mut receiver = store.subscribe();
+    assert_eq!(receiver.borrow_and_update().revision, 0);
+
+    store.save(0, custom()).unwrap();
+    assert!(receiver.has_changed().unwrap());
+    let stored = receiver.borrow_and_update().clone();
+    assert_eq!((stored.revision, stored.settings), (1, custom()));
+
+    // A rejected save publishes nothing.
+    assert!(store.save(0, Settings::default()).is_err());
+    assert!(!receiver.has_changed().unwrap());
 }
 
 #[test]

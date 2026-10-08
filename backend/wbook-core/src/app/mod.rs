@@ -42,6 +42,7 @@ impl Wbook {
     }
 
     pub async fn shutdown(&self) -> Vec<(SessionId, Arc<CloseReport>)> {
+        self.settings.close();
         self.session_manager.shutdown().await
     }
 }

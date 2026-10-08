@@ -9,8 +9,10 @@ use axum::{
 use futures_util::{stream, Stream};
 use snafu::ResultExt;
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use wbook_core::{
     session::{LifecycleState, SessionId, SessionSnapshot},
+    settings::StoredSettings,
     Wbook,
 };
 
@@ -20,7 +22,54 @@ use crate::errors::{DecodePathSnafu, EncodeResponseSnafu};
 pub fn router(core: Arc<Wbook>) -> Router {
     Router::new()
         .route("/bridge/sessions/{session_id}/events", get(subscribe))
+        .route("/bridge/settings/events", get(subscribe_settings))
         .with_state(core)
+}
+
+async fn subscribe_settings(
+    State(core): State<Arc<Wbook>>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let settings = core.settings();
+    Sse::new(settings_events(settings.subscribe(), settings.closing()))
+        .keep_alive(KeepAlive::default())
+}
+
+fn settings_events(
+    receiver: watch::Receiver<StoredSettings>,
+    closing: CancellationToken,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    stream::unfold(Some((receiver, true)), move |state| {
+        let closing = closing.clone();
+        async move {
+            let (mut receiver, initial) = state?;
+            if !initial {
+                tokio::select! {
+                    changed = receiver.changed() => changed.ok()?,
+                    () = closing.cancelled() => return None,
+                }
+            }
+            let stored = receiver.borrow_and_update().clone();
+            let event = check_integers(&stored, ErrorKind::InternalError).and_then(|()| {
+                let data = serde_json::to_string(&stored).context(EncodeResponseSnafu {
+                    context: "settings event",
+                })?;
+                Ok(Event::default()
+                    .event("settings")
+                    .id(stored.revision.to_string())
+                    .data(data))
+            });
+            match event {
+                Ok(event) => Some((Ok(event), Some((receiver, false)))),
+                Err(error) => Some((
+                    Ok(Event::default()
+                        .event("bridge-error")
+                        .json_data(error)
+                        .expect("command errors contain only strings")),
+                    None,
+                )),
+            }
+        }
+    })
 }
 
 async fn subscribe(
@@ -140,6 +189,63 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(response.headers()["content-type"], "text/event-stream");
             response.into_body().into_data_stream()
+        }
+    }
+
+    async fn subscribe_settings(router: &Router) -> BodyDataStream {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/bridge/settings/events")
+                    .header("host", "127.0.0.1:1421")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        response.into_body().into_data_stream()
+    }
+
+    async fn next_settings(body: &mut BodyDataStream) -> StoredSettings {
+        let bytes = timeout(Duration::from_secs(5), body.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let event = std::str::from_utf8(&bytes).unwrap();
+        assert!(event.contains("event: settings\n"), "{event}");
+        let data = event
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .unwrap();
+        let stored: StoredSettings = serde_json::from_str(data).unwrap();
+        assert!(event.contains(&format!("id: {}\n", stored.revision)));
+        stored
+    }
+
+    #[tokio::test]
+    async fn settings_subscription_sends_each_save_and_ends_at_shutdown() {
+        let h = Harness::new();
+        let mut body = subscribe_settings(&h.router).await;
+        assert_eq!(next_settings(&mut body).await, h.core.settings().get());
+
+        let mut changed = Settings::default();
+        changed.render.language = "en".into();
+        let saved = h.core.settings().save(0, changed).unwrap();
+        assert_eq!(next_settings(&mut body).await, saved);
+        // A rejected save is not announced.
+        h.core.settings().save(0, Settings::default()).unwrap_err();
+
+        let mut reconnected = subscribe_settings(&h.router).await;
+        assert_eq!(next_settings(&mut reconnected).await, saved);
+        h.core.shutdown().await;
+        for body in [&mut body, &mut reconnected] {
+            assert!(timeout(Duration::from_secs(5), body.next())
+                .await
+                .unwrap()
+                .is_none());
         }
     }
 
