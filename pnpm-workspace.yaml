@@ -1,3 +1,5 @@
+packages:
+  - scripts
 allowBuilds:
   edgedriver: true
   esbuild: true

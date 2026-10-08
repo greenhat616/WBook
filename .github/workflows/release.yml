@@ -1,0 +1,142 @@
+on:
+  push:
+    tags: ["v*"]
+
+name: Release
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: Check version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - name: Tag matches app version
+        run: |
+          version=$(jq -r .version backend/tauri/tauri.conf.json)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match app version $version"
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+          # WiX cannot build ARM64 installers, so ARM64 only gets NSIS.
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
+          # The oldest supported runner keeps the glibc requirement low.
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+
+      - name: Tauri dependencies
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libgtk-3-dev
+          libayatana-appindicator3-dev
+          libwebkit2gtk-4.1-dev
+          librsvg2-dev
+          patchelf
+          xdg-utils
+
+      # install the toolchain pinned by rust-toolchain.toml
+      - name: Rust toolchain
+        run: rustup toolchain install --profile minimal && rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: "./backend/"
+          prefix-key: "rust-stable"
+          shared-key: "release-${{ matrix.target }}"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 24.21.0
+
+      - uses: pnpm/action-setup@v6.1.0
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4.3.0
+        name: Setup pnpm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Portable package
+        if: runner.os == 'Windows'
+        run: pnpm --filter @wbook/scripts portable --target ${{ matrix.target }}
+
+      - name: Collect packages
+        shell: bash
+        run: |
+          shopt -s nullglob
+          mkdir out
+          bundle=backend/target/${{ matrix.target }}/release/bundle
+          cp $bundle/nsis/*.exe $bundle/msi/*.msi $bundle/portable/*.zip \
+            $bundle/deb/*.deb $bundle/rpm/*.rpm $bundle/appimage/*.AppImage \
+            $bundle/dmg/*.dmg out/
+          ls -l out
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ${{ matrix.target }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          path: out
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" out/*
+          --repo "$GITHUB_REPOSITORY"
+          --title "WBook ${GITHUB_REF_NAME#v}"
+          --generate-notes
