@@ -18,7 +18,7 @@
   },
   "productName": "wbook",
   "mainBinaryName": "wbook",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "identifier": "me.a632079",
   "plugins": {},
   "app": {

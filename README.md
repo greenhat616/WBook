@@ -19,7 +19,10 @@ written in Rust and Typescript.
 
 ## Installation
 
-Wait for a while, we will release a binary version for Windows, Linux and MacOS.
+Download the package for your platform from
+[Releases](https://github.com/greenhat616/WBook/releases). The Windows
+`*_portable.zip` needs no installation and keeps its settings in a `data`
+folder next to `wbook.exe`.
 
 ## Development
 
