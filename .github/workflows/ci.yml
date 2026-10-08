@@ -12,7 +12,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Rust toolchain
         run: rustup toolchain install --profile minimal && rustup component add clippy
       - name: Tauri dependencies
@@ -32,8 +32,10 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v7.1.0
         with:
+          # pnpm is installed after Node.js and its store is cached below.
+          package-manager-cache: false
           node-version: 24.21.0
 
       - uses: pnpm/action-setup@v6.1.0
@@ -46,7 +48,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v4.3.0
+      - uses: actions/cache@v6.1.0
         name: Setup pnpm cache
         with:
           path: ${{ env.STORE_PATH }}
@@ -72,7 +74,7 @@ jobs:
     # the steps our job runs **in order**
     steps:
       # checkout the code on the workflow runner
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
 
       # install system dependencies that Tauri needs to compile on Linux.
       # note the extra dependencies for `tauri-driver` to run which are: `webkit2gtk-driver` and `xvfb`
@@ -97,8 +99,10 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v7.1.0
         with:
+          # pnpm is installed after Node.js and its store is cached below.
+          package-manager-cache: false
           node-version: 24.21.0
 
       - uses: pnpm/action-setup@v6.1.0
@@ -111,7 +115,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v4.3.0
+      - uses: actions/cache@v6.1.0
         name: Setup pnpm cache
         with:
           path: ${{ env.STORE_PATH }}
