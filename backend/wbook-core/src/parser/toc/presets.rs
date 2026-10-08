@@ -45,7 +45,9 @@ pub(super) fn extra_pattern() -> HeadingRuleConfig {
 }
 
 pub(super) fn chapter_marks() -> Vec<String> {
-    strings(&["章", "回", "节", "集"])
+    // "番外" as a mark lets numbered extras such as "番外一 标题" read as
+    // chapters inside the volume that collects them.
+    strings(&["章", "回", "节", "集", "番外"])
 }
 
 pub(super) fn volume_marks() -> Vec<String> {

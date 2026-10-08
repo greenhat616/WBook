@@ -578,6 +578,43 @@ fn vbook_normal_ignores_recurring_labels_without_chapter_headings() {
 }
 
 #[test]
+fn vbook_default_reads_numbered_extras_as_chapters() {
+    let parser = VBookTocParser::from_config(&vbook_config()).unwrap();
+    let text = [
+        "卷八 终章",
+        "第七百七十三章 阴阳为炭兮，万物为铜",
+        "卷九 番外",
+        "番外一 元慕鱼篇",
+        "　　【番外·元慕鱼篇（完）】",
+        "番外二 夜家姐妹篇",
+        "番外三 全订番外 六朝",
+        "番外四 霜天冻月映寒川（一）",
+        "　　PS：名为凛霜番外，实际会写很多人的日常，比如今天就是沈棠。",
+    ]
+    .join(
+        "
+",
+    );
+    let entries = TocSnapshot::from(&parse(&parser, &text));
+    let titles: Vec<_> = entries[1]
+        .children
+        .iter()
+        .map(|child| child.title.as_str())
+        .collect();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[1].title, "卷九 番外");
+    assert_eq!(
+        titles,
+        [
+            "番外一 元慕鱼篇",
+            "番外二 夜家姐妹篇",
+            "番外三 全订番外 六朝",
+            "番外四 霜天冻月映寒川（一）",
+        ]
+    );
+}
+
+#[test]
 fn end_marker_skips_empty_segments_and_keeps_unterminated_tail() {
     let mut config = vbook_config();
     config.volumes = VolumeMode::None;
