@@ -19,7 +19,6 @@ const PREFIX: &str = "cover-search-";
 /// Picks leave the page by navigating here. The `.invalid` TLD never
 /// resolves, and the navigation is cancelled before any request is sent.
 const PICK_HOST: &str = "wbook-cover.invalid";
-const SEARCH: &str = "https://www.bing.com/images/search";
 const PICKER: &str = include_str!("cover_picker.js");
 const TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -36,7 +35,8 @@ pub fn label(id: SessionId) -> String {
     format!("{PREFIX}{}", id.0)
 }
 
-/// Opens the search window of a session, or shows `query` in the open one.
+/// Opens `address`, a search result or any page the user typed, in the
+/// search window of a session, or shows it in the open one.
 ///
 /// The window shows remote pages, so it is left out of every capability and
 /// cannot reach the app's commands; picks reach the app only as navigations.
@@ -44,11 +44,15 @@ pub fn open<R: Runtime>(
     opener: &WebviewWindow<R>,
     core: &Wbook,
     id: SessionId,
-    query: &str,
+    address: &str,
 ) -> Result<(), CommandError> {
     let session = core.session_manager().get(id)?;
-    let mut url = Url::parse(SEARCH).expect("search URL is valid");
-    url.query_pairs_mut().append_pair("q", query);
+    let url = Url::parse(address.trim())
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .ok_or_else(|| {
+            CommandError::new(ErrorKind::InvalidParams, "only web pages can be searched")
+        })?;
     let label = label(id);
     let app = opener.app_handle();
     if let Some(window) = app.get_webview_window(&label) {

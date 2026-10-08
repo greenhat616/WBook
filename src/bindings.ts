@@ -17,8 +17,8 @@ export const commands = {
 	openSessionWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_window", { sessionId }),
 	openSettingsWindow: () => __TAURI_INVOKE<null>("open_settings_window"),
 	openSessionSettingsWindow: (sessionId: SessionId) => __TAURI_INVOKE<null>("open_session_settings_window", { sessionId }),
-	/**  Opens a web image search whose picks arrive as `CoverPicked`. */
-	openCoverSearch: (sessionId: SessionId, query: string) => __TAURI_INVOKE<null>("open_cover_search", { sessionId, query }),
+	/**  Opens a web page to pick a cover from; picks arrive as `CoverPicked`. */
+	openCoverSearch: (sessionId: SessionId, url: string) => __TAURI_INVOKE<null>("open_cover_search", { sessionId, url }),
 	/**  Downloads a picked image and makes it the cover. */
 	setCoverFromUrl: (sessionId: SessionId, expected: Revision, url: string, referer: string | null) => __TAURI_INVOKE<OperationResponse<Revision>>("set_cover_from_url", { sessionId, expected, url, referer }),
 	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
@@ -89,6 +89,12 @@ export type CoverPicked = {
 	url: string,
 	/**  The page the image was shown on; some hosts refuse hotlinks without it. */
 	referer: string | null,
+};
+
+export type CoverSearchSettings = {
+	/**  The initial search text; `{title}` and `{author}` are replaced. */
+	query: string,
+	engines: SearchEngine[],
 };
 
 export type CoverSettings = {
@@ -235,6 +241,12 @@ export type ResultCategory = "Succeeded" | "Failed" | "Cancelled" | "Panicked";
 
 export type Revision = number;
 
+export type SearchEngine = {
+	name: string,
+	/**  An http(s) address in which `{query}` is replaced by the search text. */
+	url: string,
+};
+
 /**
  *  Sent to the main window once a windowed session has closed, so its list
  *  drops the session without waiting for focus.
@@ -263,6 +275,8 @@ export type Settings = {
 	render: RenderSettings,
 	/**  The custom image itself is stored with the book, not here. */
 	cover: CoverSettings,
+	/**  Used from the global settings only; a session's copy is ignored. */
+	cover_search: CoverSearchSettings,
 };
 
 export type StoredSettings = {
@@ -459,7 +473,7 @@ export const mutations = {
 	openSessionWindow: () => mutationOptions({ mutationKey: ["openSessionWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionWindow>[0] }) => commands.openSessionWindow(input.sessionId) }),
 	openSettingsWindow: () => mutationOptions({ mutationKey: ["openSettingsWindow"], mutationFn: () => commands.openSettingsWindow() }),
 	openSessionSettingsWindow: () => mutationOptions({ mutationKey: ["openSessionSettingsWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionSettingsWindow>[0] }) => commands.openSessionSettingsWindow(input.sessionId) }),
-	openCoverSearch: () => mutationOptions({ mutationKey: ["openCoverSearch"], mutationFn: (input: { sessionId: Parameters<typeof commands.openCoverSearch>[0]; query: Parameters<typeof commands.openCoverSearch>[1] }) => commands.openCoverSearch(input.sessionId, input.query) }),
+	openCoverSearch: () => mutationOptions({ mutationKey: ["openCoverSearch"], mutationFn: (input: { sessionId: Parameters<typeof commands.openCoverSearch>[0]; url: Parameters<typeof commands.openCoverSearch>[1] }) => commands.openCoverSearch(input.sessionId, input.url) }),
 	setCoverFromUrl: () => mutationOptions({ mutationKey: ["setCoverFromUrl"], mutationFn: (input: { sessionId: Parameters<typeof commands.setCoverFromUrl>[0]; expected: Parameters<typeof commands.setCoverFromUrl>[1]; url: Parameters<typeof commands.setCoverFromUrl>[2]; referer: Parameters<typeof commands.setCoverFromUrl>[3] }) => commands.setCoverFromUrl(input.sessionId, input.expected, input.url, input.referer) }),
 	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
 	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { expected: Parameters<typeof commands.saveSettings>[0]; settings: Parameters<typeof commands.saveSettings>[1] }) => commands.saveSettings(input.expected, input.settings) }),

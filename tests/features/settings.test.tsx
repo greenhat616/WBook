@@ -76,7 +76,17 @@ const defaults: Settings = {
       paragraph: null
     }
   },
-  cover: { kind: 'Generated', overlay: false, grayscale: false }
+  cover: { kind: 'Generated', overlay: false, grayscale: false },
+  cover_search: {
+    query: '{title} {author} 封面',
+    engines: [
+      { name: '必应', url: 'https://www.bing.com/images/search?q={query}' },
+      {
+        name: '豆瓣读书',
+        url: 'https://search.douban.com/book/subject_search?search_text={query}'
+      }
+    ]
+  }
 }
 const builtin = {
   stylesheet: 'p { text-indent: 2em; }',
@@ -218,6 +228,38 @@ describe('settings page', () => {
     expect(commands.saveSettings).toHaveBeenCalledWith(0, {
       ...defaults,
       cover: { kind: 'None', overlay: true, grayscale: true }
+    })
+  })
+
+  it('edits the cover search sources and rejects ones without {query}', async () => {
+    renderPage()
+    const save = await screen.findByRole('button', { name: '保存' })
+    fireEvent.click(screen.getByRole('button', { name: '删除图片源 必应' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加图片源' }))
+    fireEvent.change(screen.getByLabelText('图片源 2 名称'), {
+      target: { value: '自定义' }
+    })
+    const url = screen.getByLabelText('图片源 2 网址')
+    fireEvent.change(url, { target: { value: 'https://example.com/' } })
+    expect(
+      (await screen.findByText(/自定义的网址需以 http\(s\):\/\/ 开头/))
+        .textContent
+    ).toBeTruthy()
+    expect(save).toHaveProperty('disabled', true)
+    fireEvent.change(url, {
+      target: { value: 'https://example.com/?q={query}' }
+    })
+    fireEvent.click(save)
+    await screen.findByText('设置已保存')
+    expect(commands.saveSettings).toHaveBeenCalledWith(0, {
+      ...defaults,
+      cover_search: {
+        ...defaults.cover_search,
+        engines: [
+          defaults.cover_search.engines[1],
+          { name: '自定义', url: 'https://example.com/?q={query}' }
+        ]
+      }
     })
   })
 

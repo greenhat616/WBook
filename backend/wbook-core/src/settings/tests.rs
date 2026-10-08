@@ -144,3 +144,37 @@ fn export_options_follow_render_settings() {
     assert_eq!(options.language, "zh-CN");
     assert_eq!(options.identifier, None);
 }
+
+#[test]
+fn cover_search_sources_need_a_web_address_with_a_query() {
+    use super::SearchEngine;
+    let with = |name: &str, url: &str| {
+        let mut settings = Settings::default();
+        settings.cover_search.engines.push(SearchEngine {
+            name: name.into(),
+            url: url.into(),
+        });
+        settings.validate()
+    };
+    assert!(Settings::default().validate().is_ok());
+    assert!(with("自定义", "https://example.com/?q={query}").is_ok());
+    assert!(with("", "https://example.com/?q={query}").is_err());
+    assert!(with("无占位", "https://example.com/").is_err());
+    assert!(with("本地", "file:///C:/{query}").is_err());
+    let mut settings = Settings::default();
+    settings.cover_search.query = " ".into();
+    assert!(settings.validate().is_err());
+    settings = Settings::default();
+    settings.cover_search.engines.clear();
+    assert!(settings.validate().is_ok());
+}
+
+#[test]
+fn files_without_cover_search_get_the_default_sources() {
+    let (_directory, path) = directory();
+    fs::create_dir_all(&path).unwrap();
+    fs::write(path.join("settings.toml"), "[render]\nlanguage = \"en\"\n").unwrap();
+    let stored = SettingsStore::load(&path).get();
+    assert_eq!(stored.problem, None);
+    assert_eq!(stored.settings.cover_search, Default::default());
+}

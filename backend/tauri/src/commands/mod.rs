@@ -64,15 +64,15 @@ mod api {
         crate::windows::open_session_settings(&window, &core, session_id)
     }
 
-    /// Opens a web image search whose picks arrive as `CoverPicked`.
+    /// Opens a web page to pick a cover from; picks arrive as `CoverPicked`.
     #[desktop_only]
     pub async fn open_cover_search<R: tauri::Runtime>(
         window: tauri::WebviewWindow<R>,
         core: tauri::State<'_, Arc<Wbook>>,
         session_id: SessionId,
-        query: String,
+        url: String,
     ) -> Result<(), CommandError> {
-        crate::cover_search::open(&window, &core, session_id, &query)
+        crate::cover_search::open(&window, &core, session_id, &url)
     }
 
     /// Downloads a picked image and makes it the cover.

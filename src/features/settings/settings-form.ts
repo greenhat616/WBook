@@ -20,8 +20,23 @@ export function fromSettingsForm(form: SettingsForm): Settings {
 export function validateSettingsForm(form: SettingsForm): string | null {
   return (
     validateTocForm(form.toc) ??
-    (form.render.language.trim() ? null : '语言不能为空')
+    (form.render.language.trim() ? null : '语言不能为空') ??
+    validateCoverSearch(form.cover_search)
   )
+}
+
+function validateCoverSearch({
+  query,
+  engines
+}: Settings['cover_search']): string | null {
+  if (!query.trim()) return '封面搜索内容不能为空'
+  for (const [index, engine] of engines.entries()) {
+    const name = engine.name.trim() || `图片源 ${index + 1}`
+    if (!engine.name.trim()) return `${name}需要名称`
+    if (!/^https?:\/\//.test(engine.url) || !engine.url.includes('{query}'))
+      return `${name}的网址需以 http(s):// 开头并包含 {query}`
+  }
+  return null
 }
 
 export function sameSettings(a: Settings, b: Settings): boolean {

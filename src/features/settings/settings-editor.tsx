@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react'
 import type {
+  CoverSearchSettings,
   CoverSettings,
+  SearchEngine,
   RenderLayout,
   TemplateOverrides,
   RenderSettings
 } from '@/bindings'
+import AddIcon from '~icons/material-symbols/add-rounded'
+import DeleteIcon from '~icons/material-symbols/delete-outline-rounded'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   CoverOptions,
@@ -53,9 +58,30 @@ type Props = {
   onChange: (update: (form: SettingsForm) => SettingsForm) => void
   // Built-in sources seed a template when the user starts overriding it.
   builtin: TemplateOverrides | null
+  global?: boolean
 }
 
-export function SettingsEditor({ form, onChange, builtin }: Props) {
+export function SettingsEditor({
+  form,
+  onChange,
+  builtin,
+  global = false
+}: Props) {
+  const search = (patch: Partial<CoverSearchSettings>) =>
+    onChange((form) => ({
+      ...form,
+      cover_search: { ...form.cover_search, ...patch }
+    }))
+  const engine = (index: number, patch: Partial<SearchEngine> | null) =>
+    onChange((form) => ({
+      ...form,
+      cover_search: {
+        ...form.cover_search,
+        engines: form.cover_search.engines.flatMap((item, at) =>
+          at !== index ? [item] : patch ? [{ ...item, ...patch }] : []
+        )
+      }
+    }))
   const render = (patch: Partial<RenderSettings>) =>
     onChange((form) => ({ ...form, render: { ...form.render, ...patch } }))
   const template = (key: keyof TemplateOverrides, value: string | null) =>
@@ -169,6 +195,79 @@ export function SettingsEditor({ form, onChange, builtin }: Props) {
         </div>
         <CoverOptions cover={form.cover} onChange={cover} defaults />
       </Section>
+
+      {global && (
+        <Section
+          title="封面搜索"
+          description="在工作区「书籍信息」中搜索网络图片作为封面（仅桌面版）。"
+        >
+          <Field
+            label="默认搜索内容"
+            hint="{title} 和 {author} 会替换为书名和作者，搜索前仍可修改。"
+          >
+            <Input
+              value={form.cover_search.query}
+              onChange={(event) => search({ query: event.target.value })}
+              autoComplete="off"
+              className="h-9"
+            />
+          </Field>
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-xs font-medium text-muted-foreground">
+              图片源：网址中的 {'{query}'} 会替换为搜索内容
+            </legend>
+            {form.cover_search.engines.map((item, index) => (
+              <div key={index} className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label={`图片源 ${index + 1} 名称`}
+                  value={item.name}
+                  onChange={(event) =>
+                    engine(index, { name: event.target.value })
+                  }
+                  autoComplete="off"
+                  className="h-9 w-32"
+                />
+                <Input
+                  aria-label={`图片源 ${index + 1} 网址`}
+                  value={item.url}
+                  onChange={(event) =>
+                    engine(index, { url: event.target.value })
+                  }
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="h-9 min-w-[16rem] flex-1 font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={`删除图片源 ${item.name || index + 1}`}
+                  title="删除"
+                  onClick={() => engine(index, null)}
+                >
+                  <DeleteIcon aria-hidden="true" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                search({
+                  engines: [
+                    ...form.cover_search.engines,
+                    { name: '', url: 'https://' }
+                  ]
+                })
+              }
+            >
+              <AddIcon aria-hidden="true" />
+              添加图片源
+            </Button>
+          </fieldset>
+        </Section>
+      )}
 
       <Section
         title="模板"

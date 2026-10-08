@@ -30,6 +30,8 @@ type Props = {
   onSave: (settings: Settings) => Promise<void>
   // Replaces the form with another source without saving it.
   restore: { label: string; load: () => Promise<Settings> }
+  /** Shows the settings that only the global settings use. */
+  global?: boolean
 }
 
 export function SettingsScreen({
@@ -37,7 +39,8 @@ export function SettingsScreen({
   disabled = false,
   children,
   onSave,
-  restore
+  restore,
+  global = false
 }: Props) {
   const builtin = useQuery(queries.builtinTemplates())
   const synced = useSyncedForm(saved, codec)
@@ -81,6 +84,7 @@ export function SettingsScreen({
           setNotice(null)
         }}
         builtin={builtin.data ?? null}
+        global={global}
       />
       <div className="sticky bottom-0 flex flex-wrap items-center gap-2 rounded-[1.75rem] bg-surface-container-high p-3">
         <Button

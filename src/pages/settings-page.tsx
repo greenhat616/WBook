@@ -49,6 +49,7 @@ export function SettingsPage() {
 
       {stored.data ? (
         <SettingsScreen
+          global
           saved={stored.data.settings}
           onSave={async (settings) => {
             const { queryKey } = queries.getSettings()

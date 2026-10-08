@@ -35,6 +35,68 @@ pub struct Settings {
     pub render: RenderSettings,
     /// The custom image itself is stored with the book, not here.
     pub cover: CoverSettings,
+    /// Used from the global settings only; a session's copy is ignored.
+    pub cover_search: CoverSearchSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct CoverSearchSettings {
+    /// The initial search text; `{title}` and `{author}` are replaced.
+    pub query: String,
+    pub engines: Vec<SearchEngine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct SearchEngine {
+    pub name: String,
+    /// An http(s) address in which `{query}` is replaced by the search text.
+    pub url: String,
+}
+
+impl Default for CoverSearchSettings {
+    fn default() -> Self {
+        let engine = |name: &str, url: &str| SearchEngine {
+            name: name.into(),
+            url: url.into(),
+        };
+        Self {
+            query: "{title} {author} 封面".into(),
+            engines: vec![
+                engine("必应", "https://www.bing.com/images/search?q={query}"),
+                engine(
+                    "百度",
+                    "https://image.baidu.com/search/index?tn=baiduimage&word={query}",
+                ),
+                engine("Google", "https://www.google.com/search?tbm=isch&q={query}"),
+                engine(
+                    "豆瓣读书",
+                    "https://search.douban.com/book/subject_search?search_text={query}",
+                ),
+            ],
+        }
+    }
+}
+
+impl CoverSearchSettings {
+    fn validate(&self) -> Result<(), SettingsError> {
+        let invalid = |message: String| Err(SettingsError::CoverSearch { message });
+        if self.query.trim().is_empty() {
+            return invalid("the search text is empty".into());
+        }
+        for engine in &self.engines {
+            if engine.name.trim().is_empty() {
+                return invalid(format!("the search source {} has no name", engine.url));
+            }
+            let web = engine.url.starts_with("https://") || engine.url.starts_with("http://");
+            if !web || !engine.url.contains("{query}") {
+                return invalid(format!(
+                    "the address of {} must start with http(s):// and contain {{query}}",
+                    engine.name
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -60,13 +122,16 @@ pub enum SettingsError {
     Toc { source: TocConfigError },
     #[snafu(display("invalid render settings: {source}"))]
     Render { source: ExportFailure },
+    #[snafu(display("invalid cover search settings: {message}"))]
+    CoverSearch { message: String },
 }
 
 impl Settings {
     pub fn validate(&self) -> Result<(), SettingsError> {
         self.toc.to_config()?.build()?;
         export::check_language(&self.render.language).context(RenderSnafu)?;
-        self.render.templates.validate().context(RenderSnafu)
+        self.render.templates.validate().context(RenderSnafu)?;
+        self.cover_search.validate()
     }
 
     pub fn export_options(&self) -> ExportOptions {

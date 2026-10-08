@@ -19,7 +19,13 @@
         // Not Bing's metadata; fall back to the image itself.
       }
     }
-    return image.currentSrc || image.src
+    const baidu = image.closest('[data-objurl]')
+    if (baidu) return baidu.getAttribute('data-objurl')
+    const src = image.currentSrc || image.src
+    // Douban serves the same cover in small, medium and large sizes.
+    return /doubanio\.com\//.test(src)
+      ? src.replace(/\/view\/subject\/[sm]\//, '/view/subject/l/')
+      : src
   }
 
   const button = document.createElement('button')

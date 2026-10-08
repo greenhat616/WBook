@@ -18,7 +18,6 @@ import EyeIcon from '~icons/material-symbols/visibility-outline-rounded'
 import FileTextIcon from '~icons/material-symbols/description-outline-rounded'
 import FolderIcon from '~icons/material-symbols/folder-open-outline-rounded'
 import RefreshIcon from '~icons/material-symbols/refresh-rounded'
-import SearchIcon from '~icons/material-symbols/image-search-rounded'
 import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
 import StopIcon from '~icons/material-symbols/stop-rounded'
 import WarningIcon from '~icons/material-symbols/warning-outline-rounded'
@@ -36,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/features/sessions/api'
 import { BookInfoPanel } from '@/features/sessions/components/book-info-panel'
 import { CoverEditor } from '@/features/sessions/components/cover-editor'
+import { GlobalCoverSearch } from '@/features/sessions/components/cover-search'
 import { ParserPanel } from '@/features/sessions/components/parser-panel'
 import { PreviewPanel } from '@/features/sessions/components/preview-panel'
 import { TextPanel } from '@/features/sessions/components/text-panel'
@@ -169,17 +169,17 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
     }
   }, [windowed, sessionId, setCoverFromUrl])
 
-  async function searchCover() {
+  const parsedMetadata = results?.results?.metadata
+  const bookTitle =
+    results?.overrides.title ??
+    parsedMetadata?.title ??
+    name.replace(/\.\w+$/, '')
+  const bookAuthor = results?.overrides.author ?? parsedMetadata?.author ?? null
+
+  async function searchCover(url: string) {
     setLocalError(null)
-    const metadata = results?.results?.metadata
-    const title =
-      results?.overrides.title ?? metadata?.title ?? name.replace(/\.\w+$/, '')
-    const author = results?.overrides.author ?? metadata?.author
     try {
-      await commands.openCoverSearch(
-        sessionId,
-        [title, author, '封面'].filter(Boolean).join(' ')
-      )
+      await commands.openCoverSearch(sessionId, url)
     } catch (cause) {
       setLocalError(errorMessage(cause))
     }
@@ -539,17 +539,14 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                     onChange={(cover) => void session.setCover(cover)}
                     onImage={(image) => void session.setCoverImage(image)}
                     render={session.renderCover}
-                    sources={
+                    search={
                       windowed && (
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <GlobalCoverSearch
+                          title={bookTitle}
+                          author={bookAuthor}
                           disabled={blocked}
-                          onClick={() => void searchCover()}
-                        >
-                          <SearchIcon aria-hidden="true" />
-                          网络搜索
-                        </Button>
+                          onOpen={(url) => void searchCover(url)}
+                        />
                       )
                     }
                   />

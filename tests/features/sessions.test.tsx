@@ -88,7 +88,10 @@ vi.mock('../../src/transport', () => ({
       ) as keyof typeof commands
     ](...Object.values(params))
 }))
-vi.mock('../../src/bridge', () => ({ subscribeSession: subscribe }))
+vi.mock('../../src/bridge', () => ({
+  subscribeSession: subscribe,
+  subscribeSettings: vi.fn(() => Promise.resolve(() => {}))
+}))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: openDialog,
@@ -136,7 +139,17 @@ const settings: Settings = {
       paragraph: null
     }
   },
-  cover: { kind: 'Generated', overlay: false, grayscale: false }
+  cover: { kind: 'Generated', overlay: false, grayscale: false },
+  cover_search: {
+    query: '{title} {author} 封面',
+    engines: [
+      { name: '必应', url: 'https://www.bing.com/images/search?q={query}' },
+      {
+        name: '豆瓣读书',
+        url: 'https://search.douban.com/book/subject_search?search_text={query}'
+      }
+    ]
+  }
 }
 const exportOptions: ExportOptions = {
   render: {
@@ -706,7 +719,13 @@ describe('session page', () => {
       routeTree: root.addChildren([home, session]),
       history: createMemoryHistory({ initialEntries: ['/sessions/1'] })
     })
-    render(<RouterProvider router={router} />)
+    // The cover search reads the global settings through the query cache.
+    const Wrapper = queryWrapper()
+    render(
+      <Wrapper>
+        <RouterProvider router={router} />
+      </Wrapper>
+    )
     return router
   }
 
@@ -1032,13 +1051,40 @@ describe('session page', () => {
     commands.renderCover.mockResolvedValue(receipt({ jpeg: null }))
     commands.openCoverSearch.mockResolvedValue(null)
     commands.setCoverFromUrl.mockResolvedValue(receipt(2, 2))
+    commands.getSettings.mockResolvedValue({
+      settings,
+      revision: 0,
+      problem: null
+    })
     await openPage(book)
     fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
-    fireEvent.click(await screen.findByRole('button', { name: '网络搜索' }))
+    const text = (await screen.findByLabelText(
+      '搜索内容或网址'
+    )) as HTMLInputElement
+    expect(text.value).toBe('原书名 作者甲 封面')
+    fireEvent.change(screen.getByLabelText('图片源'), {
+      target: { value: '1' }
+    })
+    fireEvent.change(text, { target: { value: '原书名 作者甲' } })
+    fireEvent.click(screen.getByRole('button', { name: '搜索图片' }))
     await waitFor(() =>
       expect(commands.openCoverSearch).toHaveBeenCalledWith(
         1,
-        '原书名 作者甲 封面'
+        'https://search.douban.com/book/subject_search?search_text=%E5%8E%9F%E4%B9%A6%E5%90%8D%20%E4%BD%9C%E8%80%85%E7%94%B2'
+      )
+    )
+    // An address typed instead of search text opens that page.
+    fireEvent.change(text, {
+      target: { value: ' https://example.com/book/1 ' }
+    })
+    expect(
+      (screen.getByLabelText('图片源') as HTMLSelectElement).disabled
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: '打开网址' }))
+    await waitFor(() =>
+      expect(commands.openCoverSearch).toHaveBeenLastCalledWith(
+        1,
+        'https://example.com/book/1'
       )
     )
     await waitFor(() => expect(webview.events.has('cover-picked')).toBe(true))
@@ -1067,7 +1113,7 @@ describe('session page', () => {
     await openPage(book)
     fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
     await screen.findByRole('button', { name: '选择图片' })
-    expect(screen.queryByRole('button', { name: '网络搜索' })).toBeNull()
+    expect(screen.queryByLabelText('搜索内容或网址')).toBeNull()
   })
 
   it('saves publication details without dropping the edited title', async () => {
@@ -1278,6 +1324,9 @@ describe('session settings page', () => {
     openSettings()
     await screen.findByRole('heading', { name: /本书设置/ })
     expect(screen.queryByRole('link', { name: '返回工作区' })).toBeNull()
+    // Search sources are global; a book's copy of them is never used.
+    await screen.findByRole('heading', { name: '封面' })
+    expect(screen.queryByRole('heading', { name: '封面搜索' })).toBeNull()
   })
 
   it('saves against the current revision and can start from the global settings', async () => {

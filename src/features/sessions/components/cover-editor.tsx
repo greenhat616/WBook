@@ -22,8 +22,8 @@ type Props = {
   onChange: (cover: CoverSettings) => void
   onImage: (image: string | null) => void
   render: () => Promise<string | null>
-  /** Extra image sources, such as a web search on desktop. */
-  sources?: ReactNode
+  /** A web search for images, on the desktop only. */
+  search?: ReactNode
 }
 
 type Preview =
@@ -47,7 +47,7 @@ export function CoverEditor({
   onChange,
   onImage,
   render,
-  sources
+  search
 }: Props) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -208,7 +208,6 @@ export function CoverEditor({
               <PasteIcon aria-hidden="true" />
               粘贴图片
             </Button>
-            {sources}
             {hasImage && (
               <Button
                 size="sm"
@@ -233,6 +232,8 @@ export function CoverEditor({
               }}
             />
           </div>
+
+          {search}
 
           <CoverOptions cover={cover} disabled={disabled} onChange={onChange} />
 
