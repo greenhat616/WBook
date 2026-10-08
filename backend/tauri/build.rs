@@ -1,4 +1,8 @@
 fn main() {
+    // The icons are compiled into the executable and the window icon, but
+    // tauri-build only watches tauri.conf.json, so a new icon would otherwise
+    // never reach a build that is not clean.
+    println!("cargo:rerun-if-changed=icons");
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
         // Tauri links its Common Controls manifest only into application binaries.
         // Let the linker embed it for examples and tests too, without duplicating resources.
