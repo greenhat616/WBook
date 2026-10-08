@@ -205,6 +205,22 @@ describe('settings page', () => {
     expect(save).toHaveProperty('disabled', true)
   })
 
+  it('saves cover defaults without offering a custom image', async () => {
+    renderPage()
+    const save = await screen.findByRole('button', { name: '保存' })
+    expect(screen.queryByRole('radio', { name: '自定义图片' })).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: '无封面' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /黑白封面/ }))
+    // New books may get an image later, so its overlay is a usable default.
+    fireEvent.click(screen.getByRole('checkbox', { name: /叠加书名和作者/ }))
+    fireEvent.click(save)
+    await screen.findByText('设置已保存')
+    expect(commands.saveSettings).toHaveBeenCalledWith(0, {
+      ...defaults,
+      cover: { kind: 'None', overlay: true, grayscale: true }
+    })
+  })
+
   it('reports an unusable settings file and restores defaults without saving', async () => {
     commands.getSettings.mockResolvedValue({
       settings: { ...defaults, filters: ['Ad'] },

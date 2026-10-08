@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import SaveIcon from '~icons/material-symbols/save-outline-rounded'
 import type { Metadata } from '@/bindings'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,17 @@ type Props = {
   overrides: Metadata | null
   disabled: boolean
   onSave: (overrides: Metadata) => void
+  /** The cover editor, shown above the publication details. */
+  children?: ReactNode
 }
 
 /** Publication details that only matter for the packaged EPUB. */
-export function BookInfoPanel({ overrides, disabled, onSave }: Props) {
+export function BookInfoPanel({
+  overrides,
+  disabled,
+  onSave,
+  children
+}: Props) {
   const saved = Object.fromEntries(
     keys.map((key) => [key, overrides?.[key] ?? ''])
   ) as Record<keyof Fields, string>
@@ -40,6 +47,7 @@ export function BookInfoPanel({ overrides, disabled, onSave }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-4 text-sm">
+      {children}
       <form onSubmit={submit} className="space-y-3">
         <h3 className="text-sm font-semibold">出版信息</h3>
         <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">

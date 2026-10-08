@@ -61,6 +61,8 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
       builtinTemplates: vi.fn(),
       installResults: vi.fn(),
       setMetadataOverrides: vi.fn(),
+      setCoverImage: vi.fn(),
+      renderCover: vi.fn(),
       readText: vi.fn(),
       exportEpub: vi.fn(),
       cancelOperation: vi.fn(),
@@ -881,6 +883,55 @@ describe('session page', () => {
         title: '新书名'
       })
     )
+  })
+
+  it('previews the cover and switches it off from the book info tab', async () => {
+    commands.renderCover.mockResolvedValue(receipt({ jpeg: 'AAAA' }))
+    commands.setSessionSettings.mockResolvedValue(receipt(2, 2))
+    await openPage(book)
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    const image = (await screen.findByRole('img', {
+      name: '封面预览'
+    })) as HTMLImageElement
+    expect(image.src).toBe('data:image/jpeg;base64,AAAA')
+    expect(commands.renderCover).toHaveBeenCalledTimes(1)
+    expect(
+      (screen.getByRole('radio', { name: '自定义图片' }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('radio', { name: '无封面' }))
+    await waitFor(() =>
+      expect(commands.setSessionSettings).toHaveBeenCalledWith(1, 1, {
+        ...settings,
+        cover: { ...settings.cover, kind: 'None' }
+      })
+    )
+  })
+
+  it('uses a chosen or pasted image as the cover', async () => {
+    commands.renderCover.mockResolvedValue(receipt({ jpeg: null }))
+    commands.setCoverImage.mockResolvedValue(receipt(2, 2))
+    await openPage(book)
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    await screen.findByText('无封面', { selector: 'span' })
+    fireEvent.change(screen.getByLabelText('封面图片文件'), {
+      target: { files: [new File(['abc'], 'a.png', { type: 'image/png' })] }
+    })
+    await waitFor(() =>
+      expect(commands.setCoverImage).toHaveBeenCalledWith(1, 1, 'YWJj')
+    )
+    commands.setCoverImage.mockClear()
+    // Pasting into a text field keeps its normal meaning.
+    const pasted = new File(['xyz'], 'b.png', { type: 'image/png' })
+    const clipboardData = {
+      items: [{ type: 'image/png', getAsFile: () => pasted }]
+    }
+    fireEvent.paste(screen.getByLabelText('简介'), { clipboardData })
+    fireEvent.paste(document.body, { clipboardData })
+    await waitFor(() =>
+      expect(commands.setCoverImage).toHaveBeenCalledWith(1, 1, 'eHl6')
+    )
+    expect(commands.setCoverImage).toHaveBeenCalledTimes(1)
   })
 
   it('saves publication details without dropping the edited title', async () => {

@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/features/sessions/api'
 import { BookInfoPanel } from '@/features/sessions/components/book-info-panel'
+import { CoverEditor } from '@/features/sessions/components/cover-editor'
 import { ParserPanel } from '@/features/sessions/components/parser-panel'
 import { PreviewPanel } from '@/features/sessions/components/preview-panel'
 import { TextPanel } from '@/features/sessions/components/text-panel'
@@ -486,7 +487,19 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                 overrides={results?.overrides ?? null}
                 disabled={blocked || !results}
                 onSave={(overrides) => void session.setOverrides(overrides)}
-              />
+              >
+                {session.settings && status && (
+                  <CoverEditor
+                    cover={session.settings.cover}
+                    hasImage={status.cover_image}
+                    version={`${status.revision}`}
+                    disabled={blocked}
+                    onChange={(cover) => void session.setCover(cover)}
+                    onImage={(image) => void session.setCoverImage(image)}
+                    render={session.renderCover}
+                  />
+                )}
+              </BookInfoPanel>
             ) : (
               session.settings && (
                 <ParserPanel

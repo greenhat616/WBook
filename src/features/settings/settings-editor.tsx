@@ -1,11 +1,17 @@
 import type { ReactNode } from 'react'
 import type {
+  CoverSettings,
   RenderLayout,
   TemplateOverrides,
   RenderSettings
 } from '@/bindings'
 import { Input } from '@/components/ui/input'
+import {
+  CoverOptions,
+  coverKinds
+} from '@/features/sessions/components/cover-editor'
 import { Field, TocFields } from '@/features/sessions/components/toc-fields'
+import { cn } from '@/utils/ui'
 import type { SettingsForm } from './settings-form'
 
 const layouts: Array<{ value: RenderLayout; label: string }> = [
@@ -60,6 +66,8 @@ export function SettingsEditor({ form, onChange, builtin }: Props) {
         templates: { ...form.render.templates, [key]: value }
       }
     }))
+  const cover = (cover: CoverSettings) =>
+    onChange((form) => ({ ...form, cover }))
   const adFilter = form.filters.includes('Ad')
 
   return (
@@ -125,6 +133,41 @@ export function SettingsEditor({ form, onChange, builtin }: Props) {
             />
           </Field>
         </div>
+      </Section>
+
+      <Section
+        title="封面"
+        description="自定义图片在工作区的「书籍信息」中选择；这里的设置也是新书的默认值。"
+      >
+        <div
+          role="radiogroup"
+          aria-label="封面来源"
+          className="inline-flex rounded-full border border-input p-0.5"
+        >
+          {coverKinds
+            // A book picks its image in the workspace, which sets this.
+            .filter(
+              (item) => item.value !== 'Image' || form.cover.kind === 'Image'
+            )
+            .map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="radio"
+                aria-checked={form.cover.kind === item.value}
+                onClick={() => cover({ ...form.cover, kind: item.value })}
+                className={cn(
+                  'h-8 rounded-full px-3.5 text-xs font-medium transition-colors',
+                  form.cover.kind === item.value
+                    ? 'bg-secondary text-secondary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+        </div>
+        <CoverOptions cover={form.cover} onChange={cover} defaults />
       </Section>
 
       <Section

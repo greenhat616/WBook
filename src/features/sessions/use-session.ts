@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   commands,
   type CleanupWarning,
+  type CoverSettings,
   type ClosedSession,
   type DocumentVersion,
   type Metadata,
@@ -435,6 +436,51 @@ export function useSession(sessionId: number) {
     [operate, patch]
   )
 
+  // The cover choice is part of the book settings, so it is saved like them.
+  const setCover = useCallback(
+    (cover: CoverSettings) =>
+      operate(
+        async (current) => {
+          const settings = current.settings
+          if (!settings) throw new Error('本书设置尚未加载，请稍后重试')
+          return commands.setSessionSettings(
+            current.id,
+            current.snapshot!.workspace_status.Available!.revision,
+            { ...settings, cover }
+          )
+        },
+        (current) => patch(current, { notice: '封面设置已更新' })
+      ),
+    [operate, patch]
+  )
+
+  /** `image` is base64; `null` removes the custom image. */
+  const setCoverImage = useCallback(
+    (image: string | null) =>
+      operate(
+        (current) =>
+          commands.setCoverImage(
+            current.id,
+            current.snapshot!.workspace_status.Available!.revision,
+            image
+          ),
+        (current) =>
+          patch(current, {
+            notice: image ? '封面图片已更新' : '已移除封面图片'
+          })
+      ),
+    [operate, patch]
+  )
+
+  // Like readText, rendering the cover changes nothing, so it skips operate().
+  const renderCover = useCallback(async () => {
+    const current = context.current
+    if (!current?.alive) throw new Error('会话已失效')
+    const response = await commands.renderCover(current.id)
+    warnings(current, response.warnings)
+    return unwrap(response.outcome, '生成封面').jpeg
+  }, [warnings])
+
   // Unlike operate(), failures are thrown so a settings form can show them
   // next to its fields.
   const saveSettings = useCallback(
@@ -547,6 +593,9 @@ export function useSession(sessionId: number) {
     editToc,
     discardDraft,
     setOverrides,
+    setCover,
+    setCoverImage,
+    renderCover,
     saveSettings,
     readText,
     cancel,
