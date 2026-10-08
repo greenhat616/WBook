@@ -5,7 +5,7 @@ import RemoveIcon from '~icons/material-symbols/hide-image-outline-rounded'
 import type { CoverKind, CoverSettings } from '@/bindings'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/utils/ui'
-import { errorMessage } from '../api'
+import { errorMessage, isBusy } from '../api'
 
 export const coverKinds: Array<{ value: CoverKind; label: string }> = [
   { value: 'None', label: '无封面' },
@@ -58,7 +58,8 @@ export function CoverEditor({
 
   // Rendering is a session operation, so it waits until the session is
   // free. Each version is tried once: rendering marks the session busy, and
-  // retrying whenever it is free again would loop on a failing cover.
+  // retrying whenever it is free again would loop on a failing cover. Only a
+  // render rejected as busy is retried, when the session is free again.
   const attempted = useRef<string | null>(null)
   const mounted = useRef(true)
   useEffect(() => {
@@ -72,8 +73,13 @@ export function CoverEditor({
     attempted.current = version
     render().then(
       (jpeg) => mounted.current && setPreview({ version, jpeg }),
-      (cause: unknown) =>
-        mounted.current && setPreview({ version, error: errorMessage(cause) })
+      (cause: unknown) => {
+        if (isBusy(cause)) {
+          if (attempted.current === version) attempted.current = null
+        } else if (mounted.current) {
+          setPreview({ version, error: errorMessage(cause) })
+        }
+      }
     )
   }, [render, version, disabled])
 
@@ -124,7 +130,8 @@ export function CoverEditor({
     }
   }
 
-  const shown = preview?.version === version ? preview : null
+  // The previous cover stays until the new one is ready, dimmed meanwhile.
+  const updating = !!preview && preview.version !== version
   return (
     <section aria-labelledby="cover-heading" className="space-y-3">
       <h3 id="cover-heading" className="text-sm font-semibold">
@@ -132,20 +139,27 @@ export function CoverEditor({
       </h3>
       <div className="flex flex-wrap gap-4">
         <figure className="flex aspect-[2/3] w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-center text-xs text-muted-foreground">
-          {!shown ? (
+          {!preview ? (
             <span>正在生成…</span>
-          ) : 'error' in shown ? (
-            <span role="alert" className="px-2 text-destructive">
-              {shown.error}
+          ) : 'error' in preview ? (
+            <span
+              role={updating ? undefined : 'alert'}
+              className={cn('px-2 text-destructive', updating && 'opacity-50')}
+            >
+              {preview.error}
             </span>
-          ) : shown.jpeg ? (
+          ) : preview.jpeg ? (
             <img
-              src={`data:image/jpeg;base64,${shown.jpeg}`}
+              src={`data:image/jpeg;base64,${preview.jpeg}`}
               alt="封面预览"
-              className="size-full object-contain"
+              aria-busy={updating}
+              className={cn(
+                'size-full object-contain transition-opacity',
+                updating && 'opacity-60'
+              )}
             />
           ) : (
-            <span>无封面</span>
+            <span className={cn(updating && 'opacity-50')}>无封面</span>
           )}
         </figure>
 

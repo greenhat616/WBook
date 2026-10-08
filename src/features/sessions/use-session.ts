@@ -17,7 +17,7 @@ import {
   type WorkspaceResults_Serialize
 } from '../../bindings'
 import { subscribeSession } from '../../bridge'
-import { errorMessage, unwrap } from './api'
+import { errorMessage, isBusy, unwrap } from './api'
 import { sameToc } from './parser-config'
 
 type State = {
@@ -44,6 +44,9 @@ type Context = {
   closed: boolean
   snapshot: SessionSnapshot | null
   resultsRevision: number | null
+  // A revision whose results could not be read, so it is not retried.
+  resultsFailed: number | null
+  resultsLoad: Promise<void> | null
   settings: Settings | null
   // The revision whose settings were last requested.
   settingsRevision: number | null
@@ -112,6 +115,57 @@ export function useSession(sessionId: number) {
     [patch]
   )
 
+  // Reads the results of the current revision whenever the session is free.
+  // A busy session is retried by the idle snapshot that ends its operation;
+  // operations wait for a running read so they are not rejected as busy.
+  const loadResults = useCallback(
+    // `owned` is set by the operation that holds `busy`, once its command is
+    // done, so its results are ready before it reports completion.
+    (current: Context, owned = false) => {
+      if (current.resultsLoad || (current.busy && !owned)) return
+      const due = () => {
+        const snapshot = current.snapshot
+        const available = snapshot?.workspace_status.Available
+        return current.alive &&
+          !current.closing &&
+          !current.closed &&
+          snapshot?.lifecycle === 'Open' &&
+          snapshot.activity === 'Idle' &&
+          available &&
+          available.document !== 'Absent' &&
+          available.revision !== current.resultsRevision &&
+          available.revision !== current.resultsFailed
+          ? available.revision
+          : null
+      }
+      const run = async () => {
+        for (let revision = due(); revision !== null; revision = due()) {
+          try {
+            const response = await commands.readResults(current.id)
+            if (!current.alive || current.closing || current.closed) return
+            warnings(current, response.warnings)
+            const results = unwrap(response.outcome, '读取整理结果')
+            // Snapshots may lag behind the read; a newer revision reads again.
+            if (response.revision >= revision) {
+              current.resultsRevision = response.revision
+              patch(current, { results })
+            }
+          } catch (error) {
+            if (isBusy(error)) return
+            current.resultsFailed = revision
+            if (!current.closing && !current.closed)
+              patch(current, { error: errorMessage(error) })
+            return
+          }
+        }
+      }
+      current.resultsLoad = run().finally(() => {
+        current.resultsLoad = null
+      })
+    },
+    [patch, warnings]
+  )
+
   const applySnapshot = useCallback(
     (current: Context, snapshot: SessionSnapshot) => {
       if (
@@ -131,10 +185,9 @@ export function useSession(sessionId: number) {
       setState((state) => ({
         ...state,
         snapshot,
-        results:
-          available && available.revision === current.resultsRevision
-            ? state.results
-            : null,
+        // Outdated results stay on screen until the new ones arrive, so a
+        // change elsewhere does not blank the TOC and the book details.
+        results: available ? state.results : null,
         preview:
           available &&
           state.preview &&
@@ -152,8 +205,9 @@ export function useSession(sessionId: number) {
         connection:
           snapshot.lifecycle === 'Closed' ? 'closed' : state.connection
       }))
+      loadResults(current)
     },
-    [loadSettings]
+    [loadSettings, loadResults]
   )
 
   const read = useCallback(
@@ -161,32 +215,8 @@ export function useSession(sessionId: number) {
       const snapshot = await commands.getSession(current.id)
       if (!current.alive || current.closing || current.closed) return
       applySnapshot(current, snapshot)
-      const latest = current.snapshot!
-      const available = latest.workspace_status.Available
-      if (
-        latest.lifecycle !== 'Open' ||
-        latest.activity !== 'Idle' ||
-        !available ||
-        available.document === 'Absent'
-      )
-        return
-      const response = await commands.readResults(current.id)
-      if (!current.alive || current.closing || current.closed) return
-      warnings(current, response.warnings)
-      const results = unwrap(response.outcome, '操作')
-      const after = await commands.getSession(current.id)
-      if (!current.alive || current.closing || current.closed) return
-      applySnapshot(current, after)
-      if (
-        current.snapshot?.lifecycle === 'Open' &&
-        current.snapshot?.workspace_status.Available?.revision ===
-          response.revision
-      ) {
-        current.resultsRevision = response.revision
-        patch(current, { results })
-      }
     },
-    [applySnapshot, patch, warnings]
+    [applySnapshot]
   )
 
   const refresh = useCallback(async () => {
@@ -194,17 +224,21 @@ export function useSession(sessionId: number) {
     if (!current?.alive || current.busy || current.closing || current.closed)
       return
     current.busy = true
+    current.resultsFailed = null
     patch(current, { loading: true, error: null })
     try {
       await read(current)
+      loadResults(current, true)
+      await current.resultsLoad
     } catch (error) {
       if (!current.closing && !current.closed)
         patch(current, { error: errorMessage(error) })
     } finally {
       current.busy = false
       patch(current, { loading: false })
+      loadResults(current)
     }
-  }, [patch, read])
+  }, [loadResults, patch, read])
 
   const connect = useCallback(
     (current: Context) => {
@@ -255,6 +289,8 @@ export function useSession(sessionId: number) {
       closed: false,
       snapshot: null,
       resultsRevision: null,
+      resultsFailed: null,
+      resultsLoad: null,
       settings: null,
       settingsRevision: null,
       controller: new AbortController()
@@ -288,12 +324,15 @@ export function useSession(sessionId: number) {
       current.busy = true
       patch(current, { pending: true, error: null, notice: null })
       try {
+        await current.resultsLoad
         const response = await command(current)
         if (!current.alive || current.closing || current.closed) return
         warnings(current, response.warnings)
         const data = unwrap(response.outcome, '操作')
         try {
           await read(current)
+          loadResults(current, true)
+          await current.resultsLoad
         } catch (error) {
           if (!current.closing && !current.closed)
             patch(current, { error: errorMessage(error) })
@@ -306,9 +345,10 @@ export function useSession(sessionId: number) {
       } finally {
         current.busy = false
         if (!current.closing) patch(current, { pending: false })
+        loadResults(current)
       }
     },
-    [patch, read, warnings]
+    [loadResults, patch, read, warnings]
   )
 
   const initialize = useCallback(

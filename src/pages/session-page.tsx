@@ -380,7 +380,9 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
       </header>
 
       <MetadataBar
-        key={`${status?.revision}-${!!results}`}
+        // Restarts the fields only when the saved values change, so unrelated
+        // updates keep what is being typed.
+        key={`${results?.overrides.title}\u0000${results?.overrides.author}`}
         parsed={metadata ?? null}
         overrides={results?.overrides ?? null}
         disabled={blocked || !results}
@@ -524,7 +526,6 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
               />
             ) : tab === 'book' ? (
               <BookInfoPanel
-                key={`${status?.revision}-${!!results}`}
                 overrides={results?.overrides ?? null}
                 disabled={blocked || !results}
                 onSave={(overrides) => void session.setOverrides(overrides)}

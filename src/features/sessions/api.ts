@@ -17,3 +17,12 @@ export function errorMessage(error: unknown): string {
   }
   return String(error)
 }
+
+/** The session was running another operation and rejected this one. */
+export function isBusy(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as Partial<CommandError>).kind === 'busy'
+  )
+}

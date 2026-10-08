@@ -447,7 +447,7 @@ describe('active session', () => {
     expect(await completion).toBeNull()
   })
 
-  it('invalidates stale results and previews on newer snapshots without a read loop', async () => {
+  it('keeps results on screen until a newer revision has been read, without a read loop', async () => {
     backend = snapshot(1, 1, 1)
     commands.renderPreview.mockImplementation(async () => {
       backend = snapshot(1, 3, 1)
@@ -463,14 +463,49 @@ describe('active session', () => {
     expect(result.current.preview).toEqual(preview)
     expect(result.current.results).toEqual(results)
     const reads = commands.readResults.mock.calls.length
+    const reading = deferred<OperationResponse<WorkspaceResults>>()
+    commands.readResults.mockReturnValueOnce(reading.promise)
     act(() => {
       subscriptions[0].receive(snapshot(1, 2, 0))
       subscriptions[0].receive(snapshot(1, 4, 2))
     })
     expect(result.current.snapshot?.seq).toBe(4)
     expect(result.current.preview).toBeNull()
-    expect(result.current.results).toBeNull()
-    expect(commands.readResults).toHaveBeenCalledTimes(reads)
+    expect(result.current.results).toEqual(results)
+    const newer = { ...results, current: false }
+    await act(async () => {
+      reading.resolve(receipt(newer, 2))
+      await reading.promise
+    })
+    await waitFor(() => expect(result.current.results).toEqual(newer))
+    // The read's own snapshots must not start another read.
+    act(() => {
+      subscriptions[0].receive(snapshot(1, 5, 2))
+    })
+    expect(commands.readResults).toHaveBeenCalledTimes(reads + 1)
+  })
+
+  it('retries a read rejected as busy once the session is idle again', async () => {
+    backend = snapshot(1, 1, 1)
+    const { result } = renderHook(() => useSession(1))
+    await waitFor(() => expect(result.current.results).toEqual(results))
+    const reads = commands.readResults.mock.calls.length
+    const newer = { ...results, current: false }
+    commands.readResults
+      .mockRejectedValueOnce({ kind: 'busy', message: 'session is busy' })
+      .mockResolvedValueOnce(receipt(newer, 2))
+    act(() => {
+      subscriptions[0].receive(snapshot(1, 2, 2))
+    })
+    await waitFor(() =>
+      expect(commands.readResults).toHaveBeenCalledTimes(reads + 1)
+    )
+    expect(result.current.error).toBeNull()
+    expect(result.current.results).toEqual(results)
+    act(() => {
+      subscriptions[0].receive(snapshot(1, 3, 2))
+    })
+    await waitFor(() => expect(result.current.results).toEqual(newer))
   })
 
   it('invalidates a preview when coalesced snapshots replace its ID at the same revision and options', async () => {
@@ -533,13 +568,20 @@ describe('active session', () => {
     expect(result.current.pending).toBe(false)
   })
 
-  it('does not restore read results after the confirming snapshot closes the session', async () => {
+  it('does not restore read results after a snapshot closes the session', async () => {
     backend = snapshot(1, 1, 1)
     const closed = { ...snapshot(1, 3, 1), lifecycle: 'Closed' as const }
-    commands.getSession
-      .mockResolvedValueOnce(backend)
-      .mockResolvedValueOnce(closed)
+    const reading = deferred<OperationResponse<WorkspaceResults>>()
+    commands.readResults.mockReturnValueOnce(reading.promise)
     const { result } = renderHook(() => useSession(1))
+    await waitFor(() => expect(commands.readResults).toHaveBeenCalled())
+    act(() => {
+      subscriptions[0].receive(closed)
+    })
+    await act(async () => {
+      reading.resolve(receipt(results, 1))
+      await reading.promise
+    })
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(commands.readResults).toHaveBeenCalledTimes(1)
@@ -907,6 +949,55 @@ describe('session page', () => {
         ...settings,
         cover: { ...settings.cover, kind: 'None' }
       })
+    )
+  })
+
+  it('keeps the TOC, the cover and unsaved details while a change elsewhere reloads', async () => {
+    commands.renderCover.mockResolvedValueOnce(receipt({ jpeg: 'AAAA' }))
+    const rendering = deferred<OperationResponse<{ jpeg: string | null }>>()
+    commands.renderCover.mockReturnValueOnce(rendering.promise)
+    const reading = deferred<OperationResponse<WorkspaceResults>>()
+    await openPage(book)
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    await screen.findByRole('img', { name: '封面预览' })
+    fireEvent.change(screen.getByLabelText(/^ISBN/), {
+      target: { value: '978' }
+    })
+
+    // Another window saves the book settings.
+    commands.readResults.mockReturnValueOnce(reading.promise)
+    const changed = structuredClone(backend)
+    changed.seq = 5
+    changed.workspace_status.Available!.revision = 2
+    backend = changed
+    act(() => {
+      subscriptions[0].receive(changed)
+    })
+    expect(screen.getByRole('button', { name: /^第1章 开始/ })).toBeTruthy()
+    expect(
+      (screen.getByLabelText('书名') as HTMLInputElement).placeholder
+    ).toBe('原书名')
+    await act(async () => {
+      reading.resolve(receipt(book, 2))
+      await reading.promise
+    })
+    await waitFor(() => expect(commands.renderCover).toHaveBeenCalledTimes(2))
+    const image = screen.getByRole('img', {
+      name: '封面预览'
+    }) as HTMLImageElement
+    expect(image.src).toBe('data:image/jpeg;base64,AAAA')
+    expect(image.getAttribute('aria-busy')).toBe('true')
+    expect((screen.getByLabelText(/^ISBN/) as HTMLInputElement).value).toBe(
+      '978'
+    )
+    await act(async () => {
+      rendering.resolve(receipt({ jpeg: 'BBBB' }, 2))
+      await rendering.promise
+    })
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('img', { name: '封面预览' }) as HTMLImageElement).src
+      ).toBe('data:image/jpeg;base64,BBBB')
     )
   })
 
