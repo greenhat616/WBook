@@ -16,7 +16,8 @@ import {
   render,
   renderHook,
   screen,
-  waitFor
+  waitFor,
+  within
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -715,7 +716,7 @@ describe('session page', () => {
     // A chapter runs until the next heading; the last one runs to the end.
     expect(screen.getAllByText('2.0 K')).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole('button', { name: /第1章 开始/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^第1章 开始/ }))
     expect(await screen.findByText(/正文内容/)).toBeTruthy()
     expect(commands.readText).toHaveBeenCalledWith(
       1,
@@ -724,7 +725,7 @@ describe('session page', () => {
     )
 
     commands.readText.mockResolvedValue(receipt('第2章 继续\n结尾内容', 1))
-    fireEvent.click(screen.getByRole('button', { name: /第2章 继续/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^第2章 继续/ }))
     expect(await screen.findByText(/结尾内容/)).toBeTruthy()
     expect(commands.readText).toHaveBeenLastCalledWith(
       1,
@@ -733,7 +734,7 @@ describe('session page', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '收起第一卷' }))
-    expect(screen.queryByRole('button', { name: /第1章 开始/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^第1章 开始/ })).toBeNull()
   })
 
   it('previews a trial parse and installs it only when applied', async () => {
@@ -746,7 +747,7 @@ describe('session page', () => {
     fireEvent.click(screen.getByRole('tab', { name: '解析规则' }))
     fireEvent.click(await screen.findByRole('radio', { name: '仅章节' }))
     fireEvent.click(screen.getByRole('button', { name: '试解析' }))
-    await screen.findByRole('heading', { name: '试解析目录' })
+    await screen.findByRole('heading', { name: '待应用的目录' })
     // Changed rules become the session's settings before parsing with them.
     expect(commands.setSessionSettings).toHaveBeenCalledWith(1, 1, {
       ...settings,
@@ -768,6 +769,61 @@ describe('session page', () => {
         reparsed.results
       )
     )
+  })
+
+  it('collects renamed and removed chapters in a draft until applied', async () => {
+    await openPage(book)
+    commands.installResults.mockResolvedValue(receipt(2, 1))
+    await screen.findByText('1 卷 · 2 章')
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /^第1章 开始/ }))
+    const menu = screen.getByRole('menu', { name: '第1章 开始的操作' })
+    expect(document.activeElement?.textContent).toMatch(/^重命名/)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /重命名/ }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    const input = screen.getByLabelText('章节名称') as HTMLInputElement
+    expect(input.value).toBe('第1章 开始')
+    fireEvent.change(input, { target: { value: ' 序章 ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByRole('heading', { name: '待应用的目录' })
+    expect(screen.getByRole('button', { name: /^序章/ })).toBeTruthy()
+
+    fireEvent.keyDown(screen.getByRole('button', { name: /^第2章 继续/ }), {
+      key: 'Delete'
+    })
+    expect(screen.queryByRole('button', { name: /^第2章 继续/ })).toBeNull()
+    expect(
+      screen.getByText(/新目录 1 卷 · 1 章，当前 1 卷 · 2 章/)
+    ).toBeTruthy()
+    expect(commands.installResults).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '应用新目录' }))
+    await waitFor(() =>
+      expect(commands.installResults).toHaveBeenCalledWith(1, 1, {
+        ...book.results!,
+        toc: [
+          {
+            ...book.results!.toc[0],
+            children: [{ ...book.results!.toc[0].children[0], title: '序章' }]
+          }
+        ]
+      })
+    )
+  })
+
+  it('cancels a rename with Escape and keeps the installed TOC', async () => {
+    await openPage(book)
+    await screen.findByText('1 卷 · 2 章')
+    const volume = screen.getByRole('button', { name: /^第一卷/ })
+    fireEvent.contextMenu(volume)
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.keyDown(volume, { key: 'F2' })
+    const input = screen.getByLabelText('章节名称')
+    fireEvent.change(input, { target: { value: '新卷名' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByLabelText('章节名称')).toBeNull()
+    expect(screen.getByRole('heading', { name: '目录' })).toBeTruthy()
   })
 
   it('stores edited title and author as overrides', async () => {

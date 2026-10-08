@@ -11,8 +11,9 @@ import {
   type SessionSnapshot,
   type Settings,
   type TextRange,
+  type TocRoot_Serialize,
   type TocSettings,
-  type WorkspaceResults
+  type WorkspaceResults_Serialize
 } from '../../bindings'
 import { subscribeSession } from '../../bridge'
 import { errorMessage, unwrap } from './api'
@@ -20,7 +21,7 @@ import { sameToc } from './parser-config'
 
 type State = {
   snapshot: SessionSnapshot | null
-  results: WorkspaceResults | null
+  results: WorkspaceResults_Serialize | null
   settings: Settings | null
   preview: PreviewInfo | null
   // A parse result awaiting review; installing it replaces the current TOC.
@@ -401,6 +402,20 @@ export function useSession(sessionId: number) {
     [operate, patch]
   )
 
+  // Edits collect in the draft, so they are reviewed and applied or discarded
+  // like a trial parse; the first edit starts from the installed TOC.
+  const editToc = useCallback(
+    (edit: (toc: TocRoot_Serialize) => TocRoot_Serialize) =>
+      setState((state) => {
+        const base =
+          state.draft ?? (state.results?.current ? state.results.results : null)
+        return base
+          ? { ...state, draft: { ...base, toc: edit(base.toc) }, notice: null }
+          : state
+      }),
+    []
+  )
+
   const discardDraft = useCallback(() => {
     const current = context.current
     if (current) patch(current, { draft: null, notice: null })
@@ -529,6 +544,7 @@ export function useSession(sessionId: number) {
     exportBook,
     parse,
     install,
+    editToc,
     discardDraft,
     setOverrides,
     saveSettings,

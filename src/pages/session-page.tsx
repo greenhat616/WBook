@@ -28,7 +28,11 @@ import { ParserPanel } from '@/features/sessions/components/parser-panel'
 import { PreviewPanel } from '@/features/sessions/components/preview-panel'
 import { TextPanel } from '@/features/sessions/components/text-panel'
 import { TocPanel } from '@/features/sessions/components/toc-panel'
-import { flattenToc } from '@/features/sessions/toc'
+import {
+  flattenToc,
+  removeTocEntry,
+  renameTocEntry
+} from '@/features/sessions/toc'
 import { useSession } from '@/features/sessions/use-session'
 import { cn } from '@/utils/ui'
 
@@ -378,6 +382,14 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
           }}
           onApplyDraft={() => draft && void session.install(draft)}
           onDiscardDraft={session.discardDraft}
+          onRename={(row, title) => {
+            session.editToc((toc) => renameTocEntry(toc, row.id, title))
+            if (row.id === selected?.id) setSelection({ id: row.id, title })
+          }}
+          onRemove={(row) =>
+            session.editToc((toc) => removeTocEntry(toc, row.id))
+          }
+          editable={!!draft || !!results?.current}
           disabled={blocked}
           emptyHint={
             closed
