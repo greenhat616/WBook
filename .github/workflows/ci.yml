@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
-        run: rustup toolchain install --profile minimal --component clippy
+        run: rustup toolchain install --profile minimal && rustup component add clippy
       - name: Tauri dependencies
         run: >-
           sudo apt-get update &&
