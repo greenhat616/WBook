@@ -68,6 +68,7 @@ impl IntoResponse for CommandError {
             | ErrorKind::AlreadyInitialized
             | ErrorKind::ResultsNotCurrent => StatusCode::CONFLICT,
             ErrorKind::ShuttingDown | ErrorKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            ErrorKind::Network => StatusCode::BAD_GATEWAY,
             ErrorKind::InternalError
             | ErrorKind::Panicked
             | ErrorKind::Extractor

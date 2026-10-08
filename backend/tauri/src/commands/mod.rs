@@ -21,7 +21,10 @@ pub use api::*;
 /// running app register the same events.
 pub fn specta_builder<R: tauri::Runtime>() -> (String, tauri_specta::Builder<R>) {
     let (queries, builder) = builder::<R>();
-    let events = tauri_specta::collect_events![crate::windows::SessionClosed];
+    let events = tauri_specta::collect_events![
+        crate::windows::SessionClosed,
+        crate::cover_search::CoverPicked
+    ];
     (queries, builder.events(events))
 }
 
@@ -59,6 +62,31 @@ mod api {
         session_id: SessionId,
     ) -> Result<(), CommandError> {
         crate::windows::open_session_settings(&window, &core, session_id)
+    }
+
+    /// Opens a web image search whose picks arrive as `CoverPicked`.
+    #[desktop_only]
+    pub async fn open_cover_search<R: tauri::Runtime>(
+        window: tauri::WebviewWindow<R>,
+        core: tauri::State<'_, Arc<Wbook>>,
+        session_id: SessionId,
+        query: String,
+    ) -> Result<(), CommandError> {
+        crate::cover_search::open(&window, &core, session_id, &query)
+    }
+
+    /// Downloads a picked image and makes it the cover.
+    #[desktop_only]
+    pub async fn set_cover_from_url(
+        core: tauri::State<'_, Arc<Wbook>>,
+        session_id: SessionId,
+        expected: Revision,
+        url: String,
+        referer: Option<String>,
+    ) -> Result<OperationResponse<Revision>, CommandError> {
+        let session = core.session_manager().get(session_id)?;
+        let image = crate::cover_search::download(&url, referer.as_deref()).await?;
+        complete(session.set_cover_image(expected, Some(image))).await
     }
 
     #[desktop_only]

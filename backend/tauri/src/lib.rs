@@ -7,6 +7,7 @@ use wbook_core::{types::Port, Params};
 
 pub mod bindings;
 mod commands;
+mod cover_search;
 mod errors;
 mod preview;
 mod rpc;

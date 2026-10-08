@@ -272,7 +272,7 @@ pub async fn until_closed(mut receiver: watch::Receiver<SessionSnapshot>) {
         .await;
 }
 
-fn destroy<R: Runtime>(app: &AppHandle<R>, label: &str) {
+pub(crate) fn destroy<R: Runtime>(app: &AppHandle<R>, label: &str) {
     if let Some(window) = app.get_webview_window(label) {
         if let Err(error) = window.destroy() {
             tracing::warn!(label, "Could not destroy window: {error}");

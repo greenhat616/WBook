@@ -47,6 +47,8 @@ tauri-plugin-shell = "2"
 tauri-plugin-sentry = "0.2"
 tauri-plugin-dialog = "2"
 base64 = "0.23.1"
+reqwest = "0.12"
+url = "2.5.8"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }

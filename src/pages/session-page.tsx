@@ -7,6 +7,7 @@ import {
   type ReactNode
 } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { Link, useNavigate } from '@tanstack/react-router'
 import ArrowLeftIcon from '~icons/material-symbols/arrow-back-rounded'
@@ -17,11 +18,13 @@ import EyeIcon from '~icons/material-symbols/visibility-outline-rounded'
 import FileTextIcon from '~icons/material-symbols/description-outline-rounded'
 import FolderIcon from '~icons/material-symbols/folder-open-outline-rounded'
 import RefreshIcon from '~icons/material-symbols/refresh-rounded'
+import SearchIcon from '~icons/material-symbols/image-search-rounded'
 import SettingsIcon from '~icons/material-symbols/settings-outline-rounded'
 import StopIcon from '~icons/material-symbols/stop-rounded'
 import WarningIcon from '~icons/material-symbols/warning-outline-rounded'
 import {
   commands,
+  events,
   type Activity,
   type Metadata,
   type OpKind,
@@ -143,6 +146,44 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
     attempted.current = sessionId
     void initialize()
   }, [unparsed, idle, sessionId, initialize])
+
+  // Images picked in this session's search window arrive as an event.
+  const { setCoverFromUrl } = session
+  useEffect(() => {
+    if (!windowed) return
+    let active = true
+    let unlisten: (() => void) | undefined
+    void events
+      .coverPicked(getCurrentWebview())
+      .listen(({ payload }) => {
+        if (payload.session === sessionId)
+          void setCoverFromUrl(payload.url, payload.referer)
+      })
+      .then((stop) => {
+        if (active) unlisten = stop
+        else stop()
+      })
+    return () => {
+      active = false
+      unlisten?.()
+    }
+  }, [windowed, sessionId, setCoverFromUrl])
+
+  async function searchCover() {
+    setLocalError(null)
+    const metadata = results?.results?.metadata
+    const title =
+      results?.overrides.title ?? metadata?.title ?? name.replace(/\.\w+$/, '')
+    const author = results?.overrides.author ?? metadata?.author
+    try {
+      await commands.openCoverSearch(
+        sessionId,
+        [title, author, '封面'].filter(Boolean).join(' ')
+      )
+    } catch (cause) {
+      setLocalError(errorMessage(cause))
+    }
+  }
 
   async function closeSession() {
     setClosing(true)
@@ -497,6 +538,19 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                     onChange={(cover) => void session.setCover(cover)}
                     onImage={(image) => void session.setCoverImage(image)}
                     render={session.renderCover}
+                    sources={
+                      windowed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={blocked}
+                          onClick={() => void searchCover()}
+                        >
+                          <SearchIcon aria-hidden="true" />
+                          网络搜索
+                        </Button>
+                      )
+                    }
                   />
                 )}
               </BookInfoPanel>

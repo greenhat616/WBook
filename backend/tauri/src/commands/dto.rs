@@ -40,6 +40,7 @@ pub enum ErrorKind {
     Document,
     Pipeline,
     Export,
+    Network,
     InternalError,
 }
 

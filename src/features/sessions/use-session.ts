@@ -472,6 +472,22 @@ export function useSession(sessionId: number) {
     [operate, patch]
   )
 
+  // Desktop only: the image is picked in a web search window.
+  const setCoverFromUrl = useCallback(
+    (url: string, referer: string | null) =>
+      operate(
+        (current) =>
+          commands.setCoverFromUrl(
+            current.id,
+            current.snapshot!.workspace_status.Available!.revision,
+            url,
+            referer
+          ),
+        (current) => patch(current, { notice: '已使用网络图片作为封面' })
+      ),
+    [operate, patch]
+  )
+
   // Like readText, rendering the cover changes nothing, so it skips operate().
   const renderCover = useCallback(async () => {
     const current = context.current
@@ -595,6 +611,7 @@ export function useSession(sessionId: number) {
     setOverrides,
     setCover,
     setCoverImage,
+    setCoverFromUrl,
     renderCover,
     saveSettings,
     readText,

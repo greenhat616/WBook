@@ -62,6 +62,8 @@ const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
       installResults: vi.fn(),
       setMetadataOverrides: vi.fn(),
       setCoverImage: vi.fn(),
+      setCoverFromUrl: vi.fn(),
+      openCoverSearch: vi.fn(),
       renderCover: vi.fn(),
       readText: vi.fn(),
       exportEpub: vi.fn(),
@@ -932,6 +934,49 @@ describe('session page', () => {
       expect(commands.setCoverImage).toHaveBeenCalledWith(1, 1, 'eHl6')
     )
     expect(commands.setCoverImage).toHaveBeenCalledTimes(1)
+  })
+
+  it('searches the web for a cover and uses the picked image on the desktop', async () => {
+    isTauri.mockReturnValue(true)
+    commands.renderCover.mockResolvedValue(receipt({ jpeg: null }))
+    commands.openCoverSearch.mockResolvedValue(null)
+    commands.setCoverFromUrl.mockResolvedValue(receipt(2, 2))
+    await openPage(book)
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    fireEvent.click(await screen.findByRole('button', { name: '网络搜索' }))
+    await waitFor(() =>
+      expect(commands.openCoverSearch).toHaveBeenCalledWith(
+        1,
+        '原书名 作者甲 封面'
+      )
+    )
+    await waitFor(() => expect(webview.events.has('cover-picked')).toBe(true))
+    const pick = webview.events.get('cover-picked')!
+    act(() => {
+      pick({
+        payload: { session: 2, url: 'https://x/other.jpg', referer: null }
+      })
+      pick({
+        payload: { session: 1, url: 'https://x/a.jpg', referer: 'https://x/' }
+      })
+    })
+    await waitFor(() =>
+      expect(commands.setCoverFromUrl).toHaveBeenCalledWith(
+        1,
+        1,
+        'https://x/a.jpg',
+        'https://x/'
+      )
+    )
+    expect(commands.setCoverFromUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no web search in the browser', async () => {
+    commands.renderCover.mockResolvedValue(receipt({ jpeg: null }))
+    await openPage(book)
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    await screen.findByRole('button', { name: '选择图片' })
+    expect(screen.queryByRole('button', { name: '网络搜索' })).toBeNull()
   })
 
   it('saves publication details without dropping the edited title', async () => {
