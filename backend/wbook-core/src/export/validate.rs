@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
-use quick_xml::{events::Event, Reader};
+use quick_xml::{events::Event, Reader, XmlVersion};
 use tokio_util::sync::CancellationToken;
 use zip::{CompressionMethod, ZipArchive};
 
@@ -45,11 +45,9 @@ fn xml(ct: &CancellationToken, input: impl BufRead, path: &str) -> Result<XmlInf
                 let mut attrs = HashMap::new();
                 for attr in element.attributes() {
                     let attr = attr.map_err(|e| invalid(format!("{path}: {e}")))?;
-                    let key = std::str::from_utf8(attr.key.as_ref())
-                        .map_err(|e| invalid(e.to_string()))?
-                        .to_owned();
+                    let key = attr.key.as_ref().to_owned();
                     let value = attr
-                        .decode_and_unescape_value(reader.decoder())
+                        .normalized_value(XmlVersion::Implicit1_0)
                         .map_err(|e| invalid(format!("{path}: {e}")))?
                         .into_owned();
                     attrs.insert(key, value);
@@ -74,22 +72,20 @@ fn xml(ct: &CancellationToken, input: impl BufRead, path: &str) -> Result<XmlInf
                             "urn:oasis:names:tc:opendocument:xmlns:container",
                         )
                     };
-                    if element.name().as_ref() != expected.0.as_bytes()
-                        || get("xmlns") != expected.1
-                    {
+                    if element.name().as_ref() != expected.0 || get("xmlns") != expected.1 {
                         return Err(invalid(format!("invalid XML root in {path}")));
                     }
                 }
                 match element.local_name().as_ref() {
-                    b"item" => {
+                    "item" => {
                         info.manifest.insert(
                             get("id"),
                             (get("href"), get("media-type"), get("properties")),
                         );
                     }
-                    b"itemref" => info.spine.push(get("idref")),
-                    b"rootfile" => info.rootfile = Some(get("full-path")),
-                    b"nav" if get("epub:type") == "toc" => info.toc = true,
+                    "itemref" => info.spine.push(get("idref")),
+                    "rootfile" => info.rootfile = Some(get("full-path")),
+                    "nav" if get("epub:type") == "toc" => info.toc = true,
                     _ => {}
                 }
                 if matches!(event, Event::Start(_)) {
@@ -102,17 +98,15 @@ fn xml(ct: &CancellationToken, input: impl BufRead, path: &str) -> Result<XmlInf
                     .ok_or_else(|| invalid(format!("unbalanced XML in {path}")))?;
             }
             Event::Text(text) => {
-                let text = text
-                    .xml_content()
-                    .map_err(|e| invalid(format!("{path}: {e}")))?;
+                let text = text.xml_content(XmlVersion::Implicit1_0);
                 super::plan::xml_text(ct, &text, path)?;
                 if depth == 0 && !text.trim().is_empty() {
                     return Err(invalid(format!("text outside root in {path}")));
                 }
             }
             Event::GeneralRef(reference) => {
-                let name = reference.decode().map_err(|e| invalid(e.to_string()))?;
-                if !matches!(name.as_ref(), "amp" | "lt" | "gt" | "quot" | "apos") {
+                let name = &*reference;
+                if !matches!(name, "amp" | "lt" | "gt" | "quot" | "apos") {
                     let ch = reference
                         .resolve_char_ref()
                         .map_err(|e| invalid(e.to_string()))?

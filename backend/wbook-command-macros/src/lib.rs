@@ -205,7 +205,7 @@ fn expand_desktop(function: &ItemFn) -> TokenStream2 {
 fn validate_function(function: &ItemFn, desktop_only: bool) -> syn::Result<bool> {
     let signature = &function.sig;
     if signature.constness.is_some()
-        || signature.unsafety.is_some()
+        || matches!(signature.safety, syn::Safety::Unsafe(_))
         || signature.abi.is_some()
         || signature.variadic.is_some()
     {
@@ -418,7 +418,7 @@ fn validate_owned_type(ty: &Type) -> syn::Result<()> {
                     | Type::Ptr(_)
                     | Type::ImplTrait(_)
                     | Type::TraitObject(_)
-                    | Type::BareFn(_)
+                    | Type::FnPtr(_)
                     | Type::Infer(_)
                     | Type::Macro(_)
             ) {

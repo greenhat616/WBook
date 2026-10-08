@@ -1,7 +1,6 @@
 use std::sync::{atomic::Ordering, Arc};
 
 use tauri::Manager;
-use tauri_plugin_sentry::{minidump, sentry};
 
 use wbook_core::{types::Port, Params};
 
@@ -35,21 +34,16 @@ fn portable_dir() -> std::io::Result<Option<std::path::PathBuf>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let client = sentry::init((
-        "https://7ff49cd7135abc2325007303e0a39a37@o4505576204992512.ingest.sentry.io/4506191549300736",
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            ..Default::default()
-        },
-    ));
-
+    let options = sentry::ClientOptions::new()
+        .dsn("https://7ff49cd7135abc2325007303e0a39a37@o4505576204992512.ingest.sentry.io/4506191549300736")
+        .maybe_release(sentry::release_name!())
+        .add_integration(sentry::integrations::minidump::MinidumpIntegration::new());
     // Everything before here runs in both app and crash reporter processes
-    let _guard = minidump::init(&client);
+    let client = sentry::init(options);
 
     // Everything after here runs in only the app process
     let (_, specta) = commands::specta_builder();
     let app = tauri::Builder::default()
-        .manage(_guard)
         .invoke_handler(specta.invoke_handler())
         .on_window_event(windows::on_window_event)
         .setup(move |app| {

@@ -44,10 +44,16 @@ camino = { workspace = true }
 specta = { workspace = true }
 tokio = { workspace = true }
 tauri-plugin-shell = "2"
-tauri-plugin-sentry = "0.2"
+sentry = { version = "0.49", features = ["minidump"] }
+tauri-plugin-sentry = "0.7"
 tauri-plugin-dialog = "2"
 base64 = "0.23.1"
-reqwest = "0.12"
+reqwest = { version = "0.13", default-features = false, features = [
+    "native-tls",
+    "charset",
+    "http2",
+    "system-proxy",
+] }
 url = "2.5.8"
 
 [dev-dependencies]
