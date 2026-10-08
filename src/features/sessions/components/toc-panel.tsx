@@ -14,6 +14,7 @@ import type { TocEntry } from '@/bindings'
 type Props = {
   toc: TocEntry[] | null
   draft: TocEntry[] | null
+  length: number | null
   selected: number | null
   onSelect: (row: TocRow) => void
   onApplyDraft: () => void
@@ -29,6 +30,7 @@ function describe({ volumes, chapters }: TocSummary) {
 export function TocPanel({
   toc,
   draft,
+  length,
   selected,
   onSelect,
   onApplyDraft,
@@ -37,8 +39,14 @@ export function TocPanel({
   emptyHint
 }: Props) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
-  const current = useMemo(() => (toc ? flattenToc(toc) : []), [toc])
-  const proposed = useMemo(() => (draft ? flattenToc(draft) : null), [draft])
+  const current = useMemo(
+    () => (toc ? flattenToc(toc, length) : []),
+    [toc, length]
+  )
+  const proposed = useMemo(
+    () => (draft ? flattenToc(draft, length) : null),
+    [draft, length]
+  )
   const rows = proposed ?? current
   // Flat chapter lists need no gutter for expand buttons.
   const nested = rows.some((row) => row.hasChildren)

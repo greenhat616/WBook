@@ -97,7 +97,11 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
   const [cancelling, setCancelling] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const shownToc = draft?.toc ?? results?.results?.toc ?? null
-  const rows = useMemo(() => (shownToc ? flattenToc(shownToc) : []), [shownToc])
+  const length = snapshot?.workspace_status.Available?.document_len ?? null
+  const rows = useMemo(
+    () => (shownToc ? flattenToc(shownToc, length) : []),
+    [shownToc, length]
+  )
   const selected =
     rows.find(
       (row) => row.id === selection?.id && row.title === selection.title
@@ -366,6 +370,7 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
         <TocPanel
           toc={parsed?.toc ?? null}
           draft={draft?.toc ?? null}
+          length={length}
           selected={selected?.id ?? null}
           onSelect={(row) => {
             setSelection({ id: row.id, title: row.title })

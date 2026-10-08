@@ -354,6 +354,8 @@ export type WorkspaceStatus = {
 	revision: Revision,
 	document: DocumentStatus,
 	document_version: DocumentVersion | null,
+	/**  Lets clients bound the last chapter, which has no following heading. */
+	document_len: number | null,
 	filters: FilterProgress,
 	has_overrides: boolean,
 	preview: ExportOptions | null,

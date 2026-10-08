@@ -960,6 +960,7 @@ async fn workspace_allocation_is_moved_and_snapshots_contain_no_body_toc_or_hist
             "revision",
             "document",
             "document_version",
+            "document_len",
             "filters",
             "has_overrides",
             "preview",

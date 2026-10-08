@@ -94,6 +94,7 @@ fn creation_validates_config_without_reading_and_extraction_can_retry() {
     assert_ne!(ws.id(), other.id());
     assert_eq!(Uuid::from_bytes(ws.id().0).get_version_num(), 4);
     assert_eq!(other.status().document, DocumentStatus::Absent);
+    assert_eq!(other.status().document_len, None);
     assert!(matches!(
         Workspace::new(
             source.clone(),
@@ -121,6 +122,7 @@ fn creation_validates_config_without_reading_and_extraction_can_retry() {
         ws.initialize(&context(&CancellationToken::new())).unwrap(),
         Revision(2)
     );
+    assert_eq!(ws.status().document_len, Some(4));
     assert!(ws.close().is_empty());
     assert!(source.exists());
     drop(directory);

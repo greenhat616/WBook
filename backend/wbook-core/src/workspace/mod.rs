@@ -78,6 +78,8 @@ pub struct WorkspaceStatus {
     pub revision: Revision,
     pub document: DocumentStatus,
     pub document_version: Option<DocumentVersion>,
+    /// Lets clients bound the last chapter, which has no following heading.
+    pub document_len: Option<u64>,
     pub filters: FilterProgress,
     pub has_overrides: bool,
     pub preview: Option<ExportOptions>,
@@ -227,6 +229,7 @@ impl Workspace {
                 },
             },
             document_version: document.map(|doc| doc.view().version()),
+            document_len: document.map(|doc| doc.view().len()),
             filters: FilterProgress {
                 applied: self.state.filters_applied,
                 total: self.state.settings.filters.len(),

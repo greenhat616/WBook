@@ -161,6 +161,7 @@ const snapshot = (session = 1, seq = 0, revision = 0): SessionSnapshot => ({
       revision,
       document: revision ? 'Current' : 'Absent',
       document_version: null,
+      document_len: null,
       filters: { applied: 0, total: 0 },
       has_overrides: false,
       preview: null,
@@ -615,6 +616,7 @@ describe('session page', () => {
       ...version,
       document_id: [...version.document_id]
     }
+    backend.workspace_status.Available!.document_len = 4106
     commands.readResults.mockImplementation(async () =>
       receipt(shown, backend.workspace_status.Available!.revision)
     )
@@ -710,8 +712,8 @@ describe('session page', () => {
     commands.readText.mockResolvedValue(receipt('第1章 开始\n正文内容', 1))
     await openPage(book)
     expect(await screen.findByText('1 卷 · 2 章')).toBeTruthy()
-    // A chapter runs until the next heading; the last one has no known end.
-    expect(screen.getByText('2.0 K')).toBeTruthy()
+    // A chapter runs until the next heading; the last one runs to the end.
+    expect(screen.getAllByText('2.0 K')).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('button', { name: /第1章 开始/ }))
     expect(await screen.findByText(/正文内容/)).toBeTruthy()
@@ -721,8 +723,14 @@ describe('session page', () => {
       { start: 10, end: 2058 }
     )
 
+    commands.readText.mockResolvedValue(receipt('第2章 继续\n结尾内容', 1))
     fireEvent.click(screen.getByRole('button', { name: /第2章 继续/ }))
-    expect(await screen.findByText(/无法确定这一章的结束位置/)).toBeTruthy()
+    expect(await screen.findByText(/结尾内容/)).toBeTruthy()
+    expect(commands.readText).toHaveBeenLastCalledWith(
+      1,
+      backend.workspace_status.Available!.document_version,
+      { start: 2058, end: 4106 }
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '收起第一卷' }))
     expect(screen.queryByRole('button', { name: /第1章 开始/ })).toBeNull()

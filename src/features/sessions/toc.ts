@@ -14,10 +14,13 @@ export type TocSummary = { volumes: number; chapters: number }
 
 /**
  * Flattens the tree in document order. Heading ranges cover only the heading
- * line, so like the export planner a chapter runs until the next range starts.
- * The document length is not exposed, so the last chapter has no known end.
+ * line, so like the export planner a chapter runs until the next range starts;
+ * the last one runs to the end of the document when its length is known.
  */
-export function flattenToc(entries: TocEntry[]): TocRow[] {
+export function flattenToc(
+  entries: TocEntry[],
+  length: number | null = null
+): TocRow[] {
   const rows: TocRow[] = []
   const ranges: Array<{ range: TextRange | null; body: boolean }> = []
   const walk = (list: TocEntry[], depth: number, parent: number | null) => {
@@ -39,7 +42,7 @@ export function flattenToc(entries: TocEntry[]): TocRow[] {
   }
   walk(entries, 0, null)
 
-  let next: number | null = null
+  let next = length
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const { range, body } = ranges[index]
     if (!range) continue
