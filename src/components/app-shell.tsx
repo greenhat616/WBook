@@ -1,6 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { Link, useLocation } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'motion/react'
 import { M3eAppBar } from '@m3e/react/app-bar'
 import { M3eIconButton } from '@m3e/react/icon-button'
 import { useRef, useState, type ReactNode } from 'react'
