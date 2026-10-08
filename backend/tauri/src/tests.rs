@@ -531,8 +531,13 @@ async fn session_windows_open_once_and_only_for_open_sessions() {
     let windows = h._app.webview_windows();
     assert_eq!(windows.len(), 2);
     let url = windows["session-1"].url().unwrap();
-    // Bridge requests must keep the main window's Origin.
-    assert_eq!(url.origin(), h.window.url().unwrap().origin());
+    // Bridge requests must keep the main window's Origin. Compared by parts
+    // because tauri:// URLs have opaque origins, which never compare equal.
+    let main = h.window.url().unwrap();
+    assert_eq!(
+        (url.scheme(), url.host_str(), url.port()),
+        (main.scheme(), main.host_str(), main.port())
+    );
     assert_eq!(url.fragment(), Some("/sessions/1"));
 
     let (closed, announced) = tokio::sync::oneshot::channel();
