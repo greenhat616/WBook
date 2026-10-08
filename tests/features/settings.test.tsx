@@ -86,7 +86,8 @@ const defaults: Settings = {
         url: 'https://search.douban.com/book/subject_search?search_text={query}'
       }
     ]
-  }
+  },
+  export: { location: 'SourceFolder', custom_directory: '' }
 }
 const builtin = {
   stylesheet: 'p { text-indent: 2em; }',
@@ -260,6 +261,23 @@ describe('settings page', () => {
           { name: '自定义', url: 'https://example.com/?q={query}' }
         ]
       }
+    })
+  })
+
+  it('saves a custom export directory once one is typed', async () => {
+    renderPage()
+    const save = await screen.findByRole('button', { name: '保存' })
+    fireEvent.click(screen.getByRole('radio', { name: '自定义目录' }))
+    expect(await screen.findByText('请填写自定义导出目录')).toBeTruthy()
+    expect(save).toHaveProperty('disabled', true)
+    fireEvent.change(screen.getByLabelText('自定义导出目录'), {
+      target: { value: 'D:/Books' }
+    })
+    fireEvent.click(save)
+    await screen.findByText('设置已保存')
+    expect(commands.saveSettings).toHaveBeenCalledWith(0, {
+      ...defaults,
+      export: { location: 'Custom', custom_directory: 'D:/Books' }
     })
   })
 

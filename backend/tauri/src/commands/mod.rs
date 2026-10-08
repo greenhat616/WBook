@@ -89,6 +89,28 @@ mod api {
         complete(session.set_cover_image(expected, Some(image))).await
     }
 
+    /// Where the save dialog opens for this book; created so the dialog can
+    /// open there instead of falling back to the system default.
+    #[desktop_only]
+    pub async fn export_directory(
+        core: tauri::State<'_, Arc<Wbook>>,
+        session_id: SessionId,
+    ) -> Result<Utf8PathBuf, CommandError> {
+        let source = core.session_manager().get(session_id)?.snapshot().source;
+        let directory = core
+            .settings()
+            .current()
+            .export
+            .directory(&source, &core.start_params.data_dir);
+        std::fs::create_dir_all(&directory).map_err(|error| {
+            CommandError::new(
+                ErrorKind::InternalError,
+                format!("Could not create {directory}: {error}"),
+            )
+        })?;
+        Ok(directory)
+    }
+
     #[desktop_only]
     pub fn window_ready<R: tauri::Runtime>(
         window: tauri::WebviewWindow<R>,

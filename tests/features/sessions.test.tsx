@@ -33,52 +33,55 @@ import type {
   WorkspaceResults
 } from '../../src/bindings'
 
-const { commands, subscribe, isTauri, openDialog, webview } = vi.hoisted(() => {
-  // jsdom lacks custom state sets, which the M3E elements toggle on connect.
-  if (!('states' in ElementInternals.prototype)) {
-    const states = new WeakMap<ElementInternals, Set<string>>()
-    Object.defineProperty(ElementInternals.prototype, 'states', {
-      get(this: ElementInternals) {
-        if (!states.has(this)) states.set(this, new Set())
-        return states.get(this)
-      }
-    })
-  }
-  return {
-    commands: {
-      listSessions: vi.fn(),
-      openSessionWindow: vi.fn(),
-      openSessionSettingsWindow: vi.fn(),
-      createSession: vi.fn(),
-      getSession: vi.fn(),
-      readResults: vi.fn(),
-      initializeSession: vi.fn(),
-      renderPreview: vi.fn(),
-      parseSession: vi.fn(),
-      getSessionSettings: vi.fn(),
-      setSessionSettings: vi.fn(),
-      getSettings: vi.fn(),
-      builtinTemplates: vi.fn(),
-      installResults: vi.fn(),
-      setMetadataOverrides: vi.fn(),
-      setCoverImage: vi.fn(),
-      setCoverFromUrl: vi.fn(),
-      openCoverSearch: vi.fn(),
-      renderCover: vi.fn(),
-      readText: vi.fn(),
-      exportEpub: vi.fn(),
-      cancelOperation: vi.fn(),
-      closeSession: vi.fn()
-    },
-    subscribe: vi.fn(),
-    isTauri: vi.fn(),
-    openDialog: vi.fn(),
-    webview: {
-      drop: null as null | ((event: { payload: unknown }) => void),
-      events: new Map<string, (event: { payload: unknown }) => void>()
+const { commands, subscribe, isTauri, openDialog, saveDialog, webview } =
+  vi.hoisted(() => {
+    // jsdom lacks custom state sets, which the M3E elements toggle on connect.
+    if (!('states' in ElementInternals.prototype)) {
+      const states = new WeakMap<ElementInternals, Set<string>>()
+      Object.defineProperty(ElementInternals.prototype, 'states', {
+        get(this: ElementInternals) {
+          if (!states.has(this)) states.set(this, new Set())
+          return states.get(this)
+        }
+      })
     }
-  }
-})
+    return {
+      commands: {
+        listSessions: vi.fn(),
+        openSessionWindow: vi.fn(),
+        openSessionSettingsWindow: vi.fn(),
+        createSession: vi.fn(),
+        getSession: vi.fn(),
+        readResults: vi.fn(),
+        initializeSession: vi.fn(),
+        renderPreview: vi.fn(),
+        parseSession: vi.fn(),
+        getSessionSettings: vi.fn(),
+        setSessionSettings: vi.fn(),
+        getSettings: vi.fn(),
+        builtinTemplates: vi.fn(),
+        installResults: vi.fn(),
+        setMetadataOverrides: vi.fn(),
+        setCoverImage: vi.fn(),
+        setCoverFromUrl: vi.fn(),
+        openCoverSearch: vi.fn(),
+        renderCover: vi.fn(),
+        readText: vi.fn(),
+        exportEpub: vi.fn(),
+        exportDirectory: vi.fn(),
+        cancelOperation: vi.fn(),
+        closeSession: vi.fn()
+      },
+      subscribe: vi.fn(),
+      isTauri: vi.fn(),
+      openDialog: vi.fn(),
+      saveDialog: vi.fn(),
+      webview: {
+        drop: null as null | ((event: { payload: unknown }) => void),
+        events: new Map<string, (event: { payload: unknown }) => void>()
+      }
+    }
+  })
 
 vi.mock('../../src/transport', () => ({
   invoke: (method: string, params: Record<string, unknown> = {}) =>
@@ -95,7 +98,10 @@ vi.mock('../../src/bridge', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: openDialog,
-  save: vi.fn()
+  save: saveDialog
+}))
+vi.mock('@tauri-apps/api/path', () => ({
+  join: (...parts: string[]) => Promise.resolve(parts.join('/'))
 }))
 vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({
@@ -149,7 +155,8 @@ const settings: Settings = {
         url: 'https://search.douban.com/book/subject_search?search_text={query}'
       }
     ]
-  }
+  },
+  export: { location: 'SourceFolder', custom_directory: '' }
 }
 const exportOptions: ExportOptions = {
   render: {
@@ -778,6 +785,33 @@ describe('session page', () => {
     fireEvent.click(screen.getAllByRole('link', { name: '返回工作台' })[0])
     await screen.findByRole('heading', { name: '工作台首页' })
     expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('opens the save dialog in the default export directory', async () => {
+    isTauri.mockReturnValue(true)
+    commands.exportDirectory.mockResolvedValue('C:/books')
+    saveDialog.mockResolvedValue(null)
+    await openPage(book)
+    fireEvent.click(screen.getByRole('button', { name: '导出 EPUB' }))
+    await waitFor(() =>
+      expect(saveDialog).toHaveBeenCalledWith({
+        defaultPath: 'C:/books/原书名.epub',
+        filters: [{ name: 'EPUB', extensions: ['epub'] }]
+      })
+    )
+    expect(commands.exportDirectory).toHaveBeenCalledWith(1)
+    expect(commands.exportEpub).not.toHaveBeenCalled()
+
+    commands.exportDirectory.mockRejectedValue({
+      kind: 'internal_error',
+      message: 'Could not create C:/books'
+    })
+    fireEvent.click(screen.getByRole('button', { name: '导出 EPUB' }))
+    await waitFor(() =>
+      expect(saveDialog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ defaultPath: '原书名.epub' })
+      )
+    )
   })
 
   it('opens the session settings in their own desktop window', async () => {

@@ -37,6 +37,44 @@ pub struct Settings {
     pub cover: CoverSettings,
     /// Used from the global settings only; a session's copy is ignored.
     pub cover_search: CoverSearchSettings,
+    /// Used from the global settings only; a session's copy is ignored.
+    pub export: ExportSettings,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct ExportSettings {
+    pub location: ExportLocation,
+    /// Kept while another location is chosen, so switching back restores it.
+    pub custom_directory: String,
+}
+
+/// Where the save dialog opens when no destination has been typed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum ExportLocation {
+    #[default]
+    SourceFolder,
+    DataFolder,
+    Custom,
+}
+
+impl ExportSettings {
+    pub fn directory(&self, source: &Utf8Path, data_dir: &Utf8Path) -> Utf8PathBuf {
+        match self.location {
+            ExportLocation::SourceFolder => source.parent().unwrap_or(source).to_owned(),
+            ExportLocation::DataFolder => data_dir.join("exports"),
+            ExportLocation::Custom => self.custom_directory.trim().into(),
+        }
+    }
+
+    fn validate(&self) -> Result<(), SettingsError> {
+        let custom = Utf8Path::new(self.custom_directory.trim());
+        if self.location == ExportLocation::Custom && !custom.is_absolute() {
+            return Err(SettingsError::Export {
+                message: "the custom directory must be an absolute path".into(),
+            });
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -126,6 +164,8 @@ pub enum SettingsError {
     Render { source: ExportFailure },
     #[snafu(display("invalid cover search settings: {message}"))]
     CoverSearch { message: String },
+    #[snafu(display("invalid export settings: {message}"))]
+    Export { message: String },
 }
 
 impl Settings {
@@ -133,7 +173,8 @@ impl Settings {
         self.toc.to_config()?.build()?;
         export::check_language(&self.render.language).context(RenderSnafu)?;
         self.render.templates.validate().context(RenderSnafu)?;
-        self.cover_search.validate()
+        self.cover_search.validate()?;
+        self.export.validate()
     }
 
     pub fn export_options(&self) -> ExportOptions {

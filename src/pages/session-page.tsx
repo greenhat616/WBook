@@ -7,6 +7,7 @@ import {
   type ReactNode
 } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
+import { join } from '@tauri-apps/api/path'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -210,9 +211,15 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
 
   async function chooseDestination(): Promise<string | null> {
     setLocalError(null)
+    const file = `${(results?.overrides.title ?? results?.results?.metadata.title) || name}.epub`
     try {
+      // Without a usable default directory the dialog still opens where the
+      // system puts it.
+      const directory = await commands
+        .exportDirectory(sessionId)
+        .catch(() => null)
       const path = await saveDialog({
-        defaultPath: `${(results?.overrides.title ?? results?.results?.metadata.title) || name}.epub`,
+        defaultPath: directory ? await join(directory, file) : file,
         filters: [{ name: 'EPUB', extensions: ['epub'] }]
       })
       if (path) setDestination(path)

@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react'
+import { isTauri } from '@tauri-apps/api/core'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import type {
   CoverSearchSettings,
   CoverSettings,
+  ExportLocation,
+  ExportSettings,
   SearchEngine,
   RenderLayout,
   TemplateOverrides,
@@ -9,6 +13,7 @@ import type {
 } from '@/bindings'
 import AddIcon from '~icons/material-symbols/add-rounded'
 import DeleteIcon from '~icons/material-symbols/delete-outline-rounded'
+import FolderIcon from '~icons/material-symbols/folder-open-outline-rounded'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -23,6 +28,12 @@ const layouts: Array<{ value: RenderLayout; label: string }> = [
   { value: 'SingleHtml', label: '全书一个文件' },
   { value: 'SplitChapters', label: '每章一个文件' },
   { value: 'Paged', label: '一个文件，章节分页' }
+]
+
+const exportLocations: Array<{ value: ExportLocation; label: string }> = [
+  { value: 'SourceFolder', label: 'txt 所在目录' },
+  { value: 'DataFolder', label: '数据目录' },
+  { value: 'Custom', label: '自定义目录' }
 ]
 
 const templates: Array<{
@@ -82,6 +93,16 @@ export function SettingsEditor({
         )
       }
     }))
+  const exporting = (patch: Partial<ExportSettings>) =>
+    onChange((form) => ({ ...form, export: { ...form.export, ...patch } }))
+  async function chooseExportDirectory() {
+    const directory = await openDialog({
+      directory: true,
+      defaultPath: form.export.custom_directory.trim() || undefined
+    })
+    if (typeof directory === 'string')
+      exporting({ location: 'Custom', custom_directory: directory })
+  }
   const render = (patch: Partial<RenderSettings>) =>
     onChange((form) => ({ ...form, render: { ...form.render, ...patch } }))
   const template = (key: keyof TemplateOverrides, value: string | null) =>
@@ -266,6 +287,70 @@ export function SettingsEditor({
               添加图片源
             </Button>
           </fieldset>
+        </Section>
+      )}
+
+      {global && (
+        <Section
+          title="导出位置"
+          description="未填写保存路径时，「另存为」对话框默认打开的目录（仅桌面版）。"
+        >
+          <div
+            role="radiogroup"
+            aria-label="导出位置"
+            className="inline-flex rounded-full border border-input p-0.5"
+          >
+            {exportLocations.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="radio"
+                aria-checked={form.export.location === item.value}
+                onClick={() => exporting({ location: item.value })}
+                className={cn(
+                  'h-8 rounded-full px-3.5 text-xs font-medium transition-colors',
+                  form.export.location === item.value
+                    ? 'bg-secondary text-secondary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {form.export.location === 'DataFolder' && (
+            <p className="text-xs text-muted-foreground">
+              数据目录下的 exports 文件夹；便携版即 wbook.exe 旁的
+              data\exports。
+            </p>
+          )}
+          {form.export.location === 'Custom' && (
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="自定义导出目录"
+                value={form.export.custom_directory}
+                onChange={(event) =>
+                  exporting({ custom_directory: event.target.value })
+                }
+                placeholder="C:\Books"
+                autoComplete="off"
+                spellCheck={false}
+                className="h-9 min-w-0 flex-1"
+              />
+              {isTauri() && (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="选择导出目录"
+                  title="选择导出目录"
+                  onClick={() => void chooseExportDirectory()}
+                >
+                  <FolderIcon aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+          )}
         </Section>
       )}
 

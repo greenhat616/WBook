@@ -2,7 +2,7 @@ use std::fs;
 
 use camino::Utf8PathBuf;
 
-use super::{SaveError, Settings, SettingsStore};
+use super::{ExportLocation, ExportSettings, SaveError, Settings, SettingsStore};
 use crate::export::{RenderLayout, TemplateOverrides};
 use crate::parser::toc::{TocMode, VolumeSplit};
 use crate::workspace::FilterConfig;
@@ -177,4 +177,41 @@ fn files_without_cover_search_get_the_default_sources() {
     let stored = SettingsStore::load(&path).get();
     assert_eq!(stored.problem, None);
     assert_eq!(stored.settings.cover_search, Default::default());
+}
+
+#[test]
+fn export_directory_follows_the_chosen_location() {
+    let source = Utf8PathBuf::from("books/novel.txt");
+    let data = Utf8PathBuf::from("data");
+    let custom = Utf8PathBuf::from_path_buf(std::env::temp_dir()).unwrap();
+    let at = |location| {
+        ExportSettings {
+            location,
+            custom_directory: format!(" {custom} "),
+        }
+        .directory(&source, &data)
+    };
+    assert_eq!(at(ExportLocation::SourceFolder), "books");
+    assert_eq!(at(ExportLocation::DataFolder), data.join("exports"));
+    assert_eq!(at(ExportLocation::Custom), custom);
+}
+
+#[test]
+fn a_custom_export_directory_must_be_absolute() {
+    let with = |location, directory: &str| {
+        Settings {
+            export: ExportSettings {
+                location,
+                custom_directory: directory.into(),
+            },
+            ..Default::default()
+        }
+        .validate()
+    };
+    let absolute = std::env::temp_dir();
+    assert!(with(ExportLocation::Custom, absolute.to_str().unwrap()).is_ok());
+    assert!(with(ExportLocation::Custom, "").is_err());
+    assert!(with(ExportLocation::Custom, "books").is_err());
+    // An unused custom directory is kept as typed.
+    assert!(with(ExportLocation::SourceFolder, "books").is_ok());
 }

@@ -21,7 +21,10 @@ export function validateSettingsForm(form: SettingsForm): string | null {
   return (
     validateTocForm(form.toc) ??
     (form.render.language.trim() ? null : '语言不能为空') ??
-    validateCoverSearch(form.cover_search)
+    validateCoverSearch(form.cover_search) ??
+    (form.export.location === 'Custom' && !form.export.custom_directory.trim()
+      ? '请填写自定义导出目录'
+      : null)
   )
 }
 

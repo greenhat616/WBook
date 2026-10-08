@@ -21,6 +21,11 @@ export const commands = {
 	openCoverSearch: (sessionId: SessionId, url: string) => __TAURI_INVOKE<null>("open_cover_search", { sessionId, url }),
 	/**  Downloads a picked image and makes it the cover. */
 	setCoverFromUrl: (sessionId: SessionId, expected: Revision, url: string, referer: string | null) => __TAURI_INVOKE<OperationResponse<Revision>>("set_cover_from_url", { sessionId, expected, url, referer }),
+	/**
+	 *  Where the save dialog opens for this book; created so the dialog can
+	 *  open there instead of falling back to the system default.
+	 */
+	exportDirectory: (sessionId: SessionId) => __TAURI_INVOKE<string>("export_directory", { sessionId }),
 	windowReady: () => __TAURI_INVOKE<null>("window_ready"),
 	saveSettings: (expected: number, settings: Settings) => __TAURI_INVOKE<StoredSettings>("save_settings", { expected, settings }),
 	/**  The session starts from a copy of the current global settings. */
@@ -47,7 +52,7 @@ export const events = {
 };
 
 /* Constants */
-export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window","open_settings_window","open_session_settings_window","open_cover_search","set_cover_from_url","window_ready"] as const;
+export const DESKTOP_ONLY_COMMANDS = ["get_port","open_session_window","open_settings_window","open_session_settings_window","open_cover_search","set_cover_from_url","export_directory","window_ready"] as const;
 
 /* Types */
 export type Activity = "Idle" | { Running: {
@@ -122,12 +127,21 @@ export type EditBatch = {
 
 export type ErrorKind = "invalid_params" | "method_not_found" | "platform_unsupported" | "not_found" | "shutting_down" | "busy" | "unavailable" | "closing" | "closed" | "invalid_config" | "stale_revision" | "no_document" | "already_initialized" | "results_not_current" | "read_too_large" | "cancelled" | "panicked" | "extractor" | "document" | "pipeline" | "export" | "network" | "internal_error";
 
+/**  Where the save dialog opens when no destination has been typed. */
+export type ExportLocation = "SourceFolder" | "DataFolder" | "Custom";
+
 export type ExportOptions = {
 	render: RenderOptions,
 	format: OutputFormat,
 	language: string,
 	identifier: string | null,
 	cover: CoverSettings,
+};
+
+export type ExportSettings = {
+	location: ExportLocation,
+	/**  Kept while another location is chosen, so switching back restores it. */
+	custom_directory: string,
 };
 
 export type ExportedBook = {
@@ -277,6 +291,8 @@ export type Settings = {
 	cover: CoverSettings,
 	/**  Used from the global settings only; a session's copy is ignored. */
 	cover_search: CoverSearchSettings,
+	/**  Used from the global settings only; a session's copy is ignored. */
+	export: ExportSettings,
 };
 
 export type StoredSettings = {
@@ -475,6 +491,7 @@ export const mutations = {
 	openSessionSettingsWindow: () => mutationOptions({ mutationKey: ["openSessionSettingsWindow"], mutationFn: (input: { sessionId: Parameters<typeof commands.openSessionSettingsWindow>[0] }) => commands.openSessionSettingsWindow(input.sessionId) }),
 	openCoverSearch: () => mutationOptions({ mutationKey: ["openCoverSearch"], mutationFn: (input: { sessionId: Parameters<typeof commands.openCoverSearch>[0]; url: Parameters<typeof commands.openCoverSearch>[1] }) => commands.openCoverSearch(input.sessionId, input.url) }),
 	setCoverFromUrl: () => mutationOptions({ mutationKey: ["setCoverFromUrl"], mutationFn: (input: { sessionId: Parameters<typeof commands.setCoverFromUrl>[0]; expected: Parameters<typeof commands.setCoverFromUrl>[1]; url: Parameters<typeof commands.setCoverFromUrl>[2]; referer: Parameters<typeof commands.setCoverFromUrl>[3] }) => commands.setCoverFromUrl(input.sessionId, input.expected, input.url, input.referer) }),
+	exportDirectory: () => mutationOptions({ mutationKey: ["exportDirectory"], mutationFn: (input: { sessionId: Parameters<typeof commands.exportDirectory>[0] }) => commands.exportDirectory(input.sessionId) }),
 	windowReady: () => mutationOptions({ mutationKey: ["windowReady"], mutationFn: () => commands.windowReady() }),
 	saveSettings: () => mutationOptions({ mutationKey: ["saveSettings"], mutationFn: (input: { expected: Parameters<typeof commands.saveSettings>[0]; settings: Parameters<typeof commands.saveSettings>[1] }) => commands.saveSettings(input.expected, input.settings) }),
 	createSession: () => mutationOptions({ mutationKey: ["createSession"], mutationFn: (input: { source: Parameters<typeof commands.createSession>[0] }) => commands.createSession(input.source) }),
@@ -497,6 +514,7 @@ export const mutationKeys = {
 	openSessionSettingsWindow: () => ["openSessionSettingsWindow"],
 	openCoverSearch: () => ["openCoverSearch"],
 	setCoverFromUrl: () => ["setCoverFromUrl"],
+	exportDirectory: () => ["exportDirectory"],
 	windowReady: () => ["windowReady"],
 	saveSettings: () => ["saveSettings"],
 	createSession: () => ["createSession"],
