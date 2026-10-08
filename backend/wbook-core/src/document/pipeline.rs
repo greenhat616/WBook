@@ -66,17 +66,19 @@ impl ProcessingDocument {
 
     pub fn metadata(&self) -> Result<Metadata, PipelineError> {
         let automatic = &self.current_results()?.metadata;
+        let overrides = &self.metadata_overrides;
+        let pick = |field: fn(&Metadata) -> &Option<String>| {
+            field(overrides)
+                .clone()
+                .or_else(|| field(automatic).clone())
+        };
         Ok(Metadata {
-            title: self
-                .metadata_overrides
-                .title
-                .clone()
-                .or_else(|| automatic.title.clone()),
-            author: self
-                .metadata_overrides
-                .author
-                .clone()
-                .or_else(|| automatic.author.clone()),
+            title: pick(|m| &m.title),
+            author: pick(|m| &m.author),
+            isbn: pick(|m| &m.isbn),
+            publisher: pick(|m| &m.publisher),
+            published: pick(|m| &m.published),
+            description: pick(|m| &m.description),
         })
     }
 

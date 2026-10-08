@@ -65,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
         Metadata {
             title: Some("Session pipeline example".into()),
             author: Some("WBook".into()),
+            ..Metadata::default()
         },
     )?)
     .await?;

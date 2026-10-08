@@ -16,8 +16,8 @@ use crate::export::{
 use crate::extractor::{Extractor, ExtractorError, ParsedContent, ProcessOptions, SimpleExtractor};
 use crate::parser::toc::TocParserConfig;
 use crate::parser::{
-    AdFilterParser, FilterParser, Metadata, MetadataParser, ParserError, SimpleMetadataParser,
-    TocParser,
+    AdFilterParser, FilterParser, Metadata, MetadataError, MetadataParser, ParserError,
+    SimpleMetadataParser, TocParser,
 };
 use crate::settings::{Settings, SettingsError};
 use crate::types::TextRange;
@@ -129,6 +129,8 @@ pub enum Phase {
 pub enum WorkspaceError {
     #[snafu(context(false), display("{source}"))]
     InvalidConfig { source: SettingsError },
+    #[snafu(context(false), display("{source}"))]
+    InvalidMetadata { source: MetadataError },
     #[snafu(display("stale workspace revision: expected {expected:?}, actual {actual:?}"))]
     StaleRevision {
         expected: Revision,
@@ -448,6 +450,7 @@ impl Workspace {
     ) -> Result<Revision, WorkspaceError> {
         self.check_revision(expected)?;
         (cx.report)(Phase::Editing);
+        overrides.validate()?;
         check_cancelled(cx.ct)?;
         self.commit(|state| {
             let document = state.document.as_mut().ok_or(WorkspaceError::NoDocument)?;

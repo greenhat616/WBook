@@ -5,6 +5,10 @@
 <dc:title>{{ book.title }}</dc:title>
 <dc:language>{{ book.language }}</dc:language>
 {% if book.author %}<dc:creator>{{ book.author }}</dc:creator>{% endif %}
+{% if book.isbn %}<dc:identifier id="isbn">urn:isbn:{{ book.isbn }}</dc:identifier>{% endif %}
+{% if book.publisher %}<dc:publisher>{{ book.publisher }}</dc:publisher>{% endif %}
+{% if book.published %}<dc:date>{{ book.published }}</dc:date>{% endif %}
+{% if book.description %}<dc:description>{{ book.description }}</dc:description>{% endif %}
 <meta property="dcterms:modified">{{ book.modified }}</meta>
 <meta property="rendition:layout">reflowable</meta>
 </metadata>

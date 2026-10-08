@@ -197,6 +197,42 @@ fn layouts_preserve_edited_content_order_and_epub_navigation() {
 }
 
 #[test]
+fn publication_metadata_is_packaged() {
+    let ct = CancellationToken::new();
+    let mut document = book(
+        "第一章 开始
+正文",
+        &chapter_only(),
+    );
+    document.metadata_overrides.isbn = Some("ISBN 978-7-02-000220-7".into());
+    document.metadata_overrides.publisher = Some("人民 & 文学".into());
+    document.metadata_overrides.published = Some("2024-05".into());
+    document.metadata_overrides.description = Some("简介 <一>".into());
+    let output = tempfile::tempdir().unwrap();
+    let path = output.path().join("book.epub");
+    export_epub(&ct, &document, &options(RenderLayout::SingleHtml), &path).unwrap();
+    let files = archive(&path);
+    let opf = roxmltree::Document::parse(&files["EPUB/package.opf"]).unwrap();
+    let text = |name: &str| -> Vec<_> {
+        opf.descendants()
+            .filter(|n| n.tag_name().name() == name)
+            .filter_map(|n| n.text())
+            .collect()
+    };
+    assert_eq!(
+        text("identifier"),
+        ["urn:wbook:test&book", "urn:isbn:9787020002207"]
+    );
+    assert_eq!(text("publisher"), ["人民 & 文学"]);
+    assert_eq!(text("date"), ["2024-05"]);
+    assert_eq!(text("description"), ["简介 <一>"]);
+
+    document.metadata_overrides.isbn = Some("978-7-02-000220-8".into());
+    let error = render_book(&ct, &document, &options(RenderLayout::SingleHtml)).unwrap_err();
+    assert!(error.to_string().contains("ISBN"));
+}
+
+#[test]
 fn escapes_text_without_interpreting_html_or_tera() {
     let text =
         "第一章 <script>\n  a & b <script>\"quoted\" 'apostrophe' {{ book.title }} 中文🙂\n\n尾行";

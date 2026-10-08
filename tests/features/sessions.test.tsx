@@ -24,6 +24,7 @@ import type {
   OperationResponse,
   ClosedSession,
   ExportOptions,
+  Metadata,
   Outcome,
   PreviewInfo,
   SessionSnapshot,
@@ -170,10 +171,18 @@ const snapshot = (session = 1, seq = 0, revision = 0): SessionSnapshot => ({
     }
   }
 })
+const noMetadata: Metadata = {
+  title: null,
+  author: null,
+  isbn: null,
+  publisher: null,
+  published: null,
+  description: null
+}
 const results: WorkspaceResults = {
   results: null,
   current: true,
-  overrides: { title: null, author: null }
+  overrides: noMetadata
 }
 const preview: PreviewInfo = {
   id: 'preview-1',
@@ -593,10 +602,10 @@ describe('session page', () => {
     results: {
       version: { ...version, document_id: [...version.document_id] },
       toc,
-      metadata: { title: '原书名', author: '作者甲' }
+      metadata: { ...noMetadata, title: '原书名', author: '作者甲' }
     },
     current: true,
-    overrides: { title: null, author: null }
+    overrides: noMetadata
   })
   const book = parsed([
     entry(1, '第一卷', 0, [
@@ -865,8 +874,31 @@ describe('session page', () => {
     fireEvent.blur(title)
     await waitFor(() =>
       expect(commands.setMetadataOverrides).toHaveBeenCalledWith(1, 1, {
-        title: '新书名',
-        author: null
+        ...noMetadata,
+        title: '新书名'
+      })
+    )
+  })
+
+  it('saves publication details without dropping the edited title', async () => {
+    await openPage({ ...book, overrides: { ...noMetadata, title: '手改书名' } })
+    commands.setMetadataOverrides.mockResolvedValue(receipt(null, 1))
+    fireEvent.click(screen.getByRole('tab', { name: '书籍信息' }))
+    const save = screen.getByRole('button', { name: '保存出版信息' })
+    expect((save as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText(/^ISBN/), {
+      target: { value: ' 978-7-02-000220-7 ' }
+    })
+    fireEvent.change(screen.getByLabelText('简介'), {
+      target: { value: '一段简介' }
+    })
+    fireEvent.click(save)
+    await waitFor(() =>
+      expect(commands.setMetadataOverrides).toHaveBeenCalledWith(1, 1, {
+        ...noMetadata,
+        title: '手改书名',
+        isbn: '978-7-02-000220-7',
+        description: '一段简介'
       })
     )
   })

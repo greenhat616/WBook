@@ -113,6 +113,12 @@ export type LifecycleState = "Open" | "Closing" | "Closed";
 export type Metadata = {
 	title: string | null,
 	author: string | null,
+	/**  ISBN-10 or ISBN-13, as typed; see [`isbn`] for the packaged form. */
+	isbn: string | null,
+	publisher: string | null,
+	/**  `YYYY`, `YYYY-MM` or `YYYY-MM-DD`, the date forms EPUB requires. */
+	published: string | null,
+	description: string | null,
 };
 
 /**

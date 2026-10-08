@@ -12,6 +12,10 @@ use crate::types::TextRange;
 pub(super) struct PublicationMetadata {
     pub title: String,
     pub author: Option<String>,
+    pub isbn: Option<String>,
+    pub publisher: Option<String>,
+    pub published: Option<String>,
+    pub description: Option<String>,
     pub language: String,
     pub identifier: String,
     pub modified: String,
@@ -76,6 +80,9 @@ pub(super) fn build(
         return Err(invalid("empty document"));
     }
     let meta = document.metadata()?;
+    // Overrides are validated when saved; checking again keeps a bad ISBN
+    // out of the package even if it reached the document another way.
+    meta.validate().map_err(|e| invalid(e.to_string()))?;
     let title = meta
         .title
         .filter(|s| !s.trim().is_empty())
@@ -88,9 +95,14 @@ pub(super) fn build(
     if identifier.trim().is_empty() {
         return Err(invalid("empty identifier"));
     }
+    let present = |value: Option<String>| value.filter(|v| !v.trim().is_empty());
     let metadata = PublicationMetadata {
         title,
-        author: meta.author.filter(|a| !a.trim().is_empty()),
+        author: present(meta.author),
+        isbn: meta.isbn.as_deref().and_then(crate::parser::isbn),
+        publisher: present(meta.publisher),
+        published: present(meta.published),
+        description: present(meta.description),
         language: options.language.clone(),
         identifier,
         modified: jiff::Timestamp::now()
@@ -100,6 +112,8 @@ pub(super) fn build(
     for (field, value) in [
         ("title", metadata.title.as_str()),
         ("author", metadata.author.as_deref().unwrap_or("")),
+        ("publisher", metadata.publisher.as_deref().unwrap_or("")),
+        ("description", metadata.description.as_deref().unwrap_or("")),
         ("identifier", metadata.identifier.as_str()),
     ] {
         xml_text(ct, value, field)?;

@@ -192,6 +192,18 @@ fn commit_table_and_stale_results() {
             .unwrap(),
         Revision(4)
     );
+    assert!(matches!(
+        ws.set_metadata_overrides(
+            &cx,
+            Revision(4),
+            Metadata {
+                isbn: Some("978-7-02-000220-8".into()),
+                ..Metadata::default()
+            }
+        ),
+        Err(WorkspaceError::InvalidMetadata { .. })
+    ));
+    assert_eq!(ws.revision(), Revision(4));
     let before = saved_state(&ws);
     let candidate = ws
         .parse(&cx, TocParserConfig::SplitEvenly { parts: 2 })
@@ -210,6 +222,7 @@ fn commit_table_and_stale_results() {
     let overrides = Metadata {
         title: Some("Manual book".into()),
         author: None,
+        ..Metadata::default()
     };
     assert_eq!(
         ws.set_metadata_overrides(&cx, Revision(5), overrides.clone())
@@ -305,7 +318,8 @@ fn stale_revision_rejects_every_guarded_operation_without_changes() {
             stale,
             Metadata {
                 title: Some("wrong".into()),
-                author: None
+                author: None,
+                ..Metadata::default()
             }
         ),
         Err(WorkspaceError::StaleRevision { .. })
@@ -706,6 +720,7 @@ fn install_validates_document_version_and_ranges_and_preserves_manual_values() {
         Metadata {
             title: Some("Override".into()),
             author: None,
+            ..Metadata::default()
         },
     )
     .unwrap();
@@ -1094,7 +1109,8 @@ fn preview_cleanup_failures_warn_without_overriding_commits_or_replacements() {
                     revision,
                     Metadata {
                         title: Some("Changed".into()),
-                        author: None
+                        author: None,
+                        ..Metadata::default()
                     }
                 )
                 .unwrap(),

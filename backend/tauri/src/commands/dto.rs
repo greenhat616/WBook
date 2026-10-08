@@ -106,6 +106,7 @@ impl From<OpError> for CommandError {
             OpError::Workspace { source } if source.is_cancelled() => ErrorKind::Cancelled,
             OpError::Workspace { source } => match source {
                 WorkspaceError::InvalidConfig { .. } => ErrorKind::InvalidConfig,
+                WorkspaceError::InvalidMetadata { .. } => ErrorKind::InvalidParams,
                 WorkspaceError::StaleRevision { .. } => ErrorKind::StaleRevision,
                 WorkspaceError::NoDocument => ErrorKind::NoDocument,
                 WorkspaceError::AlreadyInitialized => ErrorKind::AlreadyInitialized,

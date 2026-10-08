@@ -106,3 +106,34 @@ fn cancellation_including_empty_input_returns_cancelled() {
         ));
     }
 }
+
+#[test]
+fn isbn_check_digits_are_verified_and_separators_dropped() {
+    use super::isbn;
+    assert_eq!(isbn("978-7-02-000220-7").as_deref(), Some("9787020002207"));
+    assert_eq!(isbn("ISBN：7-02-000220-X").as_deref(), Some("702000220X"));
+    assert_eq!(isbn("7-02-000220-1"), None);
+    assert_eq!(isbn("isbn 0-306-40615-2").as_deref(), Some("0306406152"));
+    assert_eq!(isbn("0-8044-2957-x").as_deref(), Some("080442957X"));
+    assert_eq!(isbn("978-7-02-000220-8"), None);
+    assert_eq!(isbn("97870200022"), None);
+    assert_eq!(isbn("978702000220７"), None);
+}
+
+#[test]
+fn publication_dates_follow_the_epub_date_forms() {
+    let valid = |published: &str| {
+        super::Metadata {
+            published: Some(published.into()),
+            ..Default::default()
+        }
+        .validate()
+        .is_ok()
+    };
+    for date in ["2024", "2024-02", "2024-02-29"] {
+        assert!(valid(date), "{date}");
+    }
+    for date in ["24", "2024-13", "2023-02-29", "2024/02/01", "2024-2-1", ""] {
+        assert!(!valid(date), "{date}");
+    }
+}

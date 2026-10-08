@@ -17,7 +17,7 @@ pub mod metadata;
 pub mod toc;
 
 pub use filter::AdFilterParser;
-pub use metadata::{Metadata, SimpleMetadataParser};
+pub use metadata::{isbn, Metadata, MetadataError, SimpleMetadataParser};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub enum ParserKind {

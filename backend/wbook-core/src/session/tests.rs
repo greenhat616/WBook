@@ -743,6 +743,7 @@ async fn typed_forwarders_return_workspace_results_and_wbook_shuts_down() {
                 Metadata {
                     title: Some("Manual".into()),
                     author: None,
+                    ..Metadata::default()
                 },
             )
             .unwrap(),
@@ -841,6 +842,7 @@ async fn public_session_flow_keeps_manual_results_and_overrides_after_export() {
                 Metadata {
                     title: Some("Override title".into()),
                     author: None,
+                    ..Metadata::default()
                 },
             )
             .unwrap(),
@@ -1009,6 +1011,7 @@ async fn operation_warnings_survive_business_failure_and_close_reports_cleanup_f
                     Metadata {
                         title: Some("Changed".into()),
                         author: None,
+                        ..Metadata::default()
                     },
                 )?;
                 Err(WorkspaceError::NoDocument)

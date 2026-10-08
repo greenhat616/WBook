@@ -31,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { errorMessage } from '@/features/sessions/api'
+import { BookInfoPanel } from '@/features/sessions/components/book-info-panel'
 import { ParserPanel } from '@/features/sessions/components/parser-panel'
 import { PreviewPanel } from '@/features/sessions/components/preview-panel'
 import { TextPanel } from '@/features/sessions/components/text-panel'
@@ -73,10 +74,11 @@ function phaseLabel(phase: Phase | null): string | null {
   return labels[phase]
 }
 
-type Tab = 'text' | 'preview' | 'parser'
+type Tab = 'text' | 'preview' | 'book' | 'parser'
 const tabs: Array<{ value: Tab; label: string }> = [
   { value: 'text', label: '正文' },
   { value: 'preview', label: '预览' },
+  { value: 'book', label: '书籍信息' },
   { value: 'parser', label: '解析规则' }
 ]
 
@@ -476,6 +478,13 @@ export function SessionPage({ sessionId }: { sessionId: number }) {
                       : '目录就绪后才能生成预览。'
                 }
               />
+            ) : tab === 'book' ? (
+              <BookInfoPanel
+                key={`${status?.revision}-${!!results}`}
+                overrides={results?.overrides ?? null}
+                disabled={blocked || !results}
+                onSave={(overrides) => void session.setOverrides(overrides)}
+              />
             ) : (
               session.settings && (
                 <ParserPanel
@@ -523,11 +532,13 @@ function MetadataBar({
 
   // Empty fields fall back to the parsed values, which show as placeholders.
   function commit() {
-    const next = { title: title.trim() || null, author: author.trim() || null }
-    if (
-      next.title !== (overrides?.title ?? null) ||
-      next.author !== (overrides?.author ?? null)
-    ) {
+    if (!overrides) return
+    const next = {
+      ...overrides,
+      title: title.trim() || null,
+      author: author.trim() || null
+    }
+    if (next.title !== overrides.title || next.author !== overrides.author) {
       onSave(next)
     }
   }
