@@ -319,7 +319,7 @@ importers:
         version: 18.4.1(@typescript/typescript6@6.0.2)(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))
       eslint-plugin-prettier:
         specifier: 5.5.6
-        version: 5.5.6(eslint-config-prettier@10.1.8(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1)))(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(prettier@3.9.9)
+        version: 5.5.6(eslint-config-prettier@10.1.8(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1)))(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(prettier@3.9.10)
       eslint-plugin-promise:
         specifier: 7.3.0
         version: 7.3.0(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))
@@ -354,8 +354,8 @@ importers:
         specifier: 4.0.9
         version: 4.0.9(postcss@8.5.29)
       prettier:
-        specifier: 3.9.9
-        version: 3.9.9
+        specifier: 3.9.10
+        version: 3.9.10
       qs:
         specifier: 6.16.0
         version: 6.16.0
@@ -379,7 +379,7 @@ importers:
         version: 2.0.0(postcss-html@2.0.0(postcss@8.5.29))(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
       stylelint-config-recess-order:
         specifier: 7.8.0
-        version: 7.8.0(stylelint-order@8.1.1(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)))(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
+        version: 7.8.0(stylelint-order@8.1.2(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)))(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
       stylelint-config-standard:
         specifier: 40.0.0
         version: 40.0.0(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
@@ -387,8 +387,8 @@ importers:
         specifier: 3.0.0
         version: 3.0.0(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
       stylelint-order:
-        specifier: 8.1.1
-        version: 8.1.1(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
+        specifier: 8.1.2
+        version: 8.1.2(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
       stylelint-scss:
         specifier: 7.3.0
         version: 7.3.0(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
@@ -4633,8 +4633,8 @@ packages:
     resolution: {integrity: sha512-SxToR7P8Y2lWmv/kTzVLC1t/GDI2WGjMwNhLLE9qtH8Q13C+aEmuRlzDst4Up4s0Wc8sF2M+J57iB3cMLqftfg==}
     engines: {node: '>=6.0.0'}
 
-  prettier@3.9.9:
-    resolution: {integrity: sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==}
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -5145,8 +5145,8 @@ packages:
     peerDependencies:
       stylelint: ^17.0.0
 
-  stylelint-order@8.1.1:
-    resolution: {integrity: sha512-LqsEB6VggJuu5v10RtkrQsBObcdwBE7GuAOlwfc/LR3VL/w8UqKX2BOLIjhyGt0Gne/njo7gRNGiJAKhfmPMNw==}
+  stylelint-order@8.1.2:
+    resolution: {integrity: sha512-A+bxnIMVmzkWr6KlIwHnjQqTWBXPlIixoJa962BpK1N5bkhq3lXhKHjs4fY8ecooktjd3B3TtRiqoLSj+MfbxQ==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       stylelint: ^16.18.0 || ^17.0.0
@@ -8579,10 +8579,10 @@ snapshots:
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
 
-  eslint-plugin-prettier@5.5.6(eslint-config-prettier@10.1.8(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1)))(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(prettier@3.9.9):
+  eslint-plugin-prettier@5.5.6(eslint-config-prettier@10.1.8(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1)))(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(prettier@3.9.10):
     dependencies:
       eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
-      prettier: 3.9.9
+      prettier: 3.9.10
       prettier-linter-helpers: 1.0.1
       synckit: 0.11.13
     optionalDependencies:
@@ -10121,7 +10121,7 @@ snapshots:
     dependencies:
       fast-diff: 1.3.0
 
-  prettier@3.9.9: {}
+  prettier@3.9.10: {}
 
   pretty-format@27.5.1:
     dependencies:
@@ -10693,10 +10693,10 @@ snapshots:
       postcss-html: 2.0.0(postcss@8.5.29)
       stylelint: 17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
 
-  stylelint-config-recess-order@7.8.0(stylelint-order@8.1.1(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)))(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)):
+  stylelint-config-recess-order@7.8.0(stylelint-order@8.1.2(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)))(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)):
     dependencies:
       stylelint: 17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
-      stylelint-order: 8.1.1(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
+      stylelint-order: 8.1.2(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1))
 
   stylelint-config-recommended@18.0.0(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)):
     dependencies:
@@ -10711,7 +10711,7 @@ snapshots:
     dependencies:
       stylelint: 17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)
 
-  stylelint-order@8.1.1(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)):
+  stylelint-order@8.1.2(stylelint@17.16.0(@typescript/typescript6@6.0.2)(supports-color@8.1.1)):
     dependencies:
       postcss: 8.5.29
       postcss-sorting: 10.0.0(postcss@8.5.29)
