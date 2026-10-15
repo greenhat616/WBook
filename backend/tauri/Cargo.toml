@@ -24,8 +24,8 @@ server = { path = "../server" }
 wbook-command-macros = { path = "../wbook-command-macros" }
 
 tauri = { version = "2.1.1", features = [] }
-tauri-specta = { git = "https://github.com/specta-rs/tauri-specta.git", rev = "ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e", features = ["typescript", "derive"] }
-tauri-specta-query = { git = "https://github.com/specta-rs/tauri-specta.git", rev = "ebe38d6e0343a1f2e43fdd8f0b2bec9c294cb23e" }
+tauri-specta = { git = "https://github.com/specta-rs/tauri-specta.git", rev = "2ae915dfef190c85509c77e363773d17720373fc", features = ["typescript", "derive"] }
+tauri-specta-query = { git = "https://github.com/specta-rs/tauri-specta.git", rev = "2ae915dfef190c85509c77e363773d17720373fc" }
 specta-typescript = "=0.0.13"
 axum = "0.8"
 tempfile = "3"
