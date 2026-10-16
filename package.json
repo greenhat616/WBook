@@ -72,7 +72,7 @@
     "colord": "2.10.0",
     "cross-env": "10.1.0",
     "dayjs": "1.11.23",
-    "eslint": "10.12.0",
+    "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-config-standard": "17.1.0",
     "eslint-import-resolver-alias": "1.1.2",
