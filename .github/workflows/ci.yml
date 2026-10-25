@@ -24,7 +24,7 @@ jobs:
           libwebkit2gtk-4.1-dev
           webkit2gtk-driver
           xvfb
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: "./backend/"
           prefix-key: "rust-stable"
@@ -36,7 +36,7 @@ jobs:
         with:
           # pnpm is installed after Node.js and its store is cached below.
           package-manager-cache: false
-          node-version: 24.22.0
+          node-version: 24.22.1
 
       - uses: pnpm/action-setup@v6.1.0
         name: Install pnpm
@@ -91,7 +91,7 @@ jobs:
       # install the toolchain pinned by rust-toolchain.toml
       - name: Rust toolchain
         run: rustup toolchain install --profile minimal
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: "./backend/"
           prefix-key: "rust-stable"
@@ -103,7 +103,7 @@ jobs:
         with:
           # pnpm is installed after Node.js and its store is cached below.
           package-manager-cache: false
-          node-version: 24.22.0
+          node-version: 24.22.1
 
       - uses: pnpm/action-setup@v6.1.0
         name: Install pnpm

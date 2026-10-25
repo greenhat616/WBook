@@ -67,7 +67,7 @@ jobs:
       # install the toolchain pinned by rust-toolchain.toml
       - name: Rust toolchain
         run: rustup toolchain install --profile minimal && rustup target add ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: "./backend/"
           prefix-key: "rust-stable"
@@ -78,7 +78,7 @@ jobs:
         with:
           # pnpm is installed after Node.js and its store is cached below.
           package-manager-cache: false
-          node-version: 24.22.0
+          node-version: 24.22.1
 
       - uses: pnpm/action-setup@v6.1.0
         name: Install pnpm
