@@ -29,7 +29,7 @@
   "dependencies": {
     "@lit/react": "1.0.8",
     "@m3e/react": "2.10.2",
-    "@m3e/web": "2.10.3",
+    "@m3e/web": "2.11.3",
     "@radix-ui/react-slot": "1.5.0",
     "@tanstack/react-query": "5.104.5",
     "@tanstack/react-router": "1.170.45",
@@ -37,7 +37,7 @@
     "@tauri-apps/plugin-dialog": "2.8.4",
     "class-variance-authority": "0.7.1",
     "lit": "3.3.3",
-    "motion": "14.9.0",
+    "motion": "14.10.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "swr": "2.5.1",
@@ -49,8 +49,8 @@
     "@commitlint/config-conventional": "21.2.4",
     "@commitlint/types": "21.2.3",
     "@eslint/compat": "2.1.1",
-    "@iconify/json": "2.2.551",
-    "@tailwindcss/postcss": "4.3.3",
+    "@iconify/json": "2.2.554",
+    "@tailwindcss/postcss": "4.3.5",
     "@tauri-apps/cli": "2.12.4",
     "@testing-library/react": "16.3.3",
     "@types/node": "26.6.6",
@@ -95,7 +95,7 @@
     "qs": "6.17.1",
     "react-helmet": "6.1.0",
     "react-i18next": "17.1.0",
-    "sass": "1.107.1",
+    "sass": "1.108.1",
     "shikiji": "0.10.2",
     "stylelint": "17.16.0",
     "stylelint-config-html": "2.0.0",
@@ -105,7 +105,7 @@
     "stylelint-order": "8.1.2",
     "stylelint-scss": "7.4.0",
     "tailwind-merge": "3.7.0",
-    "tailwindcss": "4.3.3",
+    "tailwindcss": "4.3.5",
     "ts-node": "10.9.2",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "unplugin-icons": "24.0.0",
@@ -117,5 +117,5 @@
     "zod": "4.6.7",
     "zustand": "5.0.15"
   },
-  "packageManager": "pnpm@12.16.1"
+  "packageManager": "pnpm@12.18.0"
 }
