@@ -36,9 +36,9 @@ jobs:
         with:
           # pnpm is installed after Node.js and its store is cached below.
           package-manager-cache: false
-          node-version: 24.22.2
+          node-version: 24.22.3
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
         name: Install pnpm
         with:
           run_install: false
@@ -103,9 +103,9 @@ jobs:
         with:
           # pnpm is installed after Node.js and its store is cached below.
           package-manager-cache: false
-          node-version: 24.22.2
+          node-version: 24.22.3
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
         name: Install pnpm
         with:
           run_install: false
