@@ -18,7 +18,7 @@ unicode-bom = "2"
 slab = "0.4"
 str-utils = "0.3"
 
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
 language-tags = "0.3"
 tempfile = "3"

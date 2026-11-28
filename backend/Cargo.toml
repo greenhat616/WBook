@@ -19,7 +19,7 @@ snafu = "0.9.1"
 config = "0.15"
 
 camino = { version = "1", features = ["serde1"] }
-jiff = { version = "0.2", features = ["serde"] }
+jiff = { version = "1.0", features = ["serde"] }
 regex = "1.10"
 
 serde = { version = "1", features = ["derive", "rc"] }
